@@ -1,11 +1,376 @@
 import type { Express } from "express";
 import { createServer, type Server } from "node:http";
+import { storage } from "./storage";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // put application routes here
-  // prefix all routes with /api
+  app.get("/api/categories", async (_req, res) => {
+    try {
+      const categories = await storage.getCategories();
+      res.json(categories);
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+      res.status(500).json({ error: "Failed to fetch categories" });
+    }
+  });
+
+  app.get("/api/locations", async (_req, res) => {
+    try {
+      const locations = await storage.getLocations();
+      res.json(locations);
+    } catch (error) {
+      console.error("Error fetching locations:", error);
+      res.status(500).json({ error: "Failed to fetch locations" });
+    }
+  });
+
+  app.get("/api/locations/:id", async (req, res) => {
+    try {
+      const location = await storage.getLocationById(req.params.id);
+      if (!location) {
+        return res.status(404).json({ error: "Location not found" });
+      }
+      res.json(location);
+    } catch (error) {
+      console.error("Error fetching location:", error);
+      res.status(500).json({ error: "Failed to fetch location" });
+    }
+  });
+
+  app.get("/api/locations/category/:categoryId", async (req, res) => {
+    try {
+      const locations = await storage.getLocationsByCategory(req.params.categoryId);
+      res.json(locations);
+    } catch (error) {
+      console.error("Error fetching locations by category:", error);
+      res.status(500).json({ error: "Failed to fetch locations" });
+    }
+  });
+
+  app.get("/api/locations/nearby", async (req, res) => {
+    try {
+      const { lat, lng, radius = "5" } = req.query;
+      if (!lat || !lng) {
+        return res.status(400).json({ error: "Latitude and longitude are required" });
+      }
+      const locations = await storage.getNearbyLocations(
+        parseFloat(lat as string),
+        parseFloat(lng as string),
+        parseFloat(radius as string)
+      );
+      res.json(locations);
+    } catch (error) {
+      console.error("Error fetching nearby locations:", error);
+      res.status(500).json({ error: "Failed to fetch nearby locations" });
+    }
+  });
+
+  app.post("/api/locations", async (req, res) => {
+    try {
+      const location = await storage.createLocation(req.body);
+      res.status(201).json(location);
+    } catch (error) {
+      console.error("Error creating location:", error);
+      res.status(500).json({ error: "Failed to create location" });
+    }
+  });
+
+  app.put("/api/locations/:id", async (req, res) => {
+    try {
+      const location = await storage.updateLocation(req.params.id, req.body);
+      if (!location) {
+        return res.status(404).json({ error: "Location not found" });
+      }
+      res.json(location);
+    } catch (error) {
+      console.error("Error updating location:", error);
+      res.status(500).json({ error: "Failed to update location" });
+    }
+  });
+
+  app.get("/api/regions", async (_req, res) => {
+    try {
+      const regions = await storage.getRegions();
+      res.json(regions);
+    } catch (error) {
+      console.error("Error fetching regions:", error);
+      res.status(500).json({ error: "Failed to fetch regions" });
+    }
+  });
+
+  app.get("/api/routes", async (_req, res) => {
+    try {
+      const routes = await storage.getRoutes();
+      res.json(routes);
+    } catch (error) {
+      console.error("Error fetching routes:", error);
+      res.status(500).json({ error: "Failed to fetch routes" });
+    }
+  });
+
+  app.get("/api/routes/:id", async (req, res) => {
+    try {
+      const route = await storage.getRouteById(req.params.id);
+      if (!route) {
+        return res.status(404).json({ error: "Route not found" });
+      }
+      const stops = await storage.getRouteStops(req.params.id);
+      res.json({ ...route, stops });
+    } catch (error) {
+      console.error("Error fetching route:", error);
+      res.status(500).json({ error: "Failed to fetch route" });
+    }
+  });
+
+  app.post("/api/routes", async (req, res) => {
+    try {
+      const route = await storage.createRoute(req.body);
+      res.status(201).json(route);
+    } catch (error) {
+      console.error("Error creating route:", error);
+      res.status(500).json({ error: "Failed to create route" });
+    }
+  });
+
+  app.post("/api/routes/:routeId/stops", async (req, res) => {
+    try {
+      const stop = await storage.createRouteStop({
+        ...req.body,
+        routeId: req.params.routeId,
+      });
+      res.status(201).json(stop);
+    } catch (error) {
+      console.error("Error creating route stop:", error);
+      res.status(500).json({ error: "Failed to create route stop" });
+    }
+  });
+
+  app.post("/api/seed", async (_req, res) => {
+    try {
+      const existingCategories = await storage.getCategories();
+      if (existingCategories.length > 0) {
+        return res.json({ message: "Database already seeded" });
+      }
+
+      const ghost = await storage.createCategory({
+        name: "Ghosts & Hauntings",
+        slug: "ghost",
+        color: "#9B8AA4",
+        iconName: "cloud",
+        description: "Spectral encounters and haunted locations",
+      });
+
+      const folklore = await storage.createCategory({
+        name: "Folklore & Legends",
+        slug: "folklore",
+        color: "#7A8450",
+        iconName: "book-open",
+        description: "Ancient stories and mythical tales",
+      });
+
+      const historical = await storage.createCategory({
+        name: "Historical Events",
+        slug: "historical",
+        color: "#8B7355",
+        iconName: "clock",
+        description: "Significant moments in history",
+      });
+
+      const fortean = await storage.createCategory({
+        name: "Fortean Phenomena",
+        slug: "fortean",
+        color: "#6B5B8E",
+        iconName: "eye",
+        description: "Unexplained and mysterious occurrences",
+      });
+
+      const london = await storage.createRegion({
+        name: "London",
+        slug: "london",
+        description: "The historic capital of England",
+        isFree: true,
+      });
+
+      const seedLocations = [
+        {
+          name: "Tower of London",
+          slug: "tower-of-london",
+          description: "A historic castle with centuries of dark history and numerous ghost sightings.",
+          story: "The Tower of London, built in 1066, has served as a royal palace, prison, and execution site. Among its most famous ghosts is Anne Boleyn, the second wife of Henry VIII, who was beheaded here in 1536. Guards and visitors have reported seeing her headless figure walking the Tower grounds, particularly near the Chapel of St Peter ad Vincula where she is buried. The ghost of Lady Jane Grey, the 'Nine Days Queen', has also been spotted, especially around the anniversary of her execution. Perhaps most chilling are the reports of the two young princes, Edward V and his brother Richard, who disappeared in the Tower in 1483 and are believed to have been murdered. Their small, sad figures have been seen holding hands in various parts of the fortress.",
+          latitude: 51.5081,
+          longitude: -0.0759,
+          address: "Tower of London, London EC3N 4AB",
+          categoryId: ghost.id,
+          regionId: london.id,
+          sourceAttribution: "Historic Royal Palaces",
+        },
+        {
+          name: "Highgate Cemetery",
+          slug: "highgate-cemetery",
+          description: "Victorian cemetery famous for the Highgate Vampire legend and supernatural occurrences.",
+          story: "Highgate Cemetery, opened in 1839, became the center of a vampire panic in the late 1960s and early 1970s. Local residents reported seeing a tall, dark figure with hypnotic eyes gliding through the overgrown graves. The 'Highgate Vampire' captured public imagination when self-proclaimed vampire hunters held vigils and searches. While skeptics attributed the sightings to foxes and overactive imaginations, the cemetery's Gothic atmosphere—with its crumbling monuments, Egyptian Avenue, and Circle of Lebanon—continues to inspire supernatural speculation. Notable residents include Karl Marx, Douglas Adams, and Christina Rossetti, and many visitors report feelings of being watched or sudden temperature drops in certain areas.",
+          latitude: 51.5677,
+          longitude: -0.1467,
+          address: "Swain's Lane, London N6 6PJ",
+          categoryId: fortean.id,
+          regionId: london.id,
+          sourceAttribution: "Friends of Highgate Cemetery",
+        },
+        {
+          name: "The Ten Bells",
+          slug: "the-ten-bells",
+          description: "Historic Spitalfields pub associated with Jack the Ripper and Victorian London's dark past.",
+          story: "The Ten Bells pub on Commercial Street has stood since 1752, but its notoriety stems from its connection to Jack the Ripper. At least two of the Ripper's victims—Annie Chapman and Mary Jane Kelly—were known to drink here before their murders in 1888. The pub's upper floors, once used as doss houses, are said to be haunted by a woman in Victorian dress, believed by some to be the spirit of Annie Chapman herself. Staff have reported glasses moving on their own, sudden cold spots, and the sound of footsteps on empty staircases. The pub embraces its dark heritage while serving as a reminder of Whitechapel's grim Victorian history.",
+          latitude: 51.5198,
+          longitude: -0.0744,
+          address: "84 Commercial Street, London E1 6LY",
+          categoryId: ghost.id,
+          regionId: london.id,
+          sourceAttribution: "Jack the Ripper Historical Society",
+        },
+        {
+          name: "London Stone",
+          slug: "london-stone",
+          description: "Ancient limestone block steeped in legend, said to be the foundation of London's destiny.",
+          story: "The London Stone is a block of oolitic limestone that has sat in the city for over 800 years, though some legends claim it dates back to ancient times. Medieval chronicles suggested it was brought to Britain by Brutus of Troy, the legendary founder of London. Others believed it was the stone from which King Arthur drew Excalibur. A prophecy attributed to John Dee states 'So long as the Stone of Brutus is safe, so long shall London flourish.' Jack Cade, leader of a 1450 rebellion, struck the stone with his sword upon entering the city, claiming it made him 'Lord of London.' Now housed in Cannon Street, this unassuming relic continues to captivate those who sense the ancient power it represents.",
+          latitude: 51.5115,
+          longitude: -0.0903,
+          address: "111 Cannon Street, London EC4N 5AR",
+          categoryId: folklore.id,
+          regionId: london.id,
+          sourceAttribution: "Museum of London",
+        },
+        {
+          name: "Boudicca's Grave",
+          slug: "boudiccas-grave",
+          description: "Legendary burial site of the warrior queen beneath Platform 10 at King's Cross.",
+          story: "Legend has it that the great warrior queen Boudicca is buried beneath Platform 10 at King's Cross Station. After leading her famous revolt against Roman occupation in 60-61 AD, Boudicca died—whether by poison, illness, or in battle remains disputed. Victorian antiquarians speculated that her body was buried at the site of her final battle against the Romans, which some placed near Battle Bridge (now King's Cross). While there is no archaeological evidence to support this claim, the legend persists. Some railway workers have reported unexplained occurrences on Platform 10, including the sound of horses' hooves and the clash of weapons. Whether myth or memory, Boudicca's spirit seems to linger in this busy transport hub.",
+          latitude: 51.5309,
+          longitude: -0.1233,
+          address: "King's Cross Station, London N1 9AL",
+          categoryId: folklore.id,
+          regionId: london.id,
+          sourceAttribution: "London Legends Archive",
+        },
+        {
+          name: "The Grenadier",
+          slug: "the-grenadier",
+          description: "Allegedly London's most haunted pub, home to the ghost of a soldier who died gambling.",
+          story: "Tucked away in Wilton Row, The Grenadier dates from 1720 and was once the officers' mess for the Duke of Wellington's regiment. The pub is said to be haunted by a young guardsman named Cedric who was caught cheating at cards and beaten to death by his fellow soldiers. His ghost is most active in September, the month of his murder. Manifestations include objects moving by themselves, sudden temperature drops, rattling bottles, and a shadowy figure in period military dress. Visitors leave coins stuck to the ceiling to appease Cedric's spirit. The pub's secluded location—down a cobbled mews—adds to its supernatural atmosphere.",
+          latitude: 51.5027,
+          longitude: -0.1528,
+          address: "18 Wilton Row, London SW1X 7NR",
+          categoryId: ghost.id,
+          regionId: london.id,
+          sourceAttribution: "Haunted Britain Database",
+        },
+        {
+          name: "Spring-Heeled Jack Sighting",
+          slug: "spring-heeled-jack",
+          description: "Site of the infamous 1838 encounter with a devil-like figure that could leap over walls.",
+          story: "In February 1838, Jane Alsop answered a knock at her door in Bearbinder Lane, Bow. A cloaked figure claiming to be a policeman asked for a light. When Jane returned with a candle, the figure threw off his cloak, revealing a tight-fitting white costume, pointed ears, and glowing eyes. He breathed blue and white flames at her and attacked with metallic claws. Jane's sister saved her by pulling her inside. This was the most famous encounter with Spring-Heeled Jack, a mysterious figure who terrorized Victorian London with his supernatural leaping ability and diabolical appearance. Sightings continued for decades across Britain. Whether mass hysteria, elaborate pranks, or something truly unexplained, Spring-Heeled Jack became one of Victorian England's most enduring mysteries.",
+          latitude: 51.5284,
+          longitude: -0.0293,
+          address: "Bearbinder Lane (now Bow Road), London E3",
+          categoryId: fortean.id,
+          regionId: london.id,
+          sourceAttribution: "Fortean Times Archives",
+        },
+        {
+          name: "Execution Dock",
+          slug: "execution-dock",
+          description: "Historic site where pirates were hanged and left to rot, their ghosts still seen at low tide.",
+          story: "For over 400 years, pirates, smugglers, and mutineers were executed at Execution Dock in Wapping. The condemned were hanged at low tide using a short drop, causing a slow, agonizing death. Their bodies were then left until three tides had washed over them—a ritual to demonstrate Admiralty jurisdiction over maritime crimes. The most famous execution was that of Captain William Kidd in 1701, whose tarred body was displayed in a gibbet for three years as a warning to others. Today, at low tide, visitors report seeing phantom figures along the foreshore and hearing the creak of gallows and the jeering of crowds. The Captain Kidd pub nearby marks the approximate location.",
+          latitude: 51.5066,
+          longitude: -0.0545,
+          address: "Wapping High Street, London E1W 2NJ",
+          categoryId: historical.id,
+          regionId: london.id,
+          sourceAttribution: "Port of London Authority Archives",
+        },
+        {
+          name: "The Black Dog of Newgate",
+          slug: "black-dog-newgate",
+          description: "Phantom hound said to appear before executions at the site of the notorious prison.",
+          story: "Newgate Prison, which stood on the site now occupied by the Old Bailey, was notorious for its brutality and squalor. During a famine in the reign of Henry III, starving prisoners allegedly killed and ate a scholar accused of sorcery. Shortly after, a monstrous black dog with eyes of fire appeared in the prison, terrorizing and killing inmates. The dog was said to appear before executions, padding silently down the corridors or being seen by the condemned in their final hours. Even after the prison's demolition in 1904, the Black Dog of Newgate has been reported in Amen Court nearby, where a dark, amorphous shape is sometimes seen crawling along the walls on quiet nights.",
+          latitude: 51.5157,
+          longitude: -0.1017,
+          address: "Old Bailey, London EC4M 7EH",
+          categoryId: folklore.id,
+          regionId: london.id,
+          sourceAttribution: "London Folklore Society",
+        },
+        {
+          name: "Cleopatra's Needle",
+          slug: "cleopatras-needle",
+          description: "Ancient Egyptian obelisk said to be cursed, with mysterious suicide connections.",
+          story: "Despite its name, Cleopatra's Needle has no connection to the famous queen—it was created 1,000 years before her reign. This 3,500-year-old obelisk was transported from Egypt in 1878, a journey that nearly ended in disaster when the ship carrying it sank in a Bay of Biscay storm, killing six sailors. Since its erection on the Victoria Embankment, the monument has been associated with a disproportionate number of suicides in its vicinity. Witnesses have reported seeing a ghostly naked figure running toward the obelisk before diving into the Thames and vanishing. Others describe strange moaning sounds and the laughter of unseen children. The bronze sphinxes guarding the needle bear shrapnel scars from a WWI Zeppelin raid, adding another layer of dark history.",
+          latitude: 51.5083,
+          longitude: -0.1165,
+          address: "Victoria Embankment, London WC2N 6PB",
+          categoryId: fortean.id,
+          regionId: london.id,
+          sourceAttribution: "Thames Mysteries Archive",
+        },
+        {
+          name: "Bleeding Heart Yard",
+          slug: "bleeding-heart-yard",
+          description: "Courtyard named after a grisly 17th century murder with demonic connections.",
+          story: "This small courtyard in Clerkenwell takes its name from a gruesome legend. In January 1626, Lady Elizabeth Hatton attended a ball at Hatton House. During the evening, she was seen dancing with a handsome stranger believed by some to be the Devil himself. At midnight, a scream was heard, and guests found the courtyard empty save for Lady Elizabeth's body—torn limb from limb, her heart still pumping blood onto the cobblestones. The mysterious stranger was never found. Some say the Devil had come to collect on a pact made by Lady Elizabeth's husband, Sir Christopher Hatton. The yard still exists today, home to restaurants and offices, but those who work there late at night sometimes report the sound of a woman's scream and a faint smell of brimstone.",
+          latitude: 51.5219,
+          longitude: -0.1079,
+          address: "Bleeding Heart Yard, London EC1N 8SJ",
+          categoryId: folklore.id,
+          regionId: london.id,
+          sourceAttribution: "Clerkenwell Historical Society",
+        },
+        {
+          name: "The Plague Pits of Aldgate",
+          slug: "plague-pits-aldgate",
+          description: "Mass graves from the Great Plague, now beneath modern streets with reported hauntings.",
+          story: "During the Great Plague of 1665, when around 100,000 Londoners perished, mass graves were dug throughout the city to cope with the overwhelming number of dead. One of the largest plague pits lies beneath the streets around Aldgate station. When the Underground was being constructed in the 1870s, workers uncovered thousands of skeletons and reported strange experiences—tools moving on their own, unexplained illness, and feelings of overwhelming dread. Today, Tube workers on the Circle Line sometimes report seeing a figure in 17th-century dress on the platforms late at night, or hearing the cries of plague victims echoing through the tunnels. Some believe disturbing the dead has released restless spirits into the modern world.",
+          latitude: 51.5141,
+          longitude: -0.0755,
+          address: "Aldgate Station, London EC3N 1AH",
+          categoryId: ghost.id,
+          regionId: london.id,
+          sourceAttribution: "Transport for London Heritage",
+        },
+      ];
+
+      for (const loc of seedLocations) {
+        await storage.createLocation(loc);
+      }
+
+      const route1 = await storage.createRoute({
+        name: "Haunted City Walk",
+        slug: "haunted-city-walk",
+        description: "Explore the ghostly corners of the City of London, from ancient plague pits to execution sites.",
+        estimatedDurationMinutes: 90,
+        distanceMeters: 3200,
+        difficulty: "easy",
+        regionId: london.id,
+      });
+
+      const locations = await storage.getLocations();
+      const cityLocations = locations.filter(l => 
+        ["tower-of-london", "plague-pits-aldgate", "execution-dock", "london-stone", "black-dog-newgate"].includes(l.slug)
+      );
+
+      for (let i = 0; i < cityLocations.length; i++) {
+        await storage.createRouteStop({
+          routeId: route1.id,
+          locationId: cityLocations[i].id,
+          orderIndex: i,
+        });
+      }
+
+      res.status(201).json({ message: "Database seeded successfully" });
+    } catch (error) {
+      console.error("Error seeding database:", error);
+      res.status(500).json({ error: "Failed to seed database" });
+    }
+  });
 
   const httpServer = createServer(app);
-
   return httpServer;
 }

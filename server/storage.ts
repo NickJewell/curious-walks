@@ -1,38 +1,181 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import {
+  categories,
+  locations,
+  regions,
+  routes,
+  routeStops,
+  type Category,
+  type InsertCategory,
+  type Location,
+  type InsertLocation,
+  type Region,
+  type InsertRegion,
+  type Route,
+  type InsertRoute,
+  type RouteStop,
+  type InsertRouteStop,
+} from "@shared/schema";
+import { db } from "./db";
+import { eq, and, sql, asc, desc } from "drizzle-orm";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  getCategories(): Promise<Category[]>;
+  getCategoryBySlug(slug: string): Promise<Category | undefined>;
+  createCategory(category: InsertCategory): Promise<Category>;
+
+  getLocations(): Promise<Location[]>;
+  getLocationById(id: string): Promise<Location | undefined>;
+  getLocationBySlug(slug: string): Promise<Location | undefined>;
+  getLocationsByCategory(categoryId: string): Promise<Location[]>;
+  getLocationsByRegion(regionId: string): Promise<Location[]>;
+  getNearbyLocations(lat: number, lng: number, radiusKm: number): Promise<Location[]>;
+  createLocation(location: InsertLocation): Promise<Location>;
+  updateLocation(id: string, location: Partial<InsertLocation>): Promise<Location | undefined>;
+
+  getRegions(): Promise<Region[]>;
+  getRegionBySlug(slug: string): Promise<Region | undefined>;
+  createRegion(region: InsertRegion): Promise<Region>;
+
+  getRoutes(): Promise<Route[]>;
+  getRouteById(id: string): Promise<Route | undefined>;
+  getRouteBySlug(slug: string): Promise<Route | undefined>;
+  getRoutesByRegion(regionId: string): Promise<Route[]>;
+  createRoute(route: InsertRoute): Promise<Route>;
+
+  getRouteStops(routeId: string): Promise<RouteStop[]>;
+  createRouteStop(stop: InsertRouteStop): Promise<RouteStop>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
+export class DatabaseStorage implements IStorage {
+  async getCategories(): Promise<Category[]> {
+    return db.select().from(categories).orderBy(asc(categories.name));
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getCategoryBySlug(slug: string): Promise<Category | undefined> {
+    const [category] = await db.select().from(categories).where(eq(categories.slug, slug));
+    return category || undefined;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async createCategory(category: InsertCategory): Promise<Category> {
+    const [newCategory] = await db.insert(categories).values(category).returning();
+    return newCategory;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async getLocations(): Promise<Location[]> {
+    return db.select().from(locations).where(eq(locations.isActive, true)).orderBy(asc(locations.name));
+  }
+
+  async getLocationById(id: string): Promise<Location | undefined> {
+    const [location] = await db.select().from(locations).where(eq(locations.id, id));
+    return location || undefined;
+  }
+
+  async getLocationBySlug(slug: string): Promise<Location | undefined> {
+    const [location] = await db.select().from(locations).where(eq(locations.slug, slug));
+    return location || undefined;
+  }
+
+  async getLocationsByCategory(categoryId: string): Promise<Location[]> {
+    return db
+      .select()
+      .from(locations)
+      .where(and(eq(locations.categoryId, categoryId), eq(locations.isActive, true)))
+      .orderBy(asc(locations.name));
+  }
+
+  async getLocationsByRegion(regionId: string): Promise<Location[]> {
+    return db
+      .select()
+      .from(locations)
+      .where(and(eq(locations.regionId, regionId), eq(locations.isActive, true)))
+      .orderBy(asc(locations.name));
+  }
+
+  async getNearbyLocations(lat: number, lng: number, radiusKm: number): Promise<Location[]> {
+    const earthRadiusKm = 6371;
+    const result = await db.execute(sql`
+      SELECT *, (
+        ${earthRadiusKm} * acos(
+          cos(radians(${lat})) * cos(radians(latitude)) *
+          cos(radians(longitude) - radians(${lng})) +
+          sin(radians(${lat})) * sin(radians(latitude))
+        )
+      ) AS distance
+      FROM locations
+      WHERE is_active = true
+      HAVING distance <= ${radiusKm}
+      ORDER BY distance
+    `);
+    return result.rows as Location[];
+  }
+
+  async createLocation(location: InsertLocation): Promise<Location> {
+    const [newLocation] = await db.insert(locations).values(location).returning();
+    return newLocation;
+  }
+
+  async updateLocation(id: string, location: Partial<InsertLocation>): Promise<Location | undefined> {
+    const [updated] = await db
+      .update(locations)
+      .set({ ...location, updatedAt: new Date() })
+      .where(eq(locations.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async getRegions(): Promise<Region[]> {
+    return db.select().from(regions).orderBy(asc(regions.name));
+  }
+
+  async getRegionBySlug(slug: string): Promise<Region | undefined> {
+    const [region] = await db.select().from(regions).where(eq(regions.slug, slug));
+    return region || undefined;
+  }
+
+  async createRegion(region: InsertRegion): Promise<Region> {
+    const [newRegion] = await db.insert(regions).values(region).returning();
+    return newRegion;
+  }
+
+  async getRoutes(): Promise<Route[]> {
+    return db.select().from(routes).where(eq(routes.isActive, true)).orderBy(asc(routes.name));
+  }
+
+  async getRouteById(id: string): Promise<Route | undefined> {
+    const [route] = await db.select().from(routes).where(eq(routes.id, id));
+    return route || undefined;
+  }
+
+  async getRouteBySlug(slug: string): Promise<Route | undefined> {
+    const [route] = await db.select().from(routes).where(eq(routes.slug, slug));
+    return route || undefined;
+  }
+
+  async getRoutesByRegion(regionId: string): Promise<Route[]> {
+    return db
+      .select()
+      .from(routes)
+      .where(and(eq(routes.regionId, regionId), eq(routes.isActive, true)))
+      .orderBy(asc(routes.name));
+  }
+
+  async createRoute(route: InsertRoute): Promise<Route> {
+    const [newRoute] = await db.insert(routes).values(route).returning();
+    return newRoute;
+  }
+
+  async getRouteStops(routeId: string): Promise<RouteStop[]> {
+    return db
+      .select()
+      .from(routeStops)
+      .where(eq(routeStops.routeId, routeId))
+      .orderBy(asc(routeStops.orderIndex));
+  }
+
+  async createRouteStop(stop: InsertRouteStop): Promise<RouteStop> {
+    const [newStop] = await db.insert(routeStops).values(stop).returning();
+    return newStop;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
