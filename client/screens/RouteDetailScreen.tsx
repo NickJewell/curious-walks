@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRoute, RouteProp, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from "react-native-maps";
+import SafeMapView, { Marker, Polyline, PROVIDER_DEFAULT, isMapAvailable } from "@/components/SafeMapView";
 import { useQuery } from "@tanstack/react-query";
 import { Colors, Spacing, BorderRadius, Typography, CategoryColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
@@ -114,7 +114,7 @@ export default function RouteDetailScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.mapContainer}>
-          <MapView
+          <SafeMapView
             style={styles.map}
             provider={PROVIDER_DEFAULT}
             initialRegion={getMapRegion()}
@@ -124,7 +124,7 @@ export default function RouteDetailScreen() {
             rotateEnabled={false}
             userInterfaceStyle="dark"
           >
-            {routeLocations.length > 1 ? (
+            {isMapAvailable && routeLocations.length > 1 ? (
               <Polyline
                 coordinates={routeLocations.map(l => ({
                   latitude: l.latitude,
@@ -134,7 +134,7 @@ export default function RouteDetailScreen() {
                 strokeWidth={3}
               />
             ) : null}
-            {routeLocations.map((location, index) => {
+            {isMapAvailable && Marker ? routeLocations.map((location, index) => {
               const category = getCategory(location.categoryId);
               const color = category ? CategoryColors[category.slug] || Colors.dark.accent : Colors.dark.accent;
               return (
@@ -150,8 +150,8 @@ export default function RouteDetailScreen() {
                   </View>
                 </Marker>
               );
-            })}
-          </MapView>
+            }) : null}
+          </SafeMapView>
         </View>
 
         <View style={styles.content}>

@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
-import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
+import SafeMapView, { Marker, PROVIDER_DEFAULT, isMapAvailable } from "@/components/SafeMapView";
 import { Colors, Spacing, BorderRadius, Typography, CategoryColors, Fonts } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -78,7 +78,7 @@ export default function LocationDetailScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.mapContainer}>
-          <MapView
+          <SafeMapView
             style={styles.map}
             provider={PROVIDER_DEFAULT}
             initialRegion={{
@@ -93,17 +93,19 @@ export default function LocationDetailScreen() {
             rotateEnabled={false}
             userInterfaceStyle="dark"
           >
-            <Marker
-              coordinate={{
-                latitude: location.latitude,
-                longitude: location.longitude,
-              }}
-            >
-              <View style={[styles.marker, { backgroundColor: categoryColor }]}>
-                <Feather name={(category?.iconName as any) || "map-pin"} size={16} color="#FFFFFF" />
-              </View>
-            </Marker>
-          </MapView>
+            {isMapAvailable && Marker ? (
+              <Marker
+                coordinate={{
+                  latitude: location.latitude,
+                  longitude: location.longitude,
+                }}
+              >
+                <View style={[styles.marker, { backgroundColor: categoryColor }]}>
+                  <Feather name={(category?.iconName as any) || "map-pin"} size={16} color="#FFFFFF" />
+                </View>
+              </Marker>
+            ) : null}
+          </SafeMapView>
           <View style={styles.mapGradient} />
         </View>
 

@@ -6,7 +6,8 @@ import {
   Text,
   ActivityIndicator,
 } from "react-native";
-import MapView, { Marker, PROVIDER_DEFAULT, Region } from "react-native-maps";
+import type { Region } from "react-native-maps";
+import SafeMapView, { Marker, PROVIDER_DEFAULT, isMapAvailable } from "@/components/SafeMapView";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
@@ -31,7 +32,7 @@ export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<any>(null);
   
   const [selectedLocation, setSelectedLocation] = useState<LocationType | null>(null);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -116,7 +117,7 @@ export default function MapScreen() {
 
   return (
     <View style={styles.container}>
-      <MapView
+      <SafeMapView
         ref={mapRef}
         style={styles.map}
         provider={PROVIDER_DEFAULT}
@@ -126,7 +127,7 @@ export default function MapScreen() {
         userInterfaceStyle="dark"
         onPress={closePreview}
       >
-        {locations.map((location) => (
+        {isMapAvailable && Marker ? locations.map((location) => (
           <Marker
             key={location.id}
             coordinate={{
@@ -143,8 +144,8 @@ export default function MapScreen() {
               />
             </View>
           </Marker>
-        ))}
-      </MapView>
+        )) : null}
+      </SafeMapView>
 
       <View style={[styles.topControls, { top: insets.top + Spacing.md }]}>
         {userLocation ? (
