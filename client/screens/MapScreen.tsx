@@ -6,7 +6,7 @@ import {
   Text,
   ActivityIndicator,
 } from "react-native";
-import type { Region } from "react-native-maps";
+import type { Region, MapMarkerProps } from "react-native-maps";
 import SafeMapView, { Marker, PROVIDER_GOOGLE, isMapAvailable } from "@/components/SafeMapView";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -60,13 +60,15 @@ export default function MapScreen() {
   }, []);
 
   useEffect(() => {
-    if (userLocation && !hasCenteredOnUser.current && mapRef.current) {
+    if (userLocation && !hasCenteredOnUser.current) {
       hasCenteredOnUser.current = true;
-      mapRef.current.animateToRegion({
-        ...userLocation,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      }, 500);
+      setTimeout(() => {
+        mapRef.current?.animateToRegion({
+          ...userLocation,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        }, 500);
+      }, 300);
     }
   }, [userLocation]);
 
@@ -145,7 +147,7 @@ export default function MapScreen() {
               latitude: location.latitude,
               longitude: location.longitude,
             }}
-            onPress={(e) => {
+            onPress={(e: { stopPropagation: () => void }) => {
               e.stopPropagation();
               handleMarkerPress(location);
             }}
