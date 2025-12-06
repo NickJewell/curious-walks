@@ -140,29 +140,34 @@ export default function MapScreen() {
         userInterfaceStyle="dark"
         onPress={closePreview}
       >
-        {isMapAvailable && Marker ? locations.map((location) => (
-          <Marker
-            key={location.id}
-            coordinate={{
-              latitude: location.latitude,
-              longitude: location.longitude,
-            }}
-            onPress={(e: { stopPropagation: () => void }) => {
-              e.stopPropagation();
-              handleMarkerPress(location);
-            }}
-            tracksViewChanges={false}
-            stopPropagation
-          >
-            <View style={[styles.marker, { backgroundColor: getCategoryColor(location.categoryId) }]}>
-              <Feather 
-                name={getCategory(location.categoryId)?.iconName as any || "map-pin"} 
-                size={16} 
-                color="#FFFFFF" 
-              />
-            </View>
-          </Marker>
-        )) : null}
+        {isMapAvailable && Marker && categories.length > 0 ? locations.map((location) => {
+          const category = getCategory(location.categoryId);
+          const markerColor = category ? CategoryColors[category.slug] || Colors.dark.accent : Colors.dark.accent;
+          const iconName = category?.iconName || "map-pin";
+          return (
+            <Marker
+              key={`${location.id}-${category?.id || 'loading'}`}
+              coordinate={{
+                latitude: location.latitude,
+                longitude: location.longitude,
+              }}
+              onPress={(e: { stopPropagation: () => void }) => {
+                e.stopPropagation();
+                handleMarkerPress(location);
+              }}
+              tracksViewChanges={false}
+              stopPropagation
+            >
+              <View style={[styles.marker, { backgroundColor: markerColor }]}>
+                <Feather 
+                  name={iconName as any} 
+                  size={16} 
+                  color="#FFFFFF" 
+                />
+              </View>
+            </Marker>
+          );
+        }) : null}
       </SafeMapView>
 
       <View style={[styles.topControls, { top: insets.top + Spacing.md }]}>
