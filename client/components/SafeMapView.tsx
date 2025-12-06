@@ -49,7 +49,7 @@ function MapFallback() {
 let MapViewComponent: any = null;
 let MarkerComponent: any = null;
 let PolylineComponent: any = null;
-let PROVIDER_DEFAULT_VALUE: any = undefined;
+let PROVIDER_GOOGLE_VALUE: any = undefined;
 let mapModuleAvailable = false;
 
 try {
@@ -57,7 +57,7 @@ try {
   MapViewComponent = maps.default;
   MarkerComponent = maps.Marker;
   PolylineComponent = maps.Polyline;
-  PROVIDER_DEFAULT_VALUE = maps.PROVIDER_DEFAULT;
+  PROVIDER_GOOGLE_VALUE = maps.PROVIDER_GOOGLE;
   mapModuleAvailable = true;
 } catch (e) {
   console.log("react-native-maps not available");
@@ -65,7 +65,7 @@ try {
 
 export const isMapAvailable = mapModuleAvailable;
 
-export { MarkerComponent as Marker, PolylineComponent as Polyline, PROVIDER_DEFAULT_VALUE as PROVIDER_DEFAULT };
+export { MarkerComponent as Marker, PolylineComponent as Polyline, PROVIDER_GOOGLE_VALUE as PROVIDER_GOOGLE };
 
 interface SafeMapViewProps {
   children?: ReactNode;
