@@ -10,7 +10,7 @@ import type { Region, MapMarkerProps } from "react-native-maps";
 import SafeMapView, { Marker, PROVIDER_GOOGLE, isMapAvailable } from "@/components/SafeMapView";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
@@ -33,7 +33,6 @@ export default function MapScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const mapRef = useRef<any>(null);
-  const hasCenteredOnUser = useRef(false);
   
   const [selectedLocation, setSelectedLocation] = useState<LocationType | null>(null);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -59,18 +58,19 @@ export default function MapScreen() {
     })();
   }, []);
 
-  useEffect(() => {
-    if (userLocation && !hasCenteredOnUser.current) {
-      hasCenteredOnUser.current = true;
-      setTimeout(() => {
-        mapRef.current?.animateToRegion({
-          ...userLocation,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        }, 500);
-      }, 300);
-    }
-  }, [userLocation]);
+  useFocusEffect(
+    useCallback(() => {
+      if (userLocation && mapRef.current) {
+        setTimeout(() => {
+          mapRef.current?.animateToRegion({
+            ...userLocation,
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
+          }, 300);
+        }, 100);
+      }
+    }, [userLocation])
+  );
 
   const getCategoryColor = useCallback((categoryId: string) => {
     const category = categories.find(c => c.id === categoryId);
