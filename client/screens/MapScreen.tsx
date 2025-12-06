@@ -145,7 +145,12 @@ export default function MapScreen() {
               latitude: location.latitude,
               longitude: location.longitude,
             }}
-            onPress={() => handleMarkerPress(location)}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleMarkerPress(location);
+            }}
+            tracksViewChanges={false}
+            stopPropagation
           >
             <View style={[styles.marker, { backgroundColor: getCategoryColor(location.categoryId) }]}>
               <Feather 
