@@ -33,10 +33,10 @@ export default function MapScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const mapRef = useRef<any>(null);
+  const hasCenteredOnUser = useRef(false);
   
   const [selectedLocation, setSelectedLocation] = useState<LocationType | null>(null);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [region, setRegion] = useState<Region>(LONDON_CENTER);
 
   const { data: locations = [], isLoading: locationsLoading } = useQuery<LocationType[]>({
     queryKey: ["/api/locations"],
@@ -58,6 +58,17 @@ export default function MapScreen() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (userLocation && !hasCenteredOnUser.current && mapRef.current) {
+      hasCenteredOnUser.current = true;
+      mapRef.current.animateToRegion({
+        ...userLocation,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      }, 500);
+    }
+  }, [userLocation]);
 
   const getCategoryColor = useCallback((categoryId: string) => {
     const category = categories.find(c => c.id === categoryId);
