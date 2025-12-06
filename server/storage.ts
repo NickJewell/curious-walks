@@ -24,6 +24,7 @@ export interface IStorage {
   createCategory(category: InsertCategory): Promise<Category>;
 
   getLocations(): Promise<Location[]>;
+  getAllLocations(): Promise<Location[]>;
   getLocationById(id: string): Promise<Location | undefined>;
   getLocationBySlug(slug: string): Promise<Location | undefined>;
   getLocationsByCategory(categoryId: string): Promise<Location[]>;
@@ -31,6 +32,7 @@ export interface IStorage {
   getNearbyLocations(lat: number, lng: number, radiusKm: number): Promise<Location[]>;
   createLocation(location: InsertLocation): Promise<Location>;
   updateLocation(id: string, location: Partial<InsertLocation>): Promise<Location | undefined>;
+  deleteLocation(id: string): Promise<boolean>;
 
   getRegions(): Promise<Region[]>;
   getRegionBySlug(slug: string): Promise<Region | undefined>;
@@ -63,6 +65,10 @@ export class DatabaseStorage implements IStorage {
 
   async getLocations(): Promise<Location[]> {
     return db.select().from(locations).where(eq(locations.isActive, true)).orderBy(asc(locations.name));
+  }
+
+  async getAllLocations(): Promise<Location[]> {
+    return db.select().from(locations).orderBy(asc(locations.name));
   }
 
   async getLocationById(id: string): Promise<Location | undefined> {
@@ -121,6 +127,12 @@ export class DatabaseStorage implements IStorage {
       .where(eq(locations.id, id))
       .returning();
     return updated || undefined;
+  }
+
+  async deleteLocation(id: string): Promise<boolean> {
+    await db.delete(routeStops).where(eq(routeStops.locationId, id));
+    const result = await db.delete(locations).where(eq(locations.id, id)).returning();
+    return result.length > 0;
   }
 
   async getRegions(): Promise<Region[]> {

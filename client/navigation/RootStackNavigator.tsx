@@ -4,6 +4,8 @@ import MainTabNavigator from "@/navigation/MainTabNavigator";
 import LocationDetailScreen from "@/screens/LocationDetailScreen";
 import RouteDetailScreen from "@/screens/RouteDetailScreen";
 import FilterScreen from "@/screens/FilterScreen";
+import AdminScreen from "@/screens/AdminScreen";
+import AdminAddLocationScreen from "@/screens/AdminAddLocationScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { Colors } from "@/constants/theme";
 import type { Location, Route as AppRoute, Category } from "@shared/schema";
@@ -16,6 +18,8 @@ export type RootStackParamList = {
     selectedCategories: string[];
     onApply: (categories: string[]) => void;
   };
+  Admin: undefined;
+  AdminAddLocation: { latitude?: number; longitude?: number };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -60,6 +64,22 @@ export default function RootStackNavigator() {
         options={{
           presentation: "modal",
           headerTitle: "Filter",
+        }}
+      />
+      <Stack.Screen
+        name="Admin"
+        component={AdminScreen}
+        options={{
+          headerTitle: "Admin",
+          headerBackTitle: "Back",
+        }}
+      />
+      <Stack.Screen
+        name="AdminAddLocation"
+        component={AdminAddLocationScreen}
+        options={{
+          presentation: "modal",
+          headerTitle: "Add Location",
         }}
       />
     </Stack.Navigator>

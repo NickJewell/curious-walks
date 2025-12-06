@@ -10,9 +10,12 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
+import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 interface SettingsItemProps {
   icon: keyof typeof Feather.glyphMap;
@@ -58,6 +61,7 @@ function SettingsSection({ title, children }: { title: string; children: React.R
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const appVersion = Constants.expoConfig?.version || "1.0.0";
 
   const handleOpenSettings = async () => {
@@ -111,6 +115,15 @@ export default function SettingsScreen() {
             title="About Lantern"
             subtitle="Discover London's hidden stories"
             showArrow={false}
+          />
+        </SettingsSection>
+
+        <SettingsSection title="Developer">
+          <SettingsItem
+            icon="tool"
+            title="Admin Panel"
+            subtitle="Manage locations and content"
+            onPress={() => navigation.navigate("Admin")}
           />
         </SettingsSection>
 
