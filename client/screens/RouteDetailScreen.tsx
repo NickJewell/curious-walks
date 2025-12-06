@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRoute, RouteProp, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
-import SafeMapView, { Marker, Polyline, PROVIDER_DEFAULT, isMapAvailable } from "@/components/SafeMapView";
+import SafeMapView, { Marker, Polyline, PROVIDER_GOOGLE, isMapAvailable } from "@/components/SafeMapView";
 import { useQuery } from "@tanstack/react-query";
 import { Colors, Spacing, BorderRadius, Typography, CategoryColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
@@ -116,7 +116,7 @@ export default function RouteDetailScreen() {
         <View style={styles.mapContainer}>
           <SafeMapView
             style={styles.map}
-            provider={PROVIDER_DEFAULT}
+            provider={PROVIDER_GOOGLE}
             initialRegion={getMapRegion()}
             scrollEnabled={false}
             zoomEnabled={false}

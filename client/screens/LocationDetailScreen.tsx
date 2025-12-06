@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
-import SafeMapView, { Marker, PROVIDER_DEFAULT, isMapAvailable } from "@/components/SafeMapView";
+import SafeMapView, { Marker, PROVIDER_GOOGLE, isMapAvailable } from "@/components/SafeMapView";
 import { Colors, Spacing, BorderRadius, Typography, CategoryColors, Fonts } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -80,7 +80,7 @@ export default function LocationDetailScreen() {
         <View style={styles.mapContainer}>
           <SafeMapView
             style={styles.map}
-            provider={PROVIDER_DEFAULT}
+            provider={PROVIDER_GOOGLE}
             initialRegion={{
               latitude: location.latitude,
               longitude: location.longitude,

@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import type { Region } from "react-native-maps";
-import SafeMapView, { Marker, PROVIDER_DEFAULT, isMapAvailable } from "@/components/SafeMapView";
+import SafeMapView, { Marker, PROVIDER_GOOGLE, isMapAvailable } from "@/components/SafeMapView";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
@@ -120,7 +120,7 @@ export default function MapScreen() {
       <SafeMapView
         ref={mapRef}
         style={styles.map}
-        provider={PROVIDER_DEFAULT}
+        provider={PROVIDER_GOOGLE}
         initialRegion={LONDON_CENTER}
         showsUserLocation
         showsMyLocationButton={false}
