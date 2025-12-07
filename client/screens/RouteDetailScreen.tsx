@@ -430,7 +430,7 @@ export default function RouteDetailScreen() {
             rotateEnabled={false}
             userInterfaceStyle="dark"
           >
-            {isMapAvailable && locationsForMap.length > 1 ? (
+            {isMapAvailable && Polyline && locationsForMap.length > 1 ? (
               walkingRouteCoordinates.length > 0 ? (
                 <Polyline
                   coordinates={walkingRouteCoordinates}
