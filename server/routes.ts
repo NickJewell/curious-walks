@@ -2,6 +2,48 @@ import type { Express } from "express";
 import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
 
+// Decode Google Maps encoded polyline to array of coordinates
+function decodePolyline(encoded: string): { latitude: number; longitude: number }[] {
+  const coordinates: { latitude: number; longitude: number }[] = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+
+  while (index < encoded.length) {
+    let shift = 0;
+    let result = 0;
+    let byte;
+
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+
+    const deltaLat = result & 1 ? ~(result >> 1) : result >> 1;
+    lat += deltaLat;
+
+    shift = 0;
+    result = 0;
+
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+
+    const deltaLng = result & 1 ? ~(result >> 1) : result >> 1;
+    lng += deltaLng;
+
+    coordinates.push({
+      latitude: lat / 1e5,
+      longitude: lng / 1e5,
+    });
+  }
+
+  return coordinates;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/categories", async (_req, res) => {
     try {
@@ -567,6 +609,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error seeding database:", error);
       res.status(500).json({ error: "Failed to seed database" });
+    }
+  });
+
+  // Google Maps Directions API endpoint for walking routes
+  app.post("/api/directions/walking", async (req, res) => {
+    try {
+      const { waypoints } = req.body;
+      
+      if (!waypoints || !Array.isArray(waypoints) || waypoints.length < 2) {
+        return res.status(400).json({ error: "At least 2 waypoints are required" });
+      }
+
+      const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "Google Maps API key not configured" });
+      }
+
+      // For routes with more than 2 waypoints, we need to split them into segments
+      // or use the waypoints parameter in the Directions API
+      const origin = waypoints[0];
+      const destination = waypoints[waypoints.length - 1];
+      const intermediateWaypoints = waypoints.slice(1, -1);
+
+      let url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&mode=walking&key=${apiKey}`;
+
+      // Add intermediate waypoints if any
+      if (intermediateWaypoints.length > 0) {
+        const waypointsParam = intermediateWaypoints
+          .map(wp => `${wp.latitude},${wp.longitude}`)
+          .join('|');
+        url += `&waypoints=${encodeURIComponent(waypointsParam)}`;
+      }
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.status !== "OK") {
+        console.error("Directions API error:", data.status, data.error_message);
+        return res.status(400).json({ 
+          error: "Failed to get directions", 
+          details: data.status,
+          message: data.error_message 
+        });
+      }
+
+      if (!data.routes || data.routes.length === 0) {
+        return res.status(404).json({ error: "No route found" });
+      }
+
+      // Decode polylines from each leg's steps for more accurate path
+      // The overview_polyline is simplified and may miss turns/curves
+      const allCoordinates: { latitude: number; longitude: number }[] = [];
+      
+      // Helper to check if two coordinates are effectively the same (within ~1 meter)
+      const isSamePoint = (a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }) => {
+        const threshold = 0.00001; // ~1.1 meters at equator
+        return Math.abs(a.latitude - b.latitude) < threshold && 
+               Math.abs(a.longitude - b.longitude) < threshold;
+      };
+      
+      for (const leg of data.routes[0].legs) {
+        for (const step of leg.steps) {
+          const stepCoords = decodePolyline(step.polyline.points);
+          if (stepCoords.length === 0) continue;
+          
+          if (allCoordinates.length > 0) {
+            const last = allCoordinates[allCoordinates.length - 1];
+            const first = stepCoords[0];
+            
+            // Skip first point only if it's a duplicate to avoid redundant points
+            if (isSamePoint(last, first)) {
+              stepCoords.shift();
+            }
+            // If points aren't the same but are too far apart, we still include all points
+            // This ensures no gaps in the polyline
+          }
+          
+          allCoordinates.push(...stepCoords);
+        }
+      }
+
+      // Also return leg information for distance/duration
+      const legs = data.routes[0].legs.map((leg: any) => ({
+        distance: leg.distance,
+        duration: leg.duration,
+        startAddress: leg.start_address,
+        endAddress: leg.end_address,
+      }));
+
+      res.json({
+        coordinates: allCoordinates,
+        legs,
+        totalDistance: data.routes[0].legs.reduce((sum: number, leg: any) => sum + leg.distance.value, 0),
+        totalDuration: data.routes[0].legs.reduce((sum: number, leg: any) => sum + leg.duration.value, 0),
+      });
+    } catch (error) {
+      console.error("Error fetching directions:", error);
+      res.status(500).json({ error: "Failed to fetch directions" });
     }
   });
 

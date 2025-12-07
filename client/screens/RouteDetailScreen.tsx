@@ -14,10 +14,15 @@ import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import SafeMapView, { Marker, Polyline, PROVIDER_GOOGLE, isMapAvailable } from "@/components/SafeMapView";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/query-client";
+import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { Colors, Spacing, BorderRadius, Typography, CategoryColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import type { Location, Category, RouteStop } from "@shared/schema";
+
+interface WalkingRouteCoordinate {
+  latitude: number;
+  longitude: number;
+}
 
 const WALKING_THRESHOLD_KEY = "walking_time_threshold";
 const DEFAULT_WALKING_THRESHOLD = 15;
@@ -82,12 +87,66 @@ export default function RouteDetailScreen() {
 
   const [localStops, setLocalStops] = useState<RouteStop[]>([]);
   const [walkingThreshold, setWalkingThreshold] = useState(DEFAULT_WALKING_THRESHOLD);
+  const [walkingRouteCoordinates, setWalkingRouteCoordinates] = useState<WalkingRouteCoordinate[]>([]);
+  const [isLoadingRoute, setIsLoadingRoute] = useState(false);
+  const [directionsVersion, setDirectionsVersion] = useState(0);
 
   useEffect(() => {
     if (routeDetails?.stops) {
       setLocalStops([...routeDetails.stops].sort((a, b) => a.orderIndex - b.orderIndex));
     }
   }, [routeDetails?.stops]);
+
+  // Create a stable key for the current stop order to trigger direction fetching
+  const stopOrderKey = localStops.map(s => s.locationId).join(',');
+
+  // Fetch walking directions from Google Maps when locations or stop order changes
+  useEffect(() => {
+    const fetchWalkingDirections = async () => {
+      // Get locations for the sorted stops
+      const sortedLocations = localStops
+        .map(stop => locations.find(l => l.id === stop.locationId))
+        .filter((l): l is Location => l !== undefined);
+
+      if (sortedLocations.length < 2) {
+        setWalkingRouteCoordinates([]);
+        return;
+      }
+
+      setIsLoadingRoute(true);
+      try {
+        const waypoints = sortedLocations.map(loc => ({
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+        }));
+
+        const response = await fetch(new URL('/api/directions/walking', getApiUrl()).toString(), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ waypoints }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setWalkingRouteCoordinates(data.coordinates || []);
+        } else {
+          console.log('Failed to fetch walking directions, falling back to straight lines');
+          setWalkingRouteCoordinates([]);
+        }
+      } catch (error) {
+        console.log('Error fetching walking directions:', error);
+        setWalkingRouteCoordinates([]);
+      } finally {
+        setIsLoadingRoute(false);
+      }
+    };
+
+    if (locations.length > 0 && localStops.length >= 2) {
+      fetchWalkingDirections();
+    }
+  }, [stopOrderKey, locations.length, directionsVersion]);
 
   useFocusEffect(
     useCallback(() => {
@@ -110,6 +169,7 @@ export default function RouteDetailScreen() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/routes", routeData.id] });
+      setDirectionsVersion(v => v + 1);
     },
   });
 
@@ -237,14 +297,23 @@ export default function RouteDetailScreen() {
             userInterfaceStyle="dark"
           >
             {isMapAvailable && locationsForMap.length > 1 ? (
-              <Polyline
-                coordinates={locationsForMap.map(l => ({
-                  latitude: l.latitude,
-                  longitude: l.longitude,
-                }))}
-                strokeColor={Colors.dark.accent}
-                strokeWidth={3}
-              />
+              walkingRouteCoordinates.length > 0 ? (
+                <Polyline
+                  coordinates={walkingRouteCoordinates}
+                  strokeColor={Colors.dark.accent}
+                  strokeWidth={4}
+                />
+              ) : (
+                <Polyline
+                  coordinates={locationsForMap.map(l => ({
+                    latitude: l.latitude,
+                    longitude: l.longitude,
+                  }))}
+                  strokeColor={Colors.dark.accent}
+                  strokeWidth={3}
+                  lineDashPattern={[10, 5]}
+                />
+              )
             ) : null}
             {isMapAvailable && Marker ? locationsForMap.map((location, index) => {
               const category = getCategory(location.categoryId);
@@ -264,6 +333,11 @@ export default function RouteDetailScreen() {
               );
             }) : null}
           </SafeMapView>
+          {isLoadingRoute ? (
+            <View style={styles.mapLoadingOverlay}>
+              <ActivityIndicator size="small" color={Colors.dark.accent} />
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.content}>
@@ -420,9 +494,18 @@ const styles = StyleSheet.create({
   },
   mapContainer: {
     height: 300,
+    position: "relative",
   },
   map: {
     flex: 1,
+  },
+  mapLoadingOverlay: {
+    position: "absolute",
+    top: Spacing.sm,
+    right: Spacing.sm,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.xs,
   },
   marker: {
     width: 28,
