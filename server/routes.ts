@@ -690,19 +690,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Also return leg information for distance/duration
-      const legs = data.routes[0].legs.map((leg: any) => ({
+      // Also return leg information for distance/duration with step-by-step instructions
+      const legs = data.routes[0].legs.map((leg: any, legIndex: number) => ({
+        startIndex: legIndex,
+        endIndex: legIndex + 1,
         distance: leg.distance,
         duration: leg.duration,
         startAddress: leg.start_address,
         endAddress: leg.end_address,
+        steps: leg.steps.map((step: any) => ({
+          instruction: step.html_instructions,
+          distance: step.distance,
+          duration: step.duration,
+          maneuver: step.maneuver || null,
+        })),
       }));
 
       res.json({
         coordinates: allCoordinates,
         legs,
-        totalDistance: data.routes[0].legs.reduce((sum: number, leg: any) => sum + leg.distance.value, 0),
-        totalDuration: data.routes[0].legs.reduce((sum: number, leg: any) => sum + leg.duration.value, 0),
+        totalDistance: {
+          value: data.routes[0].legs.reduce((sum: number, leg: any) => sum + leg.distance.value, 0),
+          text: `${(data.routes[0].legs.reduce((sum: number, leg: any) => sum + leg.distance.value, 0) / 1000).toFixed(1)} km`,
+        },
+        totalDuration: {
+          value: data.routes[0].legs.reduce((sum: number, leg: any) => sum + leg.duration.value, 0),
+          text: `${Math.round(data.routes[0].legs.reduce((sum: number, leg: any) => sum + leg.duration.value, 0) / 60)} mins`,
+        },
       });
     } catch (error) {
       console.error("Error fetching directions:", error);
