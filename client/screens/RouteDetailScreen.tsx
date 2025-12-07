@@ -289,11 +289,6 @@ export default function RouteDetailScreen() {
           <View style={styles.divider} />
 
           <Text style={styles.stopsTitle}>Stops ({stopsWithLocations.length})</Text>
-          
-          {/* Debug: Show walkingInfos data */}
-          <Text style={{ color: '#FF0000', fontSize: 10, marginBottom: 8 }}>
-            Debug: locations loaded: {locations.length}, walkingInfos: {walkingInfos.filter(w => w !== null).length} non-null
-          </Text>
 
           {stopsWithLocations.map((item, index) => {
             const { stop, location } = item;
