@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -13,9 +13,14 @@ import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
+
+const WALKING_THRESHOLD_KEY = "walking_time_threshold";
+const DEFAULT_WALKING_THRESHOLD = 15;
+const THRESHOLD_OPTIONS = [10, 15, 20, 25, 30];
 
 interface SettingsItemProps {
   icon: keyof typeof Feather.glyphMap;
@@ -63,6 +68,20 @@ export default function SettingsScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const appVersion = Constants.expoConfig?.version || "1.0.0";
+  const [walkingThreshold, setWalkingThreshold] = useState(DEFAULT_WALKING_THRESHOLD);
+
+  useEffect(() => {
+    AsyncStorage.getItem(WALKING_THRESHOLD_KEY).then((value) => {
+      if (value) {
+        setWalkingThreshold(parseInt(value, 10));
+      }
+    });
+  }, []);
+
+  const handleThresholdChange = async (value: number) => {
+    setWalkingThreshold(value);
+    await AsyncStorage.setItem(WALKING_THRESHOLD_KEY, value.toString());
+  };
 
   const handleOpenSettings = async () => {
     if (Platform.OS !== "web") {
@@ -101,6 +120,43 @@ export default function SettingsScreen() {
             subtitle="Coming soon"
             showArrow={false}
           />
+        </SettingsSection>
+
+        <SettingsSection title="Routes">
+          <View style={styles.thresholdContainer}>
+            <View style={styles.thresholdHeader}>
+              <View style={styles.settingsItemIcon}>
+                <Feather name="alert-triangle" size={20} color={Colors.dark.accent} />
+              </View>
+              <View style={styles.thresholdContent}>
+                <Text style={styles.settingsItemTitle}>Walking Time Warning</Text>
+                <Text style={styles.settingsItemSubtitle}>
+                  Show warning when walk between stops exceeds threshold
+                </Text>
+              </View>
+            </View>
+            <View style={styles.thresholdOptions}>
+              {THRESHOLD_OPTIONS.map((option) => (
+                <Pressable
+                  key={option}
+                  style={[
+                    styles.thresholdOption,
+                    walkingThreshold === option && styles.thresholdOptionActive,
+                  ]}
+                  onPress={() => handleThresholdChange(option)}
+                >
+                  <Text
+                    style={[
+                      styles.thresholdOptionText,
+                      walkingThreshold === option && styles.thresholdOptionTextActive,
+                    ]}
+                  >
+                    {option} min
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
         </SettingsSection>
 
         <SettingsSection title="About">
@@ -206,6 +262,41 @@ const styles = StyleSheet.create({
     ...Typography.small,
     color: Colors.dark.textSecondary,
     marginTop: 2,
+  },
+  thresholdContainer: {
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+  },
+  thresholdHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  thresholdContent: {
+    flex: 1,
+  },
+  thresholdOptions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  thresholdOption: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.dark.backgroundSecondary,
+    borderRadius: BorderRadius.xs,
+    alignItems: "center",
+  },
+  thresholdOptionActive: {
+    backgroundColor: Colors.dark.accent,
+  },
+  thresholdOptionText: {
+    ...Typography.small,
+    color: Colors.dark.textSecondary,
+  },
+  thresholdOptionTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
   footer: {
     alignItems: "center",

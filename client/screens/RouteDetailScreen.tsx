@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -8,14 +8,45 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRoute, RouteProp, useNavigation } from "@react-navigation/native";
+import { useRoute, RouteProp, useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import SafeMapView, { Marker, Polyline, PROVIDER_GOOGLE, isMapAvailable } from "@/components/SafeMapView";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/query-client";
 import { Colors, Spacing, BorderRadius, Typography, CategoryColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import type { Location, Category, RouteStop } from "@shared/schema";
+
+const WALKING_THRESHOLD_KEY = "walking_time_threshold";
+const DEFAULT_WALKING_THRESHOLD = 15;
+
+function haversineDistance(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371000;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  
+  return R * c;
+}
+
+function calculateWalkingTime(distanceMeters: number): number {
+  const walkingSpeedKmH = 5;
+  const walkingSpeedMPerMin = (walkingSpeedKmH * 1000) / 60;
+  return Math.round(distanceMeters / walkingSpeedMPerMin);
+}
 
 interface RouteWithStops {
   id: string;
@@ -25,6 +56,8 @@ interface RouteWithStops {
   estimatedDurationMinutes: number;
   distanceMeters: number;
   difficulty: string;
+  isEditable?: boolean;
+  ownerId?: string;
   stops: RouteStop[];
 }
 
@@ -33,6 +66,7 @@ export default function RouteDetailScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "RouteDetail">>();
   const { route: routeData } = route.params;
+  const queryClient = useQueryClient();
 
   const { data: routeDetails, isLoading } = useQuery<RouteWithStops>({
     queryKey: ["/api/routes", routeData.id],
@@ -46,13 +80,91 @@ export default function RouteDetailScreen() {
     queryKey: ["/api/categories"],
   });
 
+  const [localStops, setLocalStops] = useState<RouteStop[]>([]);
+  const [walkingThreshold, setWalkingThreshold] = useState(DEFAULT_WALKING_THRESHOLD);
+
+  useEffect(() => {
+    if (routeDetails?.stops) {
+      setLocalStops([...routeDetails.stops].sort((a, b) => a.orderIndex - b.orderIndex));
+    }
+  }, [routeDetails?.stops]);
+
+  useFocusEffect(
+    useCallback(() => {
+      AsyncStorage.getItem(WALKING_THRESHOLD_KEY).then((value) => {
+        if (value) {
+          setWalkingThreshold(parseInt(value, 10));
+        }
+      });
+    }, [])
+  );
+
+  const reorderMutation = useMutation({
+    mutationFn: async (stopOrders: { stopId: string; orderIndex: number }[]) => {
+      const response = await apiRequest(
+        "PUT",
+        `/api/user-routes/${routeData.id}/stops/reorder`,
+        { ownerId: routeDetails?.ownerId, stopOrders }
+      );
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/routes", routeData.id] });
+    },
+  });
+
   const getLocation = (locationId: string) => locations.find(l => l.id === locationId);
   const getCategory = (categoryId: string) => categories.find(c => c.id === categoryId);
 
-  const routeLocations = (routeDetails?.stops || [])
-    .sort((a, b) => a.orderIndex - b.orderIndex)
-    .map(stop => getLocation(stop.locationId))
-    .filter(Boolean) as Location[];
+  // Map stops to {stop, location} pairs, keeping all stops even if location not yet loaded
+  const stopsWithLocations = localStops.map(stop => ({
+    stop,
+    location: getLocation(stop.locationId),
+  }));
+
+  // Calculate walking infos for rendering (moved outside of render loop for clarity)
+  const walkingInfos = stopsWithLocations.map((item, index) => {
+    if (index === 0 || !item.location) return null;
+    const prevItem = stopsWithLocations[index - 1];
+    if (!prevItem?.location) return null;
+    
+    const distance = haversineDistance(
+      prevItem.location.latitude,
+      prevItem.location.longitude,
+      item.location.latitude,
+      item.location.longitude
+    );
+    const time = calculateWalkingTime(distance);
+    return { distance, time };
+  });
+
+  // For map rendering, filter to only stops with loaded locations
+  const locationsForMap = stopsWithLocations
+    .filter((item): item is { stop: RouteStop; location: Location } => item.location !== undefined)
+    .map(item => item.location);
+
+  const handleMoveStop = (index: number, direction: "up" | "down") => {
+    const newIndex = direction === "up" ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= localStops.length) return;
+
+    const newStops = [...localStops];
+    [newStops[index], newStops[newIndex]] = [newStops[newIndex], newStops[index]];
+    
+    const updatedStops = newStops.map((stop, idx) => ({
+      ...stop,
+      orderIndex: idx,
+    }));
+    
+    setLocalStops(updatedStops);
+
+    const stopOrders = updatedStops.map(stop => ({
+      stopId: stop.id,
+      orderIndex: stop.orderIndex,
+    }));
+    reorderMutation.mutate(stopOrders);
+  };
+
+  const isEditable = routeDetails?.isEditable === true;
 
   const formatDuration = (minutes: number) => {
     if (minutes < 60) return `${minutes} min`;
@@ -74,7 +186,7 @@ export default function RouteDetailScreen() {
   };
 
   const getMapRegion = () => {
-    if (routeLocations.length === 0) {
+    if (locationsForMap.length === 0) {
       return {
         latitude: 51.5074,
         longitude: -0.1278,
@@ -83,8 +195,8 @@ export default function RouteDetailScreen() {
       };
     }
 
-    const lats = routeLocations.map(l => l.latitude);
-    const lngs = routeLocations.map(l => l.longitude);
+    const lats = locationsForMap.map(l => l.latitude);
+    const lngs = locationsForMap.map(l => l.longitude);
     const minLat = Math.min(...lats);
     const maxLat = Math.max(...lats);
     const minLng = Math.min(...lngs);
@@ -124,9 +236,9 @@ export default function RouteDetailScreen() {
             rotateEnabled={false}
             userInterfaceStyle="dark"
           >
-            {isMapAvailable && routeLocations.length > 1 ? (
+            {isMapAvailable && locationsForMap.length > 1 ? (
               <Polyline
-                coordinates={routeLocations.map(l => ({
+                coordinates={locationsForMap.map(l => ({
                   latitude: l.latitude,
                   longitude: l.longitude,
                 }))}
@@ -134,7 +246,7 @@ export default function RouteDetailScreen() {
                 strokeWidth={3}
               />
             ) : null}
-            {isMapAvailable && Marker ? routeLocations.map((location, index) => {
+            {isMapAvailable && Marker ? locationsForMap.map((location, index) => {
               const category = getCategory(location.categoryId);
               const color = category ? CategoryColors[category.slug] || Colors.dark.accent : Colors.dark.accent;
               return (
@@ -176,26 +288,109 @@ export default function RouteDetailScreen() {
 
           <View style={styles.divider} />
 
-          <Text style={styles.stopsTitle}>Stops ({routeLocations.length})</Text>
+          <Text style={styles.stopsTitle}>Stops ({stopsWithLocations.length})</Text>
+          
+          {/* Debug: Show walkingInfos data */}
+          <Text style={{ color: '#FF0000', fontSize: 10, marginBottom: 8 }}>
+            Debug: locations loaded: {locations.length}, walkingInfos: {walkingInfos.filter(w => w !== null).length} non-null
+          </Text>
 
-          {routeLocations.map((location, index) => {
+          {stopsWithLocations.map((item, index) => {
+            const { stop, location } = item;
+            const walkingInfo = walkingInfos[index];
+            
+            if (!location) {
+              return (
+                <View key={stop.id} style={styles.stopRow}>
+                  <View style={styles.stopItem}>
+                    <View style={[styles.stopNumber, { backgroundColor: Colors.dark.inactive }]}>
+                      <Text style={styles.stopNumberText}>{index + 1}</Text>
+                    </View>
+                    <View style={styles.stopContent}>
+                      <Text style={styles.stopName}>Loading...</Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            }
+
             const category = getCategory(location.categoryId);
             const color = category ? CategoryColors[category.slug] || Colors.dark.accent : Colors.dark.accent;
+            const exceedsThreshold = walkingInfo && walkingInfo.time > walkingThreshold;
+            
             return (
-              <Pressable
-                key={location.id}
-                style={({ pressed }) => [styles.stopItem, pressed && styles.stopItemPressed]}
-                onPress={() => handleLocationPress(location)}
-              >
-                <View style={[styles.stopNumber, { backgroundColor: color }]}>
-                  <Text style={styles.stopNumberText}>{index + 1}</Text>
+              <View key={stop.id}>
+                {walkingInfo ? (
+                  <View style={styles.walkingInfoRow} testID={`walking-info-${index}`}>
+                    <View style={styles.walkingConnector} />
+                    <View style={[
+                      styles.walkingInfoBadge,
+                      exceedsThreshold ? styles.walkingInfoWarning : null
+                    ]}>
+                      {exceedsThreshold ? (
+                        <Feather name="alert-triangle" size={12} color="#FFAA00" style={{ marginRight: 4 }} />
+                      ) : null}
+                      <Feather name="navigation" size={12} color={exceedsThreshold ? "#FFAA00" : Colors.dark.textSecondary} />
+                      <Text style={[
+                        styles.walkingInfoText,
+                        exceedsThreshold ? styles.walkingInfoTextWarning : null
+                      ]}>
+                        {walkingInfo.distance < 1000 
+                          ? `${Math.round(walkingInfo.distance)}m` 
+                          : `${(walkingInfo.distance / 1000).toFixed(1)}km`}
+                        {" "}{walkingInfo.time} min walk
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
+                <View style={styles.stopRow}>
+                  <Pressable
+                    style={({ pressed }) => [styles.stopItem, pressed && styles.stopItemPressed]}
+                    onPress={() => handleLocationPress(location)}
+                  >
+                    <View style={[styles.stopNumber, { backgroundColor: color }]}>
+                      <Text style={styles.stopNumberText}>{index + 1}</Text>
+                    </View>
+                    <View style={styles.stopContent}>
+                      <Text style={styles.stopName}>{location.name}</Text>
+                      <Text style={styles.stopCategory}>{category?.name || "Unknown"}</Text>
+                    </View>
+                    <Feather name="chevron-right" size={20} color={Colors.dark.inactive} />
+                  </Pressable>
+                  {isEditable ? (
+                    <View style={styles.reorderButtons}>
+                      <Pressable
+                        style={[
+                          styles.reorderButton,
+                          index === 0 && styles.reorderButtonDisabled,
+                        ]}
+                        onPress={() => handleMoveStop(index, "up")}
+                        disabled={index === 0 || reorderMutation.isPending}
+                      >
+                        <Feather
+                          name="chevron-up"
+                          size={18}
+                          color={index === 0 ? Colors.dark.inactive : Colors.dark.accent}
+                        />
+                      </Pressable>
+                      <Pressable
+                        style={[
+                          styles.reorderButton,
+                          index === stopsWithLocations.length - 1 && styles.reorderButtonDisabled,
+                        ]}
+                        onPress={() => handleMoveStop(index, "down")}
+                        disabled={index === stopsWithLocations.length - 1 || reorderMutation.isPending}
+                      >
+                        <Feather
+                          name="chevron-down"
+                          size={18}
+                          color={index === stopsWithLocations.length - 1 ? Colors.dark.inactive : Colors.dark.accent}
+                        />
+                      </Pressable>
+                    </View>
+                  ) : null}
                 </View>
-                <View style={styles.stopContent}>
-                  <Text style={styles.stopName}>{location.name}</Text>
-                  <Text style={styles.stopCategory}>{category?.name || "Unknown"}</Text>
-                </View>
-                <Feather name="chevron-right" size={20} color={Colors.dark.inactive} />
-              </Pressable>
+              </View>
             );
           })}
         </View>
@@ -229,7 +424,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   mapContainer: {
-    height: 200,
+    height: 300,
   },
   map: {
     flex: 1,
@@ -285,13 +480,18 @@ const styles = StyleSheet.create({
     color: Colors.dark.textAccent,
     marginBottom: Spacing.lg,
   },
+  stopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.sm,
+  },
   stopItem: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: Colors.dark.backgroundDefault,
     borderRadius: BorderRadius.sm,
     padding: Spacing.md,
-    marginBottom: Spacing.sm,
   },
   stopItemPressed: {
     opacity: 0.6,
@@ -320,6 +520,55 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Colors.dark.textSecondary,
     marginTop: 2,
+  },
+  reorderButtons: {
+    flexDirection: "column",
+    marginLeft: Spacing.xs,
+  },
+  reorderButton: {
+    width: 32,
+    height: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: Colors.dark.backgroundDefault,
+    borderRadius: BorderRadius.xs,
+    marginVertical: 1,
+  },
+  reorderButtonDisabled: {
+    opacity: 0.5,
+  },
+  walkingInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 16,
+    marginVertical: Spacing.xs,
+  },
+  walkingConnector: {
+    width: 2,
+    height: 24,
+    backgroundColor: Colors.dark.border,
+    marginRight: Spacing.md,
+  },
+  walkingInfoBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.dark.backgroundSecondary,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.xs,
+  },
+  walkingInfoWarning: {
+    backgroundColor: "rgba(255, 170, 0, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 170, 0, 0.3)",
+  },
+  walkingInfoText: {
+    ...Typography.small,
+    color: Colors.dark.textSecondary,
+    marginLeft: Spacing.xs,
+  },
+  walkingInfoTextWarning: {
+    color: "#FFAA00",
   },
   footer: {
     position: "absolute",
