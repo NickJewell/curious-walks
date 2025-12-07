@@ -20,6 +20,8 @@ import { Colors, Spacing, BorderRadius, Typography, CategoryColors } from "@/con
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import type { Location as LocationType, Category } from "@shared/schema";
 import LocationPreviewCard from "@/components/LocationPreviewCard";
+import SelectionActionPanel from "@/components/SelectionActionPanel";
+import { useSelection } from "@/lib/selection-context";
 
 const LONDON_CENTER = {
   latitude: 51.5074,
@@ -33,6 +35,7 @@ export default function MapScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const mapRef = useRef<any>(null);
+  const { isSelecting, toggleSelection, selectLocation, deselectLocation, isSelected, selectedLocations } = useSelection();
   
   const [selectedLocation, setSelectedLocation] = useState<LocationType | null>(null);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -85,13 +88,28 @@ export default function MapScreen() {
   }, [categories]);
 
   const handleMarkerPress = (location: LocationType) => {
-    setSelectedLocation(location);
-    mapRef.current?.animateToRegion({
-      latitude: location.latitude,
-      longitude: location.longitude,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01,
-    }, 300);
+    if (isSelecting) {
+      if (isSelected(location.id)) {
+        deselectLocation(location.id);
+      } else {
+        selectLocation(location);
+      }
+    } else {
+      setSelectedLocation(location);
+      mapRef.current?.animateToRegion({
+        latitude: location.latitude,
+        longitude: location.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }, 300);
+    }
+  };
+
+  const handleMarkerLongPress = (location: LocationType) => {
+    if (!isSelecting) {
+      toggleSelection();
+      selectLocation(location);
+    }
   };
 
   const handleLocationPress = () => {
@@ -144,9 +162,10 @@ export default function MapScreen() {
           const category = getCategory(location.categoryId);
           const markerColor = category ? CategoryColors[category.slug] || Colors.dark.accent : Colors.dark.accent;
           const iconName = category?.iconName || "map-pin";
+          const locationIsSelected = isSelected(location.id);
           return (
             <Marker
-              key={`${location.id}-${category?.id || 'loading'}`}
+              key={`${location.id}-${category?.id || 'loading'}-${locationIsSelected}`}
               coordinate={{
                 latitude: location.latitude,
                 longitude: location.longitude,
@@ -158,12 +177,16 @@ export default function MapScreen() {
               tracksViewChanges={false}
               stopPropagation
             >
-              <View style={[styles.marker, { backgroundColor: markerColor }]}>
-                <Feather 
-                  name={iconName as any} 
-                  size={16} 
-                  color="#FFFFFF" 
-                />
+              <View style={[
+                styles.marker, 
+                { backgroundColor: markerColor },
+                locationIsSelected && styles.markerSelected
+              ]}>
+                {isSelecting && locationIsSelected ? (
+                  <Feather name="check" size={16} color="#FFFFFF" />
+                ) : (
+                  <Feather name={iconName as any} size={16} color="#FFFFFF" />
+                )}
               </View>
             </Marker>
           );
@@ -171,6 +194,16 @@ export default function MapScreen() {
       </SafeMapView>
 
       <View style={[styles.topControls, { top: insets.top + Spacing.md }]}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.controlButton,
+            pressed && styles.controlButtonPressed,
+          ]}
+          onPress={toggleSelection}
+        >
+          <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+          <Feather name={isSelecting ? "x" : "check-square"} size={20} color={isSelecting ? Colors.dark.accent : Colors.dark.text} />
+        </Pressable>
         {userLocation ? (
           <Pressable
             style={({ pressed }) => [
@@ -185,7 +218,7 @@ export default function MapScreen() {
         ) : null}
       </View>
 
-      {selectedLocation ? (
+      {selectedLocation && !isSelecting ? (
         <View style={[styles.previewContainer, { bottom: tabBarHeight + Spacing.lg }]}>
           <LocationPreviewCard
             location={selectedLocation}
@@ -196,6 +229,7 @@ export default function MapScreen() {
           />
         </View>
       ) : null}
+      <SelectionActionPanel />
     </View>
   );
 }
@@ -246,6 +280,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 4,
+  },
+  markerSelected: {
+    borderWidth: 3,
+    borderColor: "#FFFFFF",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
   },
   previewContainer: {
     position: "absolute",

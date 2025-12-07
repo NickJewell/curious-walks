@@ -167,6 +167,157 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/user-routes", async (req, res) => {
+    try {
+      const ownerId = req.query.ownerId as string;
+      if (!ownerId) {
+        return res.status(400).json({ error: "Owner ID is required" });
+      }
+      const routes = await storage.getRoutesByOwner(ownerId);
+      res.json(routes);
+    } catch (error) {
+      console.error("Error fetching user routes:", error);
+      res.status(500).json({ error: "Failed to fetch user routes" });
+    }
+  });
+
+  app.post("/api/user-routes", async (req, res) => {
+    try {
+      const { ownerId, name, description } = req.body;
+      if (!ownerId || !name) {
+        return res.status(400).json({ error: "Owner ID and name are required" });
+      }
+      const timestamp = Date.now();
+      const slug = `user-route-${timestamp}`;
+      const route = await storage.createRoute({
+        name,
+        slug,
+        description: description || "My custom route",
+        estimatedDurationMinutes: 0,
+        distanceMeters: 0,
+        difficulty: "easy",
+        ownerId,
+        isEditable: true,
+      });
+      res.status(201).json(route);
+    } catch (error) {
+      console.error("Error creating user route:", error);
+      res.status(500).json({ error: "Failed to create user route" });
+    }
+  });
+
+  app.post("/api/routes/:routeId/copy", async (req, res) => {
+    try {
+      const { ownerId, name } = req.body;
+      if (!ownerId) {
+        return res.status(400).json({ error: "Owner ID is required" });
+      }
+      const originalRoute = await storage.getRouteById(req.params.routeId);
+      if (!originalRoute) {
+        return res.status(404).json({ error: "Route not found" });
+      }
+      const newName = name || `${originalRoute.name} (My Copy)`;
+      const copiedRoute = await storage.copyRoute(req.params.routeId, ownerId, newName);
+      res.status(201).json(copiedRoute);
+    } catch (error) {
+      console.error("Error copying route:", error);
+      res.status(500).json({ error: "Failed to copy route" });
+    }
+  });
+
+  app.put("/api/user-routes/:routeId", async (req, res) => {
+    try {
+      const route = await storage.getRouteById(req.params.routeId);
+      if (!route) {
+        return res.status(404).json({ error: "Route not found" });
+      }
+      if (!route.isEditable) {
+        return res.status(403).json({ error: "Cannot edit system routes" });
+      }
+      const { ownerId } = req.body;
+      if (route.ownerId !== ownerId) {
+        return res.status(403).json({ error: "Not authorized to edit this route" });
+      }
+      const updated = await storage.updateRoute(req.params.routeId, req.body);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating user route:", error);
+      res.status(500).json({ error: "Failed to update user route" });
+    }
+  });
+
+  app.delete("/api/user-routes/:routeId", async (req, res) => {
+    try {
+      const route = await storage.getRouteById(req.params.routeId);
+      if (!route) {
+        return res.status(404).json({ error: "Route not found" });
+      }
+      if (!route.isEditable) {
+        return res.status(403).json({ error: "Cannot delete system routes" });
+      }
+      const ownerId = req.query.ownerId as string;
+      if (route.ownerId !== ownerId) {
+        return res.status(403).json({ error: "Not authorized to delete this route" });
+      }
+      await storage.deleteRoute(req.params.routeId);
+      res.json({ success: true, message: "Route deleted" });
+    } catch (error) {
+      console.error("Error deleting user route:", error);
+      res.status(500).json({ error: "Failed to delete user route" });
+    }
+  });
+
+  app.post("/api/user-routes/:routeId/stops", async (req, res) => {
+    try {
+      const route = await storage.getRouteById(req.params.routeId);
+      if (!route) {
+        return res.status(404).json({ error: "Route not found" });
+      }
+      if (!route.isEditable) {
+        return res.status(403).json({ error: "Cannot modify system routes" });
+      }
+      const { ownerId, locationId, orderIndex } = req.body;
+      if (route.ownerId !== ownerId) {
+        return res.status(403).json({ error: "Not authorized to modify this route" });
+      }
+      const existingStops = await storage.getRouteStops(req.params.routeId);
+      const newOrderIndex = orderIndex !== undefined ? orderIndex : existingStops.length;
+      const stop = await storage.createRouteStop({
+        routeId: req.params.routeId,
+        locationId,
+        orderIndex: newOrderIndex,
+      });
+      res.status(201).json(stop);
+    } catch (error) {
+      console.error("Error adding stop to route:", error);
+      res.status(500).json({ error: "Failed to add stop to route" });
+    }
+  });
+
+  app.delete("/api/user-routes/:routeId/stops/:stopId", async (req, res) => {
+    try {
+      const route = await storage.getRouteById(req.params.routeId);
+      if (!route) {
+        return res.status(404).json({ error: "Route not found" });
+      }
+      if (!route.isEditable) {
+        return res.status(403).json({ error: "Cannot modify system routes" });
+      }
+      const ownerId = req.query.ownerId as string;
+      if (route.ownerId !== ownerId) {
+        return res.status(403).json({ error: "Not authorized to modify this route" });
+      }
+      const deleted = await storage.deleteRouteStop(req.params.stopId);
+      if (!deleted) {
+        return res.status(404).json({ error: "Stop not found" });
+      }
+      res.json({ success: true, message: "Stop removed" });
+    } catch (error) {
+      console.error("Error removing stop from route:", error);
+      res.status(500).json({ error: "Failed to remove stop from route" });
+    }
+  });
+
   app.post("/api/seed", async (_req, res) => {
     try {
       const existingCategories = await storage.getCategories();

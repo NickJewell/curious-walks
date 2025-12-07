@@ -21,11 +21,14 @@ import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import type { Location as LocationType, Category } from "@shared/schema";
 import LocationCard from "@/components/LocationCard";
 import CategoryChip from "@/components/CategoryChip";
+import SelectionActionPanel from "@/components/SelectionActionPanel";
+import { useSelection } from "@/lib/selection-context";
 
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { isSelecting, toggleSelection, selectLocation, deselectLocation, isSelected, selectedLocations } = useSelection();
   
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -84,10 +87,25 @@ export default function ExploreScreen() {
   };
 
   const handleLocationPress = (location: LocationType) => {
-    navigation.navigate("LocationDetail", {
-      location,
-      category: getCategory(location.categoryId),
-    });
+    if (isSelecting) {
+      if (isSelected(location.id)) {
+        deselectLocation(location.id);
+      } else {
+        selectLocation(location);
+      }
+    } else {
+      navigation.navigate("LocationDetail", {
+        location,
+        category: getCategory(location.categoryId),
+      });
+    }
+  };
+
+  const handleLongPress = (location: LocationType) => {
+    if (!isSelecting) {
+      toggleSelection();
+      selectLocation(location);
+    }
   };
 
   const renderLocation = ({ item }: { item: LocationType }) => (
@@ -95,7 +113,10 @@ export default function ExploreScreen() {
       location={item}
       category={getCategory(item.categoryId)}
       onPress={() => handleLocationPress(item)}
+      onLongPress={() => handleLongPress(item)}
       userLocation={userLocation}
+      isSelecting={isSelecting}
+      isSelected={isSelected(item.id)}
     />
   );
 
@@ -107,10 +128,19 @@ export default function ExploreScreen() {
     );
   }
 
+  const selectionPanelHeight = isSelecting && selectedLocations.length > 0 ? 120 : 0;
+
   return (
     <View style={[styles.container, { backgroundColor: Colors.dark.backgroundRoot }]}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-        <Text style={styles.title}>Explore</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Explore</Text>
+          <Pressable onPress={toggleSelection} style={styles.selectButton}>
+            <Text style={[styles.selectButtonText, isSelecting && styles.selectButtonActive]}>
+              {isSelecting ? "Done" : "Select"}
+            </Text>
+          </Pressable>
+        </View>
         
         <View style={styles.searchContainer}>
           <Feather name="search" size={20} color={Colors.dark.textSecondary} />
@@ -150,7 +180,7 @@ export default function ExploreScreen() {
         renderItem={renderLocation}
         contentContainerStyle={[
           styles.listContent,
-          { paddingBottom: tabBarHeight + Spacing.xl },
+          { paddingBottom: tabBarHeight + Spacing.xl + selectionPanelHeight },
         ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -167,6 +197,7 @@ export default function ExploreScreen() {
           </View>
         }
       />
+      <SelectionActionPanel />
     </View>
   );
 }
@@ -183,10 +214,25 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: Spacing.lg,
   },
+  titleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.lg,
+  },
   title: {
     ...Typography.largeTitle,
     color: Colors.dark.text,
-    marginBottom: Spacing.lg,
+  },
+  selectButton: {
+    padding: Spacing.sm,
+  },
+  selectButtonText: {
+    ...Typography.body,
+    color: Colors.dark.accent,
+  },
+  selectButtonActive: {
+    fontWeight: "600",
   },
   searchContainer: {
     flexDirection: "row",

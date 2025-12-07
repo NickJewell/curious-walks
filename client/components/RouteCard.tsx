@@ -7,6 +7,7 @@ import type { Route } from "@shared/schema";
 interface RouteCardProps {
   route: Route;
   onPress: () => void;
+  showBadge?: boolean;
 }
 
 function formatDuration(minutes: number): string {
@@ -21,7 +22,9 @@ function formatDistance(meters: number): string {
   return `${(meters / 1000).toFixed(1)}km`;
 }
 
-export default function RouteCard({ route, onPress }: RouteCardProps) {
+export default function RouteCard({ route, onPress, showBadge = true }: RouteCardProps) {
+  const isUserRoute = route.ownerId !== null;
+  
   return (
     <Pressable
       style={({ pressed }) => [styles.container, pressed && styles.containerPressed]}
@@ -32,7 +35,16 @@ export default function RouteCard({ route, onPress }: RouteCardProps) {
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.title} numberOfLines={1}>{route.name}</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title} numberOfLines={1}>{route.name}</Text>
+          {showBadge ? (
+            <View style={[styles.badge, isUserRoute && styles.userBadge]}>
+              <Text style={[styles.badgeText, isUserRoute && styles.userBadgeText]}>
+                {isUserRoute ? "My Route" : "System"}
+              </Text>
+            </View>
+          ) : null}
+        </View>
         <Text style={styles.description} numberOfLines={2}>{route.description}</Text>
 
         <View style={styles.metaContainer}>
@@ -82,10 +94,33 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
   title: {
     ...Typography.headline,
     color: Colors.dark.text,
-    marginBottom: Spacing.xs,
+    flex: 1,
+  },
+  badge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.xs,
+    backgroundColor: Colors.dark.backgroundSecondary,
+  },
+  userBadge: {
+    backgroundColor: Colors.dark.accent,
+  },
+  badgeText: {
+    ...Typography.caption,
+    color: Colors.dark.textSecondary,
+    fontSize: 10,
+  },
+  userBadgeText: {
+    color: "#FFFFFF",
   },
   description: {
     ...Typography.small,

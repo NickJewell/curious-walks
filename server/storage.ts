@@ -39,13 +39,19 @@ export interface IStorage {
   createRegion(region: InsertRegion): Promise<Region>;
 
   getRoutes(): Promise<Route[]>;
+  getRoutesByOwner(ownerId: string): Promise<Route[]>;
   getRouteById(id: string): Promise<Route | undefined>;
   getRouteBySlug(slug: string): Promise<Route | undefined>;
   getRoutesByRegion(regionId: string): Promise<Route[]>;
   createRoute(route: InsertRoute): Promise<Route>;
+  updateRoute(id: string, route: Partial<InsertRoute>): Promise<Route | undefined>;
+  deleteRoute(id: string): Promise<boolean>;
+  copyRoute(routeId: string, ownerId: string, newName: string): Promise<Route>;
 
   getRouteStops(routeId: string): Promise<RouteStop[]>;
   createRouteStop(stop: InsertRouteStop): Promise<RouteStop>;
+  deleteRouteStop(stopId: string): Promise<boolean>;
+  deleteRouteStopsByRoute(routeId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -187,6 +193,74 @@ export class DatabaseStorage implements IStorage {
   async createRouteStop(stop: InsertRouteStop): Promise<RouteStop> {
     const [newStop] = await db.insert(routeStops).values(stop).returning();
     return newStop;
+  }
+
+  async getRoutesByOwner(ownerId: string): Promise<Route[]> {
+    return db
+      .select()
+      .from(routes)
+      .where(and(eq(routes.ownerId, ownerId), eq(routes.isActive, true)))
+      .orderBy(asc(routes.name));
+  }
+
+  async updateRoute(id: string, route: Partial<InsertRoute>): Promise<Route | undefined> {
+    const [updated] = await db
+      .update(routes)
+      .set(route)
+      .where(eq(routes.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteRoute(id: string): Promise<boolean> {
+    await db.delete(routeStops).where(eq(routeStops.routeId, id));
+    const result = await db.delete(routes).where(eq(routes.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async copyRoute(routeId: string, ownerId: string, newName: string): Promise<Route> {
+    const originalRoute = await this.getRouteById(routeId);
+    if (!originalRoute) {
+      throw new Error("Route not found");
+    }
+
+    const timestamp = Date.now();
+    const slug = `${originalRoute.slug}-copy-${timestamp}`;
+
+    const [newRoute] = await db.insert(routes).values({
+      name: newName,
+      slug,
+      description: originalRoute.description,
+      estimatedDurationMinutes: originalRoute.estimatedDurationMinutes,
+      distanceMeters: originalRoute.distanceMeters,
+      difficulty: originalRoute.difficulty,
+      regionId: originalRoute.regionId,
+      ownerId,
+      sourceRouteId: originalRoute.id,
+      isEditable: true,
+      isActive: true,
+    }).returning();
+
+    const originalStops = await this.getRouteStops(routeId);
+    for (const stop of originalStops) {
+      await this.createRouteStop({
+        routeId: newRoute.id,
+        locationId: stop.locationId,
+        orderIndex: stop.orderIndex,
+        notes: stop.notes,
+      });
+    }
+
+    return newRoute;
+  }
+
+  async deleteRouteStop(stopId: string): Promise<boolean> {
+    const result = await db.delete(routeStops).where(eq(routeStops.id, stopId)).returning();
+    return result.length > 0;
+  }
+
+  async deleteRouteStopsByRoute(routeId: string): Promise<void> {
+    await db.delete(routeStops).where(eq(routeStops.routeId, routeId));
   }
 }
 

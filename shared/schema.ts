@@ -70,6 +70,9 @@ export const routes = pgTable("routes", {
   distanceMeters: integer("distance_meters").notNull(),
   difficulty: text("difficulty").notNull().default("easy"),
   regionId: varchar("region_id").references(() => regions.id),
+  ownerId: text("owner_id"),
+  sourceRouteId: varchar("source_route_id"),
+  isEditable: boolean("is_editable").default(false).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

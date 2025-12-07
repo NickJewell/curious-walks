@@ -8,7 +8,10 @@ interface LocationCardProps {
   location: Location;
   category?: Category;
   onPress: () => void;
+  onLongPress?: () => void;
   userLocation?: { latitude: number; longitude: number } | null;
+  isSelecting?: boolean;
+  isSelected?: boolean;
 }
 
 function calculateDistance(
@@ -41,7 +44,10 @@ export default function LocationCard({
   location,
   category,
   onPress,
+  onLongPress,
   userLocation,
+  isSelecting = false,
+  isSelected = false,
 }: LocationCardProps) {
   const categoryColor = category ? CategoryColors[category.slug] || Colors.dark.accent : Colors.dark.accent;
   
@@ -56,9 +62,21 @@ export default function LocationCard({
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.container, pressed && styles.containerPressed]}
+      style={({ pressed }) => [
+        styles.container,
+        pressed && styles.containerPressed,
+        isSelected && styles.containerSelected,
+      ]}
       onPress={onPress}
+      onLongPress={onLongPress}
     >
+      {isSelecting ? (
+        <View style={styles.checkboxContainer}>
+          <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
+            {isSelected ? <Feather name="check" size={14} color="#FFFFFF" /> : null}
+          </View>
+        </View>
+      ) : null}
       <View style={styles.iconContainer}>
         <View style={[styles.iconCircle, { backgroundColor: categoryColor }]}>
           <Feather name={(category?.iconName as any) || "map-pin"} size={20} color="#FFFFFF" />
@@ -101,6 +119,27 @@ const styles = StyleSheet.create({
   },
   containerPressed: {
     opacity: 0.6,
+  },
+  containerSelected: {
+    borderColor: Colors.dark.accent,
+    backgroundColor: `${Colors.dark.accent}10`,
+  },
+  checkboxContainer: {
+    justifyContent: "center",
+    marginRight: Spacing.sm,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: Colors.dark.inactive,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  checkboxSelected: {
+    backgroundColor: Colors.dark.accent,
+    borderColor: Colors.dark.accent,
   },
   iconContainer: {
     marginRight: Spacing.md,
