@@ -12,6 +12,7 @@ import {
 import { BlurView } from "expo-blur";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useSelection } from "@/lib/selection-context";
@@ -21,6 +22,7 @@ import type { Route } from "@shared/schema";
 
 export default function SelectionActionPanel() {
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
   const queryClient = useQueryClient();
   const { selectedLocations, clearSelection, isSelecting } = useSelection();
   const deviceId = useDeviceId();
@@ -89,7 +91,7 @@ export default function SelectionActionPanel() {
       <BlurView
         intensity={80}
         tint="dark"
-        style={[styles.container, { paddingBottom: insets.bottom + Spacing.md }]}
+        style={[styles.container, { bottom: tabBarHeight, paddingBottom: Spacing.md }]}
       >
         <View style={styles.header}>
           <Text style={styles.countText}>
@@ -218,7 +220,6 @@ export default function SelectionActionPanel() {
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
-    bottom: 0,
     left: 0,
     right: 0,
     padding: Spacing.md,
