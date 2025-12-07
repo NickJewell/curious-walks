@@ -318,6 +318,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put("/api/user-routes/:routeId/stops/reorder", async (req, res) => {
+    try {
+      const route = await storage.getRouteById(req.params.routeId);
+      if (!route) {
+        return res.status(404).json({ error: "Route not found" });
+      }
+      if (!route.isEditable) {
+        return res.status(403).json({ error: "Cannot modify system routes" });
+      }
+      const { ownerId, stopOrders } = req.body;
+      if (route.ownerId !== ownerId) {
+        return res.status(403).json({ error: "Not authorized to modify this route" });
+      }
+      if (!stopOrders || !Array.isArray(stopOrders)) {
+        return res.status(400).json({ error: "stopOrders array is required" });
+      }
+      await storage.reorderRouteStops(req.params.routeId, stopOrders);
+      const updatedStops = await storage.getRouteStops(req.params.routeId);
+      res.json({ success: true, stops: updatedStops });
+    } catch (error) {
+      console.error("Error reordering route stops:", error);
+      res.status(500).json({ error: "Failed to reorder route stops" });
+    }
+  });
+
   app.post("/api/seed", async (_req, res) => {
     try {
       const existingCategories = await storage.getCategories();

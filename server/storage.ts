@@ -52,6 +52,7 @@ export interface IStorage {
   createRouteStop(stop: InsertRouteStop): Promise<RouteStop>;
   deleteRouteStop(stopId: string): Promise<boolean>;
   deleteRouteStopsByRoute(routeId: string): Promise<void>;
+  reorderRouteStops(routeId: string, stopOrders: { stopId: string; orderIndex: number }[]): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -261,6 +262,15 @@ export class DatabaseStorage implements IStorage {
 
   async deleteRouteStopsByRoute(routeId: string): Promise<void> {
     await db.delete(routeStops).where(eq(routeStops.routeId, routeId));
+  }
+
+  async reorderRouteStops(routeId: string, stopOrders: { stopId: string; orderIndex: number }[]): Promise<void> {
+    for (const { stopId, orderIndex } of stopOrders) {
+      await db
+        .update(routeStops)
+        .set({ orderIndex })
+        .where(and(eq(routeStops.id, stopId), eq(routeStops.routeId, routeId)));
+    }
   }
 }
 
