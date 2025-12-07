@@ -35,7 +35,6 @@ export default function MapScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const mapRef = useRef<any>(null);
-  const longPressTriggeredRef = useRef(false);
   const { isSelecting, toggleSelection, selectLocation, deselectLocation, isSelected, selectedLocations } = useSelection();
   
   const [selectedLocation, setSelectedLocation] = useState<LocationType | null>(null);
@@ -89,10 +88,6 @@ export default function MapScreen() {
   }, [categories]);
 
   const handleMarkerPress = (location: LocationType) => {
-    if (longPressTriggeredRef.current) {
-      longPressTriggeredRef.current = false;
-      return;
-    }
     if (isSelecting) {
       if (isSelected(location.id)) {
         deselectLocation(location.id);
@@ -107,14 +102,6 @@ export default function MapScreen() {
         latitudeDelta: 0.01,
         longitudeDelta: 0.01,
       }, 300);
-    }
-  };
-
-  const handleMarkerLongPress = (location: LocationType) => {
-    longPressTriggeredRef.current = true;
-    if (!isSelecting) {
-      toggleSelection();
-      selectLocation(location);
     }
   };
 
@@ -178,24 +165,19 @@ export default function MapScreen() {
               }}
               tracksViewChanges={false}
               stopPropagation
+              onPress={() => handleMarkerPress(location)}
             >
-              <Pressable
-                onPress={() => handleMarkerPress(location)}
-                onLongPress={() => handleMarkerLongPress(location)}
-                delayLongPress={500}
-              >
-                <View style={[
-                  styles.marker, 
-                  { backgroundColor: markerColor },
-                  locationIsSelected && styles.markerSelected
-                ]}>
-                  {isSelecting && locationIsSelected ? (
-                    <Feather name="check" size={16} color="#FFFFFF" />
-                  ) : (
-                    <Feather name={iconName as any} size={16} color="#FFFFFF" />
-                  )}
-                </View>
-              </Pressable>
+              <View style={[
+                styles.marker, 
+                { backgroundColor: markerColor },
+                locationIsSelected && styles.markerSelected
+              ]}>
+                {isSelecting && locationIsSelected ? (
+                  <Feather name="check" size={16} color="#FFFFFF" />
+                ) : (
+                  <Feather name={iconName as any} size={16} color="#FFFFFF" />
+                )}
+              </View>
             </Marker>
           );
         }) : null}
