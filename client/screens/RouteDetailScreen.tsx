@@ -353,13 +353,10 @@ export default function RouteDetailScreen() {
     );
   };
 
-  // Handle view stop details
+  // Handle view stop details - show modal overlay instead of navigating
   const handleViewStopDetails = () => {
     if (selectedStopIndex !== null) {
-      const location = locationsForMap[selectedStopIndex];
-      if (location) {
-        handleLocationPress(location);
-      }
+      setShowStopDetailModal(true);
     }
   };
 
@@ -669,19 +666,29 @@ export default function RouteDetailScreen() {
                     {/* Expanded walking instructions */}
                     {isExpanded && walkingInfo.steps ? (
                       <View style={styles.walkingStepsContainer}>
-                        {walkingInfo.steps.map((step, stepIndex) => (
-                          <View key={stepIndex} style={styles.walkingStep}>
-                            <View style={styles.walkingStepDot} />
-                            <View style={styles.walkingStepContent}>
-                              <Text style={styles.walkingStepInstruction}>
-                                {step.instruction.replace(/<[^>]*>/g, '')}
-                              </Text>
-                              <Text style={styles.walkingStepMeta}>
-                                {step.distance.text} - {step.duration.text}
-                              </Text>
+                        {walkingInfo.steps.map((step, stepIndex) => {
+                          const instruction = step.instruction.replace(/<[^>]*>/g, '');
+                          const isDestination = instruction.toLowerCase().includes('destination');
+                          return (
+                            <View 
+                              key={stepIndex} 
+                              style={[
+                                styles.walkingStep,
+                                isDestination && styles.walkingStepDestination,
+                              ]}
+                            >
+                              <View style={isDestination ? styles.walkingStepDestinationDot : styles.walkingStepDot} />
+                              <View style={styles.walkingStepContent}>
+                                <Text style={styles.walkingStepInstruction}>
+                                  {instruction}
+                                </Text>
+                                <Text style={styles.walkingStepMeta}>
+                                  {step.distance.text} - {step.duration.text}
+                                </Text>
+                              </View>
                             </View>
-                          </View>
-                        ))}
+                          );
+                        })}
                       </View>
                     ) : null}
                   </View>
@@ -766,14 +773,83 @@ export default function RouteDetailScreen() {
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.lg }]}>
-        <Pressable
-          style={({ pressed }) => [styles.startButton, pressed && styles.startButtonPressed]}
+      {/* Stop Detail Modal */}
+      <Modal
+        visible={showStopDetailModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowStopDetailModal(false)}
+      >
+        <Pressable 
+          style={styles.modalOverlay} 
+          onPress={() => setShowStopDetailModal(false)}
         >
-          <Feather name="navigation" size={20} color="#FFFFFF" />
-          <Text style={styles.startText}>Start Route</Text>
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            {selectedStop?.location ? (
+              <>
+                <View style={styles.modalHeader}>
+                  <View style={[styles.modalStopNumber, { backgroundColor: selectedColor }]}>
+                    {checkedInStops.has(localStops[selectedStopIndex!]?.id) ? (
+                      <Feather name="check" size={16} color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.modalStopNumberText}>{selectedStopIndex! + 1}</Text>
+                    )}
+                  </View>
+                  <View style={styles.modalStopInfo}>
+                    <Text style={styles.modalStopName}>{selectedStop.location.name}</Text>
+                    <Text style={styles.modalStopCategory}>{selectedCategory?.name || "Unknown"}</Text>
+                  </View>
+                  <Pressable
+                    style={styles.modalCloseButton}
+                    onPress={() => setShowStopDetailModal(false)}
+                  >
+                    <Feather name="x" size={24} color={Colors.dark.textSecondary} />
+                  </Pressable>
+                </View>
+                
+                {selectedStop.location.description ? (
+                  <Text style={styles.modalDescription}>{selectedStop.location.description}</Text>
+                ) : null}
+                
+                {selectedStop.location.story ? (
+                  <ScrollView style={styles.modalStoryScroll}>
+                    <Text style={styles.modalStory}>{selectedStop.location.story}</Text>
+                  </ScrollView>
+                ) : null}
+                
+                {selectedStop.location.address ? (
+                  <View style={styles.modalAddressRow}>
+                    <Feather name="map-pin" size={14} color={Colors.dark.textSecondary} />
+                    <Text style={styles.modalAddress}>{selectedStop.location.address}</Text>
+                  </View>
+                ) : null}
+                
+                <View style={styles.modalActions}>
+                  <Pressable
+                    style={[
+                      styles.modalCheckInButton,
+                      checkedInStops.has(localStops[selectedStopIndex!]?.id) && styles.modalCheckInButtonActive,
+                    ]}
+                    onPress={() => handleCheckIn(localStops[selectedStopIndex!]?.id)}
+                  >
+                    <Feather
+                      name={checkedInStops.has(localStops[selectedStopIndex!]?.id) ? "check-circle" : "circle"}
+                      size={20}
+                      color={checkedInStops.has(localStops[selectedStopIndex!]?.id) ? "#4CAF50" : Colors.dark.textSecondary}
+                    />
+                    <Text style={[
+                      styles.modalCheckInText,
+                      checkedInStops.has(localStops[selectedStopIndex!]?.id) && styles.modalCheckInTextActive,
+                    ]}>
+                      {checkedInStops.has(localStops[selectedStopIndex!]?.id) ? "Checked In" : "Check In"}
+                    </Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : null}
+          </Pressable>
         </Pressable>
-      </View>
+      </Modal>
     </View>
   );
 }
@@ -1103,29 +1179,112 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
     marginTop: 2,
   },
-  footer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
-    backgroundColor: Colors.dark.backgroundRoot,
+  walkingStepDestination: {
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.dark.border,
   },
-  startButton: {
+  walkingStepDestinationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#4CAF50",
+    marginTop: 5,
+    marginRight: Spacing.sm,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: Colors.dark.backgroundDefault,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    maxHeight: "80%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.lg,
+  },
+  modalStopNumber: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: Spacing.md,
+  },
+  modalStopNumberText: {
+    ...Typography.body,
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  modalStopInfo: {
+    flex: 1,
+  },
+  modalStopName: {
+    ...Typography.title2,
+    color: Colors.dark.text,
+  },
+  modalStopCategory: {
+    ...Typography.body,
+    color: Colors.dark.textSecondary,
+    marginTop: 2,
+  },
+  modalCloseButton: {
+    padding: Spacing.xs,
+  },
+  modalDescription: {
+    ...Typography.body,
+    color: Colors.dark.text,
+    marginBottom: Spacing.md,
+  },
+  modalStoryScroll: {
+    maxHeight: 200,
+    marginBottom: Spacing.md,
+  },
+  modalStory: {
+    ...Typography.body,
+    color: Colors.dark.textSecondary,
+    lineHeight: 22,
+  },
+  modalAddressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.lg,
+    gap: Spacing.xs,
+  },
+  modalAddress: {
+    ...Typography.small,
+    color: Colors.dark.textSecondary,
+    flex: 1,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: Spacing.md,
+  },
+  modalCheckInButton: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Colors.dark.accent,
-    height: Spacing.buttonHeight,
+    backgroundColor: Colors.dark.backgroundSecondary,
     borderRadius: BorderRadius.sm,
+    paddingVertical: Spacing.md,
     gap: Spacing.sm,
   },
-  startButtonPressed: {
-    opacity: 0.6,
+  modalCheckInButtonActive: {
+    backgroundColor: "rgba(76, 175, 80, 0.15)",
   },
-  startText: {
-    ...Typography.headline,
-    color: "#FFFFFF",
+  modalCheckInText: {
+    ...Typography.body,
+    color: Colors.dark.textSecondary,
+  },
+  modalCheckInTextActive: {
+    color: "#4CAF50",
   },
 });
