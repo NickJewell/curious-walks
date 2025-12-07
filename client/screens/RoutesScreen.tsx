@@ -34,13 +34,7 @@ export default function RoutesScreen() {
   });
 
   const { data: userRoutes = [] } = useQuery<Route[]>({
-    queryKey: ["/api/user-routes", deviceId],
-    queryFn: async () => {
-      if (!deviceId) return [];
-      const res = await fetch(`/api/user-routes?ownerId=${deviceId}`);
-      if (!res.ok) throw new Error("Failed to fetch user routes");
-      return res.json();
-    },
+    queryKey: [`/api/user-routes?ownerId=${deviceId}`],
     enabled: !!deviceId,
   });
 

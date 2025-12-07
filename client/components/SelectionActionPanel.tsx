@@ -30,26 +30,21 @@ export default function SelectionActionPanel() {
   const [newRouteName, setNewRouteName] = useState("");
 
   const { data: userRoutes = [], isLoading: loadingRoutes } = useQuery<Route[]>({
-    queryKey: ["/api/user-routes", deviceId],
-    queryFn: async () => {
-      if (!deviceId) return [];
-      const res = await fetch(`/api/user-routes?ownerId=${deviceId}`);
-      if (!res.ok) throw new Error("Failed to fetch user routes");
-      return res.json();
-    },
+    queryKey: [`/api/user-routes?ownerId=${deviceId}`],
     enabled: !!deviceId && showRouteSheet,
   });
 
   const createRouteMutation = useMutation({
     mutationFn: async (name: string) => {
-      return apiRequest("POST", "/api/user-routes", {
+      const res = await apiRequest("POST", "/api/user-routes", {
         ownerId: deviceId,
         name,
         description: "My custom route",
       });
+      return res.json() as Promise<Route>;
     },
     onSuccess: async (newRoute: Route) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/user-routes"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/user-routes?ownerId=${deviceId}`] });
       queryClient.invalidateQueries({ queryKey: ["/api/routes"] });
       await addLocationsToRoute(newRoute.id);
       setShowNewRouteModal(false);
