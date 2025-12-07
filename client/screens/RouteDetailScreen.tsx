@@ -318,24 +318,25 @@ export default function RouteDetailScreen() {
     });
   };
 
-  // Handle marker press - zoom to street level
+  // Handle marker press - show modal immediately
   const handleMarkerPress = (index: number) => {
     setSelectedStopIndex(index);
+    setShowStopDetailModal(true);
     const location = locationsForMap[index];
     if (location && mapRef.current) {
-      // Animate to street level zoom
       mapRef.current.animateToRegion({
         latitude: location.latitude,
         longitude: location.longitude,
-        latitudeDelta: 0.003, // Street level zoom
+        latitudeDelta: 0.003,
         longitudeDelta: 0.003,
       }, 500);
     }
   };
 
-  // Handle stop selection from list - same as marker press
+  // Handle stop selection from list - show modal immediately
   const handleStopListPress = (index: number) => {
-    handleMarkerPress(index);
+    setSelectedStopIndex(index);
+    setShowStopDetailModal(true);
   };
 
   // Handle check-in for a stop
@@ -486,84 +487,7 @@ export default function RouteDetailScreen() {
             </View>
           ) : null}
 
-          {/* Reset view button when zoomed in */}
-          {selectedStopIndex !== null ? (
-            <Pressable style={styles.resetViewButton} onPress={resetMapView}>
-              <Feather name="minimize-2" size={18} color={Colors.dark.text} />
-            </Pressable>
-          ) : null}
-
-          {/* Selected Stop Panel */}
-          {selectedStop?.location ? (
-            <Animated.View
-              style={[
-                styles.selectedStopPanel,
-                {
-                  transform: [{
-                    translateY: panelAnimation.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [150, 0],
-                    }),
-                  }],
-                  opacity: panelAnimation,
-                },
-              ]}
-            >
-              <View style={styles.selectedStopHeader}>
-                <View style={[styles.selectedStopNumber, { backgroundColor: selectedColor }]}>
-                  {checkedInStops.has(localStops[selectedStopIndex!]?.id) ? (
-                    <Feather name="check" size={14} color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.selectedStopNumberText}>{selectedStopIndex! + 1}</Text>
-                  )}
-                </View>
-                <View style={styles.selectedStopInfo}>
-                  <Text style={styles.selectedStopName} numberOfLines={1}>
-                    {selectedStop.location.name}
-                  </Text>
-                  <Text style={styles.selectedStopCategory}>
-                    {selectedCategory?.name || "Unknown"}
-                  </Text>
-                </View>
-                <Pressable
-                  style={styles.closeSelectedButton}
-                  onPress={() => setSelectedStopIndex(null)}
-                >
-                  <Feather name="x" size={20} color={Colors.dark.textSecondary} />
-                </Pressable>
-              </View>
-              
-              <View style={styles.selectedStopActions}>
-                <Pressable
-                  style={[
-                    styles.checkInButton,
-                    checkedInStops.has(localStops[selectedStopIndex!]?.id) && styles.checkInButtonActive,
-                  ]}
-                  onPress={() => handleCheckIn(localStops[selectedStopIndex!]?.id)}
-                >
-                  <Feather
-                    name={checkedInStops.has(localStops[selectedStopIndex!]?.id) ? "check-circle" : "circle"}
-                    size={18}
-                    color={checkedInStops.has(localStops[selectedStopIndex!]?.id) ? "#4CAF50" : Colors.dark.textSecondary}
-                  />
-                  <Text style={[
-                    styles.checkInText,
-                    checkedInStops.has(localStops[selectedStopIndex!]?.id) && styles.checkInTextActive,
-                  ]}>
-                    {checkedInStops.has(localStops[selectedStopIndex!]?.id) ? "Checked In" : "Check In"}
-                  </Text>
-                </Pressable>
-                
-                <Pressable
-                  style={styles.viewDetailsButton}
-                  onPress={handleViewStopDetails}
-                >
-                  <Feather name="info" size={18} color={Colors.dark.accent} />
-                  <Text style={styles.viewDetailsText}>View Details</Text>
-                </Pressable>
-              </View>
-            </Animated.View>
-          ) : null}
+          {isLoadingRoute ? null : null}
         </View>
 
         <View style={styles.content}>
@@ -666,22 +590,46 @@ export default function RouteDetailScreen() {
                     {/* Expanded walking instructions */}
                     {isExpanded && walkingInfo.steps ? (
                       <View style={styles.walkingStepsContainer}>
-                        {walkingInfo.steps.map((step, stepIndex) => {
-                          const instruction = step.instruction.replace(/<[^>]*>/g, '');
-                          const isDestination = instruction.toLowerCase().includes('destination');
+                        {walkingInfo.steps.flatMap((step, stepIndex) => {
+                          const rawInstruction = step.instruction.replace(/<[^>]*>/g, '');
+                          const destinationMatch = rawInstruction.match(/(.*?)(Destination will be on the (?:left|right)\.?)$/i);
+                          
+                          if (destinationMatch) {
+                            const mainInstruction = destinationMatch[1].trim();
+                            const destinationInstruction = destinationMatch[2].trim();
+                            const items = [];
+                            
+                            if (mainInstruction) {
+                              items.push(
+                                <View key={`${stepIndex}-main`} style={styles.walkingStep}>
+                                  <View style={styles.walkingStepDot} />
+                                  <View style={styles.walkingStepContent}>
+                                    <Text style={styles.walkingStepInstruction}>{mainInstruction}</Text>
+                                    <Text style={styles.walkingStepMeta}>
+                                      {step.distance.text} - {step.duration.text}
+                                    </Text>
+                                  </View>
+                                </View>
+                              );
+                            }
+                            
+                            items.push(
+                              <View key={`${stepIndex}-dest`} style={[styles.walkingStep, styles.walkingStepDestination]}>
+                                <View style={styles.walkingStepDestinationDot} />
+                                <View style={styles.walkingStepContent}>
+                                  <Text style={styles.walkingStepInstruction}>{destinationInstruction}</Text>
+                                </View>
+                              </View>
+                            );
+                            
+                            return items;
+                          }
+                          
                           return (
-                            <View 
-                              key={stepIndex} 
-                              style={[
-                                styles.walkingStep,
-                                isDestination && styles.walkingStepDestination,
-                              ]}
-                            >
-                              <View style={isDestination ? styles.walkingStepDestinationDot : styles.walkingStepDot} />
+                            <View key={stepIndex} style={styles.walkingStep}>
+                              <View style={styles.walkingStepDot} />
                               <View style={styles.walkingStepContent}>
-                                <Text style={styles.walkingStepInstruction}>
-                                  {instruction}
-                                </Text>
+                                <Text style={styles.walkingStepInstruction}>{rawInstruction}</Text>
                                 <Text style={styles.walkingStepMeta}>
                                   {step.distance.text} - {step.duration.text}
                                 </Text>
@@ -719,20 +667,7 @@ export default function RouteDetailScreen() {
                       </Text>
                       <Text style={styles.stopCategory}>{category?.name || "Unknown"}</Text>
                     </View>
-                    <Pressable
-                      style={styles.checkInIconButton}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        handleCheckIn(stop.id);
-                      }}
-                      hitSlop={8}
-                    >
-                      <Feather
-                        name={isCheckedIn ? "check-circle" : "circle"}
-                        size={20}
-                        color={isCheckedIn ? "#4CAF50" : Colors.dark.inactive}
-                      />
-                    </Pressable>
+                    <Feather name="chevron-right" size={18} color={Colors.dark.inactive} />
                   </Pressable>
                   {isEditable ? (
                     <View style={styles.reorderButtons}>
@@ -1227,7 +1162,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalStopName: {
-    ...Typography.title2,
+    ...Typography.headline,
     color: Colors.dark.text,
   },
   modalStopCategory: {
