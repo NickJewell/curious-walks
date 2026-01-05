@@ -49,26 +49,42 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 export async function getNearestCurios(lat: number, lng: number, limit: number = 20): Promise<Curio[]> {
   const { data, error } = await supabase
     .from('places')
-    .select('id, name, description, latitude, longitude')
-    .not('latitude', 'is', null)
-    .not('longitude', 'is', null);
+    .select('*');
   
   if (error) {
     console.error('Error fetching places:', error);
-    if (error.code === '42P01') {
-      console.error('Table "places" not found. Please ensure your Supabase database has a "places" table.');
-    }
     return [];
   }
 
   if (!data || data.length === 0) {
+    console.log('No places found in database');
     return [];
   }
+
+  console.log('Sample place data:', JSON.stringify(data[0]));
   
-  const placesWithDistance = data.map(place => ({
-    ...place,
-    distance: calculateDistance(lat, lng, place.latitude, place.longitude)
-  }));
+  const placesWithCoords = data.filter(place => {
+    const latField = place.latitude ?? place.lat ?? place.y;
+    const lngField = place.longitude ?? place.lng ?? place.lon ?? place.x;
+    return latField != null && lngField != null;
+  });
+  
+  const placesWithDistance = placesWithCoords.map(place => {
+    const placeLat = place.latitude ?? place.lat ?? place.y;
+    const placeLng = place.longitude ?? place.lng ?? place.lon ?? place.x;
+    const placeId = place.id ?? place.uuid ?? place.place_id ?? String(Math.random());
+    const placeName = place.name ?? place.title ?? 'Unknown';
+    const placeDesc = place.description ?? place.desc ?? place.summary ?? '';
+    
+    return {
+      id: placeId,
+      name: placeName,
+      description: placeDesc,
+      latitude: placeLat,
+      longitude: placeLng,
+      distance: calculateDistance(lat, lng, placeLat, placeLng)
+    };
+  });
   
   placesWithDistance.sort((a, b) => a.distance - b.distance);
   
