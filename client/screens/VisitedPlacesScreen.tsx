@@ -117,7 +117,7 @@ export default function VisitedPlacesScreen({ navigation }: Props) {
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top + Spacing.xl }]}>
       <View style={styles.header}>
         <Pressable
           style={styles.backButton}
