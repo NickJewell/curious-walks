@@ -1,0 +1,121 @@
+PRD 2: Authentication & User Onboarding (Expo Version)
+1. Goal
+Securely authenticate users via Google OAuth to enable personalized features (Lists, Check-ins) while ensuring a seamless, native login experience.
+
+2. User Story
+As a user, I want to sign in with my existing Google account using a single tap so that I don't have to remember a new password, and my data is saved securely on my device.
+
+3. Technical Dependencies
+Framework: Expo (React Native).
+
+Auth Provider: Supabase Auth (Google Provider).
+
+Expo Modules:
+
+expo-auth-session (For handling the OAuth browser flow).
+
+expo-web-browser (To display the Google login page).
+
+@react-native-async-storage/async-storage (To persist the login session).
+
+Deep Linking: Requires a registered URL Scheme (e.g., londonexplorer://) in app.json.
+
+4. Functional Requirements
+4.1 The Login Screen (UI)
+Route: /login (or a dedicated Login Modal).
+
+Layout:
+
+Hero Image: A high-quality image of London (e.g., St. Paul’s) occupying the top 50% of the screen.
+
+Title: "Discover Hidden London."
+
+Action: A large, native-styled button: "Continue with Google" (using the official Google G logo).
+
+Guest Access: A smaller text link below: "Continue as Guest" (optional, depending on if you want to force login).
+
+4.2 The OAuth Flow (Logic)
+Initiation:
+
+When the button is pressed, trigger supabase.auth.signInWithOAuth().
+
+Crucial Configuration: The redirectTo parameter must match the app's deep link scheme (e.g., exp://... for development or londonexplorer://... for production).
+
+Browser Hand-off:
+
+The app triggers WebBrowser.openAuthSessionAsync to show the Google login page.
+
+Note: This happens outside your app view (in a secure system modal).
+
+The Callback:
+
+Upon success, Google redirects to the custom URL scheme.
+
+The app must "wake up," parse the URL parameters (access_token, refresh_token), and hand them to the Supabase client.
+
+4.3 Session Persistence
+Storage Adapter:
+
+The Supabase client must be initialized with a custom auth storage adapter using AsyncStorage.
+
+Why: Unlike the web, React Native does not have localStorage. If this is missing, the user will be logged out every time they close the app.
+
+Auto-Login:
+
+On app launch (App.js mount), check supabase.auth.getSession().
+
+If a valid session exists, skip the Login Screen and navigate directly to the Map.
+
+4.4 Protected Navigation
+Router Logic: Use expo-router groups ((auth) vs (app)).
+
+If !session: Redirect user to the Login screen if they try to access "Lists" or "Profile."
+
+Public Access: The "Map" tab should be accessible to Guests, but interactions like "Check In" or "Add to List" must trigger the Login Modal.
+
+4.5 Profile Synchronization
+Database Trigger: (Already implemented in SQL). We rely on the backend trigger to create the user row in the profiles table upon sign-up.
+
+Frontend State: Once logged in, fetch the user's profile data (e.g., avatar_url, email) and store it in the global React Context.
+
+5. Acceptance Criteria
+Google Button: Clicking "Continue with Google" opens the system browser to the correct Google accounts page.
+
+Redirect: After entering credentials, the browser closes automatically, and the app reopens.
+
+Persistence: Killing the app (swiping it away) and reopening it keeps the user logged in.
+
+Logout: A "Sign Out" button in the Profile tab successfully clears the session and returns the user to the Login screen.
+
+Guest Protection: Trying to "Check In" while logged out prompts the user to log in.
+
+Implementation Note for Replit Agent
+This is the hardest part for AI agents to configure correctly because of the URL Scheme. Provide this specific instruction block:
+
+Critical Expo Auth Instructions:
+
+Deep Linking: You must set up deep linking for the OAuth redirect to work.
+
+In app.json, set scheme to "londonexplorer".
+
+In the Supabase Dashboard (Auth -> URL Configuration), you must add londonexplorer://google-auth (or similar) to the Redirect URLs.
+
+Supabase Client Setup:
+
+Do not use the standard web setup.
+
+Import AsyncStorage from @react-native-async-storage/async-storage.
+
+Initialize Supabase with:
+
+JavaScript
+
+createClient(url, key, {
+  auth: {
+    storage: AsyncStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false, // Important for RN
+  },
+});
+URL Polyfill: React Native requires react-native-url-polyfill/auto imported at the very top of index.js or App.js. Don't forget this, or Supabase will crash.

@@ -1,0 +1,88 @@
+PRD 1: Core Map & Location Experience (Expo Version)
+1. Goal
+Establish the primary application view where the user sees their real-time location on a native Google Map, populated immediately with the nearest historical curiosities.
+
+2. User Story
+As a visitor in London, I want to open the app and immediately see a map centered on my location with the 20 nearest historical spots so I can start exploring without needing to search or configure settings.
+
+3. Technical Dependencies
+Framework: Expo (React Native).
+
+Map Engine: react-native-maps (configured with PROVIDER_GOOGLE).
+
+Location Services: expo-location.
+
+Backend: Supabase (PostGIS enabled).
+
+External Service: Google Maps API Key (Must be enabled in Google Cloud Console for Android/iOS SDKs).
+
+Key Database Columns: "curio-id", "name", "description", location.
+
+4. Functional Requirements
+4.1 Map Initialization
+Component: Use <MapView> with provider={PROVIDER_GOOGLE}.
+
+Styling: The map must utilize StyleSheet.absoluteFillObject to ensure it fills the entire screen behind the UI.
+
+Permissions: Upon mount (useEffect), utilize Location.requestForegroundPermissionsAsync() to request access.
+
+Centering:
+
+Success: If granted, use Location.getCurrentPositionAsync to set the initial region state.
+
+Denial/Error: Default the region to Trafalgar Square (Lat: 51.5080, Lon: -0.1281) with a default latitudeDelta (zoom level) of 0.01.
+
+4.2 Data Fetching Strategy
+Initial Load: Trigger the Supabase RPC function get_nearest_places immediately once the initial region is determined.
+
+Limit: Fetch exactly 20 records.
+
+State Management: Maintain two distinct states:
+
+userLocation: The GPS coordinates of the blue dot.
+
+region: The current center/zoom level of the map camera.
+
+4.3 User Interaction (Pan & Scan)
+Region Change: Listen to the onRegionChangeComplete prop of the MapView.
+
+"Search This Area":
+
+Calculate distance between the userLocation and the new region center.
+
+If the distance > 500 meters (significant move), fade in a floating "Search Here" button (styled nicely with TouchableOpacity).
+
+Action: Tapping this triggers get_nearest_places using the map's current center, not the user's GPS.
+
+4.4 UI Elements
+User Marker: react-native-maps has a built-in prop showsUserLocation={true}. Enable this for the native pulsing blue dot.
+
+Place Markers: Map the places array to <Marker> components.
+
+Callouts (Popups):
+
+Use the <Callout> sub-component within the Marker.
+
+Content: A generic <View> containing a <Text> for the Title ("name") and Subtitle ("description").
+
+Interaction: Tapping the Callout should log the selection or prepare to open the Detail View (future PRD).
+
+Navigation: A native Bottom Tab Navigator (using expo-router or @react-navigation/bottom-tabs).
+
+5. Acceptance Criteria
+Native Load: App launches in Expo Go (or Simulator) showing a Google Map, not an Apple Map or blank screen.
+
+Permissions: System permission dialog ("Allow App to use your location?") appears on launch.
+
+Google Maps API: Custom markers render correctly (requires valid API key configured in app.json).
+
+Re-Query: Dragging the map reveals the "Search Here" button; clicking it drops 20 new pins in the new area.
+
+Selection: Tapping a pin opens a native info bubble (Callout) with the correct text from the database.
+
+Implementation Note for Replit Agent
+When you hand this to the Agent, add this warning regarding the Google Maps API Key:
+
+Important Configuration Note: "Since we are using react-native-maps with Google Maps, please create a placeholder variable for Maps_API_KEY in the .env or app.json.
+
+You must strictly use expo-location for fetching the coordinates. Do not use the web-based navigator.geolocation API."
