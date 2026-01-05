@@ -47,17 +47,23 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 }
 
 export async function getNearestCurios(lat: number, lng: number, limit: number = 20): Promise<Curio[]> {
-  const { data, error } = await supabase
+  console.log('Supabase URL:', supabaseUrl);
+  console.log('Supabase key present:', !!supabaseAnonKey);
+  console.log('Fetching places from Supabase...');
+  
+  const { data, error, count } = await supabase
     .from('places')
-    .select('*');
+    .select('*', { count: 'exact' });
+  
+  console.log('Query result - data:', data?.length ?? 0, 'items, error:', error, 'count:', count);
   
   if (error) {
-    console.error('Error fetching places:', error);
+    console.error('Error fetching places:', JSON.stringify(error));
     return [];
   }
 
   if (!data || data.length === 0) {
-    console.log('No places found in database');
+    console.log('No places found in database - table may be empty or RLS is blocking access');
     return [];
   }
 
