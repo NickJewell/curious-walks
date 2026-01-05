@@ -193,7 +193,7 @@ export default function CompassScreen({ navigation }: Props) {
   };
 
   const handleCheckIn = async () => {
-    if (!activeTarget || !user || isGuest || checkingIn || alreadyCheckedIn) return;
+    if (!activeTarget || !user || isGuest || checkingIn || alreadyCheckedIn || !canCheckIn) return;
     
     setCheckingIn(true);
     
@@ -290,7 +290,7 @@ export default function CompassScreen({ navigation }: Props) {
             {activeTarget.description}
           </Text>
           
-          {!isGuest && !alreadyCheckedIn ? (
+          {!isGuest && !alreadyCheckedIn && canCheckIn ? (
             <Pressable
               style={[styles.actionButton, styles.checkInButton]}
               onPress={handleCheckIn}
@@ -305,6 +305,11 @@ export default function CompassScreen({ navigation }: Props) {
                 </>
               )}
             </Pressable>
+          ) : !isGuest && !alreadyCheckedIn && !canCheckIn ? (
+            <View style={[styles.actionButton, styles.disabledCheckInButton]}>
+              <Feather name="map-pin" size={20} color={Colors.dark.textSecondary} />
+              <Text style={styles.disabledCheckInText}>Get closer to check in ({CHECKIN_THRESHOLD}m)</Text>
+            </View>
           ) : null}
           
           <Pressable
@@ -590,6 +595,16 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     ...Typography.headline,
     fontWeight: "600",
+  },
+  disabledCheckInButton: {
+    backgroundColor: Colors.dark.backgroundSecondary,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  disabledCheckInText: {
+    color: Colors.dark.textSecondary,
+    ...Typography.body,
   },
   actionButtonText: {
     color: Colors.dark.text,

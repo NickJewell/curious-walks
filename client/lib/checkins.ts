@@ -119,12 +119,12 @@ export async function checkAndAwardBadges(userId: string): Promise<UserBadge[]> 
   const newBadges: UserBadge[] = [];
   
   try {
-    const { data: checkinCount } = await supabase
+    const { count } = await supabase
       .from('checkins')
-      .select('id', { count: 'exact', head: true })
+      .select('*', { count: 'exact', head: true })
       .eq('user_id', userId);
     
-    const totalCheckins = checkinCount?.length ?? 0;
+    const totalCheckins = count ?? 0;
     
     const { data: allBadges } = await supabase
       .from('badges')
