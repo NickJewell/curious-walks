@@ -20,7 +20,7 @@ import ConfettiCannon from "react-native-confetti-cannon";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useHunt } from "@/contexts/HuntContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { checkIn, checkAndAwardBadges, hasCheckedIn, type UserBadge } from "@/lib/checkins";
+import { checkIn, checkAndAwardBadges, hasCheckedIn, uncheckIn, type UserBadge } from "@/lib/checkins";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -70,6 +70,7 @@ export default function CompassScreen({ navigation }: Props) {
   const [showConfetti, setShowConfetti] = useState(false);
   const [newBadge, setNewBadge] = useState<UserBadge | null>(null);
   const [showBadgeModal, setShowBadgeModal] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false);
 
   const arrowRotation = useRef(new Animated.Value(0)).current;
   const filteredHeading = useRef(0);
@@ -242,6 +243,23 @@ export default function CompassScreen({ navigation }: Props) {
     }
   };
 
+  const handleCheckOut = async () => {
+    if (!activeTarget || !user || isGuest || checkingOut) return;
+    
+    setCheckingOut(true);
+    try {
+      const result = await uncheckIn(user.id, activeTarget.id);
+      if (result.success) {
+        setAlreadyCheckedIn(false);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error) {
+      console.error('Check-out error:', error);
+    } finally {
+      setCheckingOut(false);
+    }
+  };
+
   const formatDistance = (meters: number): string => {
     if (meters >= 1000) {
       return `${(meters / 1000).toFixed(1)}km`;
@@ -336,6 +354,23 @@ export default function CompassScreen({ navigation }: Props) {
               {alreadyCheckedIn ? "Done" : "Complete Hunt"}
             </Text>
           </Pressable>
+          
+          {!isGuest && alreadyCheckedIn ? (
+            <Pressable
+              style={styles.checkOutButton}
+              onPress={handleCheckOut}
+              disabled={checkingOut}
+            >
+              {checkingOut ? (
+                <ActivityIndicator size="small" color="#E74C3C" />
+              ) : (
+                <>
+                  <Feather name="x-circle" size={16} color="#E74C3C" />
+                  <Text style={styles.checkOutText}>Remove Check-in</Text>
+                </>
+              )}
+            </Pressable>
+          ) : null}
         </View>
         
         <Modal
@@ -441,8 +476,22 @@ export default function CompassScreen({ navigation }: Props) {
         <View style={styles.checkInContainer}>
           <View style={[styles.actionButton, styles.checkedInButton]}>
             <Feather name="check-circle" size={20} color="#4CAF50" />
-            <Text style={styles.checkedInText}>Already Checked In</Text>
+            <Text style={styles.checkedInText}>Checked In</Text>
           </View>
+          <Pressable
+            style={[styles.checkOutButton]}
+            onPress={handleCheckOut}
+            disabled={checkingOut}
+          >
+            {checkingOut ? (
+              <ActivityIndicator size="small" color="#E74C3C" />
+            ) : (
+              <>
+                <Feather name="x-circle" size={16} color="#E74C3C" />
+                <Text style={styles.checkOutText}>Remove Check-in</Text>
+              </>
+            )}
+          </Pressable>
         </View>
       ) : null}
 
@@ -671,6 +720,19 @@ const styles = StyleSheet.create({
     color: "#4CAF50",
     ...Typography.body,
     fontWeight: "600",
+  },
+  checkOutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  checkOutText: {
+    color: "#E74C3C",
+    ...Typography.caption,
+    fontWeight: "500",
   },
   actionButtonText: {
     color: Colors.dark.text,

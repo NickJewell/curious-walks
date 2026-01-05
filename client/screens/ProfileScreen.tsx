@@ -17,7 +17,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { BlurView } from 'expo-blur';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserProgress, getAllBadges, type UserProgress, type Badge, type UserBadge, type Checkin } from '@/lib/checkins';
+import { getUserProgress, getAllBadges, uncheckIn, type UserProgress, type Badge, type UserBadge, type Checkin } from '@/lib/checkins';
 import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
 import type { RootStackParamList } from '@/navigation/RootStackNavigator';
 
@@ -34,6 +34,41 @@ export default function ProfileScreen() {
   const [allBadges, setAllBadges] = useState<Badge[]>([]);
   const [selectedBadge, setSelectedBadge] = useState<Badge | UserBadge | null>(null);
   const [showBadgeModal, setShowBadgeModal] = useState(false);
+  const [removingCheckin, setRemovingCheckin] = useState<string | null>(null);
+
+  const handleRemoveCheckin = async (checkin: Checkin) => {
+    if (!user || isGuest) return;
+    
+    Alert.alert(
+      'Remove Check-in',
+      `Remove check-in for "${checkin.place_name}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            setRemovingCheckin(checkin.id);
+            try {
+              const result = await uncheckIn(user.id, checkin.place_id);
+              if (result.success && progress) {
+                const updatedCheckins = progress.recent_checkins.filter(c => c.id !== checkin.id);
+                setProgress({
+                  ...progress,
+                  total_checkins: progress.total_checkins - 1,
+                  recent_checkins: updatedCheckins,
+                });
+              }
+            } catch (error) {
+              console.error('Error removing check-in:', error);
+            } finally {
+              setRemovingCheckin(null);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -248,7 +283,17 @@ export default function ProfileScreen() {
                       {formatDate(checkin.checked_in_at)}
                     </Text>
                   </View>
-                  <Feather name="check-circle" size={16} color="#4CAF50" />
+                  <Pressable
+                    onPress={() => handleRemoveCheckin(checkin)}
+                    style={styles.removeButton}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    {removingCheckin === checkin.id ? (
+                      <ActivityIndicator size="small" color="#E74C3C" />
+                    ) : (
+                      <Feather name="x-circle" size={18} color="#E74C3C" />
+                    )}
+                  </Pressable>
                 </View>
               ))}
             </View>
@@ -545,6 +590,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.dark.textSecondary,
     marginTop: 2,
+  },
+  removeButton: {
+    padding: Spacing.xs,
   },
   emptyVisits: {
     alignItems: 'center',
