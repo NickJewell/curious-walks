@@ -14,11 +14,15 @@ import type { Region } from "react-native-maps";
 import SafeMapView, { Marker, Callout, PROVIDER_GOOGLE, isMapAvailable } from "@/components/SafeMapView";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Location from "expo-location";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { getNearestCurios, searchCurios, Curio } from "@/lib/supabase";
+import { useHunt } from "@/contexts/HuntContext";
+import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 interface GeoResult {
   id: string;
@@ -61,9 +65,13 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
+  const navigation = useNavigation<NavigationProp>();
+  const { activeTarget, setActiveTarget, isHunting } = useHunt();
   const mapRef = useRef<any>(null);
   const markerRefs = useRef<{ [key: string]: any }>({});
   
@@ -78,6 +86,15 @@ export default function MapScreen() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const debouncedQuery = useDebounce(searchQuery, 300);
+
+  const handleHuntPlace = (curio: Curio) => {
+    setActiveTarget(curio);
+    navigation.navigate("Compass");
+  };
+
+  const handleResumeCompass = () => {
+    navigation.navigate("Compass");
+  };
 
   useEffect(() => {
     (async () => {
@@ -245,31 +262,52 @@ export default function MapScreen() {
         userInterfaceStyle="dark"
         onRegionChangeComplete={onRegionChangeComplete}
       >
-        {isMapAvailable && Marker ? curios.map((curio) => (
-          <Marker
-            key={curio.id}
-            ref={(ref: any) => { if (ref) markerRefs.current[curio.id] = ref; }}
-            coordinate={{
-              latitude: curio.latitude,
-              longitude: curio.longitude,
-            }}
-            tracksViewChanges={false}
-          >
-            <View style={styles.marker}>
-              <Feather name="map-pin" size={16} color="#FFFFFF" />
-            </View>
-            {Callout ? (
-              <Callout tooltip style={styles.calloutContainer}>
-                <View style={styles.callout}>
-                  <Text style={styles.calloutTitle}>{curio.name}</Text>
-                  <Text style={styles.calloutDescription} numberOfLines={3}>
-                    {curio.description}
-                  </Text>
-                </View>
-              </Callout>
-            ) : null}
-          </Marker>
-        )) : null}
+        {isMapAvailable && Marker ? curios.map((curio) => {
+          const isTarget = isHunting && activeTarget?.id === curio.id;
+          const isGreyed = isHunting && activeTarget?.id !== curio.id;
+          
+          return (
+            <Marker
+              key={curio.id}
+              ref={(ref: any) => { if (ref) markerRefs.current[curio.id] = ref; }}
+              coordinate={{
+                latitude: curio.latitude,
+                longitude: curio.longitude,
+              }}
+              tracksViewChanges={false}
+              zIndex={isTarget ? 100 : 1}
+            >
+              <View style={[
+                styles.marker,
+                isTarget && styles.markerTarget,
+                isGreyed && styles.markerGreyed,
+              ]}>
+                <Feather 
+                  name="map-pin" 
+                  size={isTarget ? 20 : 16} 
+                  color={isGreyed ? "#888" : "#FFFFFF"} 
+                />
+              </View>
+              {Callout ? (
+                <Callout tooltip style={styles.calloutContainer}>
+                  <View style={styles.callout}>
+                    <Text style={styles.calloutTitle}>{curio.name}</Text>
+                    <Text style={styles.calloutDescription} numberOfLines={3}>
+                      {curio.description}
+                    </Text>
+                    <Pressable
+                      style={styles.huntButton}
+                      onPress={() => handleHuntPlace(curio)}
+                    >
+                      <Feather name="navigation" size={14} color="#FFFFFF" />
+                      <Text style={styles.huntButtonText}>Hunt This Place</Text>
+                    </Pressable>
+                  </View>
+                </Callout>
+              ) : null}
+            </Marker>
+          );
+        }) : null}
       </SafeMapView>
 
       <View style={[styles.searchContainer, { top: insets.top + Spacing.md }]}>
@@ -391,6 +429,21 @@ export default function MapScreen() {
           <Text style={styles.loadingOverlayText}>Searching...</Text>
         </View>
       ) : null}
+
+      {isHunting ? (
+        <Pressable
+          style={({ pressed }) => [
+            styles.resumeCompassButton,
+            { bottom: tabBarHeight + Spacing.lg },
+            pressed && styles.resumeCompassButtonPressed,
+          ]}
+          onPress={handleResumeCompass}
+        >
+          <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+          <Feather name="navigation" size={20} color="#D4AF7A" />
+          <Text style={styles.resumeCompassText}>Resume Compass</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -442,6 +495,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 4,
+  },
+  markerTarget: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#D4AF7A",
+    borderWidth: 3,
+    borderColor: "#FFFFFF",
+    shadowOpacity: 0.5,
+  },
+  markerGreyed: {
+    backgroundColor: "#4A4E57",
+    opacity: 0.6,
   },
   calloutContainer: {
     width: 280,
@@ -602,5 +668,41 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
     ...Typography.caption,
     marginLeft: Spacing.sm,
+  },
+  huntButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#8B7355",
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    marginTop: Spacing.md,
+    gap: Spacing.xs,
+  },
+  huntButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  resumeCompassButton: {
+    position: "absolute",
+    right: Spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    overflow: "hidden",
+    backgroundColor: "rgba(21, 26, 35, 0.9)",
+    gap: Spacing.sm,
+  },
+  resumeCompassButtonPressed: {
+    opacity: 0.7,
+  },
+  resumeCompassText: {
+    color: "#D4AF7A",
+    ...Typography.body,
+    fontWeight: "600",
   },
 });
