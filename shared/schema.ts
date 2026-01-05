@@ -6,10 +6,20 @@ export interface Curio {
   longitude: number;
 }
 
+export interface TourMetadata {
+  difficulty?: 'Easy' | 'Moderate' | 'Challenging';
+  duration?: string;
+  distance?: string;
+  hero_image?: string;
+}
+
 export interface UserList {
   id: string;
   user_id: string;
   name: string;
+  description?: string;
+  list_type?: 'list' | 'tour';
+  metadata?: TourMetadata;
   created_at: string;
   updated_at: string;
 }
@@ -28,4 +38,9 @@ export interface ListItem {
 
 export interface ListWithItemCount extends UserList {
   item_count: number;
+}
+
+export interface Tour extends UserList {
+  item_count: number;
+  metadata: TourMetadata;
 }

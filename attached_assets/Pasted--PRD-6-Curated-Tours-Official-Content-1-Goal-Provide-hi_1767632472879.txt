@@ -1,0 +1,112 @@
+# PRD 6: Curated Tours (Official Content)
+
+### **1. Goal**
+
+Provide high-quality, pre-defined walking routes created by the developers (e.g., "The Great Fire of London Walk") that users can browse and follow.
+
+### **2. User Story**
+
+As a user, I want to browse a gallery of "Official Tours," read about their history and difficulty, and then start the tour so I can follow a perfect route without planning it myself.
+
+### **3. Technical Dependencies**
+
+* **Framework:** Expo (React Native).
+* **Database:** Supabase (`lists` table where `list_type = 'tour'`).
+* **UI Components:**
+* **Switching:** A "Segmented Control" or Custom Tab to toggle views.
+* **Hero Images:** `ImageBackground` for immersive tour headers.
+* **State:** React Context to track the "Active Tour" session.
+
+
+
+---
+
+### **4. Functional Requirements**
+
+#### **4.1 The "Lists" Tab - Updated UI**
+
+* **Segmented Control:** At the very top of the `/lists` screen, add a toggle:
+* **Option A:** "My Lists" (Loads data where `user_id = auth.uid()`).
+* **Option B:** "Official Tours" (Loads data where `list_type = 'tour'`).
+
+
+* **Tour Gallery (Option B View):**
+* **Layout:** A grid or large-card list (Instagram style).
+* **Card Content:**
+* Hero Image (from `metadata.hero_image`).
+* Title (e.g., "Roman London").
+* Badge/Chip: Difficulty (e.g., "Easy") + Duration (e.g., "2 hours").
+
+
+* **Interaction:** Tapping a card opens the **Tour Detail View**.
+
+
+
+#### **4.2 Tour Detail View (Read-Only)**
+
+* **Header:** Full-width Hero Image with a "Back" button overlay.
+* **Info Section:**
+* Title & Description (`lists.description`).
+* Stats row: Total Distance (calculated from items), Time, Difficulty.
+
+
+* **The Route List:**
+* A static vertical list of the stops.
+* **Visuals:** Connect the dots with a vertical line to imply a path/sequence.
+* **Interaction:** Tapping a stop shows the Place Detail overlay.
+
+
+* **Primary Action:** A fixed bottom button: **"Start Tour"**.
+
+#### **4.3 "Start Tour" Logic**
+
+* **Action:** When the user clicks "Start Tour":
+1. **State Update:** Set the global `activeTour` state to this list ID.
+2. **Targeting:** Identify the **first item** (`order_index = 0`) in the list.
+3. **Navigation:**
+* Set this first item as the `activeTarget`.
+* Navigate immediately to the **Compass View** (PRD 4).
+
+
+4. **Feedback:** Show a toast: *"Tour Started! Head to the first stop."*
+
+
+
+#### **4.4 Tour Progress (Basic)**
+
+* *Note: Detailed gamification is in PRD 7, but we need the structure now.*
+* **Next Stop Logic:** When a user successfully checks in (PRD 7) to Stop #1 while a tour is active:
+* Auto-advance the `activeTarget` to Stop #2.
+* Show a prompt: *"Stop 1 Complete! Next up: [Name of Stop 2]."*
+
+
+
+---
+
+### **5. Acceptance Criteria**
+
+1. **Separation:** "My Lists" and "Official Tours" are clearly separated in the UI. User lists never appear in the Tour tab.
+2. **Immutability:** Users **cannot** drag-and-drop, delete, or add items to an Official Tour. The "Edit" controls from PRD 5 must be hidden.
+3. **Data Rendering:** The `metadata` JSON field (difficulty, time) renders correctly on the cards.
+4. **Hand-off:** Clicking "Start Tour" successfully initializes the Compass with the correct first location.
+
+---
+
+### **Implementation Note for Replit Agent**
+
+The logic for fetching tours versus lists is simple but requires the correct Supabase filter.
+
+> **Technical Tip for Data Fetching:**
+> 1. **The Filter:**
+> * For **My Lists**: `.select('*').eq('user_id', session.user.id)`
+> * For **Tours**: `.select('*').eq('list_type', 'tour')`
+> 
+> 
+> 2. **JSON Metadata:**
+> * Remember that the `metadata` column is JSONB.
+> * In the frontend, access it like `list.metadata?.difficulty` or `list.metadata?.duration`.
+> * Handle cases where metadata might be null (default to "Unknown").
+> 
+> 
+> 
+>

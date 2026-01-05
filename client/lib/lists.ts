@@ -1,11 +1,12 @@
 import { supabase, Curio } from './supabase';
-import type { UserList, ListItem, ListWithItemCount } from '../../shared/schema';
+import type { UserList, ListItem, ListWithItemCount, Tour } from '../../shared/schema';
 
 export async function getUserLists(userId: string): Promise<ListWithItemCount[]> {
   const { data: lists, error: listsError } = await supabase
     .from('lists')
     .select('*')
     .eq('user_id', userId)
+    .neq('list_type', 'tour')
     .order('created_at', { ascending: false });
 
   if (listsError) {
@@ -179,4 +180,63 @@ export async function getListById(listId: string): Promise<UserList | null> {
   }
 
   return data;
+}
+
+export async function getOfficialTours(): Promise<Tour[]> {
+  const { data: tours, error: toursError } = await supabase
+    .from('lists')
+    .select('*')
+    .eq('list_type', 'tour')
+    .order('created_at', { ascending: false });
+
+  if (toursError) {
+    console.error('Error fetching tours:', toursError.message);
+    return [];
+  }
+
+  if (!tours || tours.length === 0) {
+    return [];
+  }
+
+  const toursWithCounts = await Promise.all(
+    tours.map(async (tour) => {
+      const { count } = await supabase
+        .from('list_items')
+        .select('*', { count: 'exact', head: true })
+        .eq('list_id', tour.id);
+
+      return {
+        ...tour,
+        item_count: count || 0,
+        metadata: tour.metadata || {},
+      } as Tour;
+    })
+  );
+
+  return toursWithCounts;
+}
+
+export async function getTourById(tourId: string): Promise<Tour | null> {
+  const { data, error } = await supabase
+    .from('lists')
+    .select('*')
+    .eq('id', tourId)
+    .eq('list_type', 'tour')
+    .single();
+
+  if (error) {
+    console.error('Error fetching tour:', error.message);
+    return null;
+  }
+
+  const { count } = await supabase
+    .from('list_items')
+    .select('*', { count: 'exact', head: true })
+    .eq('list_id', tourId);
+
+  return {
+    ...data,
+    item_count: count || 0,
+    metadata: data.metadata || {},
+  } as Tour;
 }
