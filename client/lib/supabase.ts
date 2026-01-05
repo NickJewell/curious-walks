@@ -94,14 +94,33 @@ export async function searchCurios(query: string, limit: number = 5): Promise<Cu
 export async function getNearestCurios(lat: number, lng: number, limit: number = 20): Promise<Curio[]> {
   console.log('Fetching places near:', lat, lng);
   
-  const { data, error } = await supabase
-    .from('places')
-    .select('*');
+  // Supabase has a default limit of 1000 rows - fetch all by using range
+  let allData: any[] = [];
+  let from = 0;
+  const pageSize = 1000;
+  let hasMore = true;
   
-  if (error) {
-    console.error('Error fetching places:', error.message);
-    return [];
+  while (hasMore) {
+    const { data: pageData, error: pageError } = await supabase
+      .from('places')
+      .select('*')
+      .range(from, from + pageSize - 1);
+    
+    if (pageError) {
+      console.error('Error fetching places:', pageError.message);
+      return [];
+    }
+    
+    if (pageData && pageData.length > 0) {
+      allData = allData.concat(pageData);
+      from += pageSize;
+      hasMore = pageData.length === pageSize;
+    } else {
+      hasMore = false;
+    }
   }
+  
+  const data = allData;
 
   if (!data || data.length === 0) {
     console.log('No places found in database');
@@ -109,6 +128,14 @@ export async function getNearestCurios(lat: number, lng: number, limit: number =
   }
 
   console.log('Found', data.length, 'places, sorting by distance from center');
+  
+  // Debug: Check if FAKE-1 exists in the fetched data
+  const fakeRecord = data.find(p => p['curio-id'] === 'FAKE-1' || p.uuid === 'a4ce69dc-ecc1-4225-a6a8-fb78775bdee7');
+  if (fakeRecord) {
+    console.log('DEBUG: FAKE-1 found in data:', JSON.stringify(fakeRecord, null, 2));
+  } else {
+    console.log('DEBUG: FAKE-1 NOT found in fetched data');
+  }
   
   const placesWithCoords = data.filter(place => {
     const latField = place.latitude ?? place.lat ?? place.y;
@@ -136,6 +163,19 @@ export async function getNearestCurios(lat: number, lng: number, limit: number =
   placesWithDistance.sort((a, b) => a.distance - b.distance);
   
   const nearest = placesWithDistance.slice(0, limit);
+  
+  // Debug: Check if FAKE-1 is in the nearest places
+  const fakeInNearest = nearest.find(p => p.id === 'FAKE-1');
+  if (fakeInNearest) {
+    console.log('DEBUG: FAKE-1 IS in nearest places, distance:', fakeInNearest.distance, 'm');
+  } else {
+    // Check its actual distance
+    const fakePlace = placesWithDistance.find(p => p.id === 'FAKE-1');
+    if (fakePlace) {
+      console.log('DEBUG: FAKE-1 NOT in nearest. Distance:', fakePlace.distance, 'm. Cutoff distance:', nearest[nearest.length - 1]?.distance, 'm');
+    }
+  }
+  
   console.log('Returning', nearest.length, 'nearest places');
   
   return nearest.map(({ distance, ...place }) => place);
