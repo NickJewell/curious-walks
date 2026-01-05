@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
-import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollView';
+import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 
 type AuthMode = 'signIn' | 'signUp';
 
@@ -47,9 +47,16 @@ export default function LoginScreen() {
           Alert.alert('Sign In Failed', error);
         }
       } else {
-        const { error } = await signUp(email.trim(), password, fullName.trim() || undefined);
+        const { error, needsEmailConfirmation } = await signUp(email.trim(), password, fullName.trim() || undefined);
         if (error) {
           Alert.alert('Sign Up Failed', error);
+        } else if (needsEmailConfirmation) {
+          Alert.alert(
+            'Check Your Email',
+            'We sent you a confirmation link. Please check your email to verify your account before signing in.',
+            [{ text: 'OK' }]
+          );
+          setMode('signIn');
         } else {
           Alert.alert(
             'Account Created',

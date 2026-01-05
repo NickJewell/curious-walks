@@ -16,7 +16,7 @@ interface AuthContextType {
   loading: boolean;
   isGuest: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUp: (email: string, password: string, fullName?: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string, fullName?: string) => Promise<{ error: string | null; needsEmailConfirmation?: boolean }>;
   signOut: () => Promise<void>;
   continueAsGuest: () => void;
 }
@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signUp = async (email: string, password: string, fullName?: string): Promise<{ error: string | null }> => {
+  const signUp = async (email: string, password: string, fullName?: string): Promise<{ error: string | null; needsEmailConfirmation?: boolean }> => {
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -114,6 +114,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: error.message };
       }
 
+      const needsEmailConfirmation = !data.session && data.user?.identities?.length === 0;
+
       if (data.user) {
         const { error: profileError } = await supabase
           .from('profiles')
@@ -126,10 +128,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (profileError) {
           console.error('Profile creation error:', profileError);
+          return { error: 'Account created but profile setup failed. Please contact support.' };
         }
       }
 
-      return { error: null };
+      return { error: null, needsEmailConfirmation };
     } catch (error) {
       console.error('Sign up error:', error);
       return { error: 'An unexpected error occurred' };
