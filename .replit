@@ -51,3 +51,9 @@ args = "npm run all:dev"
 waitForPort = 8081
 ensurePreviewReachable = "/status"
 
+[userenv]
+
+[userenv.shared]
+EXPO_PUBLIC_SUPABASE_URL = "${SUPABASE_URL}"
+EXPO_PUBLIC_SUPABASE_ANON_KEY = "${SUPABASE_ANON_KEY}"
+
