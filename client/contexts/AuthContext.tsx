@@ -39,17 +39,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isGuest, setIsGuest] = useState(false);
 
-  const redirectUri = Platform.OS === 'web' && typeof window !== 'undefined'
-    ? `${window.location.origin}/auth/google/callback`
-    : makeRedirectUri({ useProxy: true });
+  // For iOS, Google uses reversed client ID as scheme
+  const iosReversedClientId = GOOGLE_IOS_CLIENT_ID 
+    ? GOOGLE_IOS_CLIENT_ID.split('.').reverse().join('.')
+    : '';
 
-  console.log('OAuth redirect URI:', redirectUri);
+  const redirectUri = Platform.select({
+    web: typeof window !== 'undefined' ? `${window.location.origin}/auth/google/callback` : undefined,
+    ios: iosReversedClientId ? `${iosReversedClientId}:/` : undefined,
+    default: undefined,
+  });
+
+  console.log('OAuth redirect URI:', redirectUri || 'using default');
+  console.log('Platform:', Platform.OS);
 
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     clientId: GOOGLE_WEB_CLIENT_ID,
     iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
     androidClientId: GOOGLE_ANDROID_CLIENT_ID || undefined,
-    redirectUri,
+    ...(redirectUri && { redirectUri }),
   });
 
   useEffect(() => {
