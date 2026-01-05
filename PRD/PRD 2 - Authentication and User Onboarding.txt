@@ -1,6 +1,6 @@
 PRD 2: Authentication & User Onboarding (Expo Version)
 1. Goal
-Securely authenticate users via Google OAuth to enable personalized features (Lists, Check-ins) while ensuring a seamless, native login experience.
+Securely authenticate users via Google OAuth to enable personalized features (Lists, Check-ins) while ensuring a seamless, native login experience. I do not want to use Replit Auth. 
 
 2. User Story
 As a user, I want to sign in with my existing Google account using a single tap so that I don't have to remember a new password, and my data is saved securely on my device.
