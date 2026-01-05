@@ -54,7 +54,7 @@ export async function searchCurios(query: string, limit: number = 5): Promise<Cu
   const { data, error } = await supabase
     .from('places')
     .select('*')
-    .or(`name.ilike.${searchTerm},description.ilike.${searchTerm}`)
+    .or(`name.ilike.${searchTerm},detail-overview.ilike.${searchTerm}`)
     .limit(limit);
   
   if (error) {
@@ -71,7 +71,7 @@ export async function searchCurios(query: string, limit: number = 5): Promise<Cu
     const placeLng = place.longitude ?? place.lng ?? place.lon ?? place.x;
     const placeId = place.id ?? place.uuid ?? place.place_id ?? String(Math.random());
     const placeName = place.name ?? place.title ?? 'Unknown';
-    const placeDesc = place.description ?? place.desc ?? place.summary ?? '';
+    const placeDesc = place['detail-overview'] ?? place.description ?? place.desc ?? place.summary ?? '';
     
     return {
       id: placeId,
@@ -113,7 +113,7 @@ export async function getNearestCurios(lat: number, lng: number, limit: number =
     const placeLng = place.longitude ?? place.lng ?? place.lon ?? place.x;
     const placeId = place.id ?? place.uuid ?? place.place_id ?? String(Math.random());
     const placeName = place.name ?? place.title ?? 'Unknown';
-    const placeDesc = place.description ?? place.desc ?? place.summary ?? '';
+    const placeDesc = place['detail-overview'] ?? place.description ?? place.desc ?? place.summary ?? '';
     
     return {
       id: placeId,
