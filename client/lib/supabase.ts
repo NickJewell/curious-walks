@@ -47,32 +47,23 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 }
 
 export async function getNearestCurios(lat: number, lng: number, limit: number = 20): Promise<Curio[]> {
-  console.log('Supabase URL:', supabaseUrl);
-  console.log('Supabase key present:', !!supabaseAnonKey);
-  console.log('Fetching places from Supabase...');
+  console.log('Fetching places near:', lat, lng);
   
-  // Try fetching with a limit first to see if we get any data
-  const { data, error, count } = await supabase
+  const { data, error } = await supabase
     .from('places')
-    .select('*', { count: 'exact' })
-    .limit(5);
-  
-  console.log('Query result - data:', data?.length ?? 0, 'items, error:', JSON.stringify(error), 'count:', count);
-  if (data && data.length > 0) {
-    console.log('First row columns:', Object.keys(data[0]));
-  }
+    .select('*');
   
   if (error) {
-    console.error('Error fetching places:', JSON.stringify(error));
+    console.error('Error fetching places:', error.message);
     return [];
   }
 
   if (!data || data.length === 0) {
-    console.log('No places found in database - table may be empty or RLS is blocking access');
+    console.log('No places found in database');
     return [];
   }
 
-  console.log('Sample place data:', JSON.stringify(data[0]));
+  console.log('Found', data.length, 'places, sorting by distance from center');
   
   const placesWithCoords = data.filter(place => {
     const latField = place.latitude ?? place.lat ?? place.y;
@@ -99,5 +90,8 @@ export async function getNearestCurios(lat: number, lng: number, limit: number =
   
   placesWithDistance.sort((a, b) => a.distance - b.distance);
   
-  return placesWithDistance.slice(0, limit).map(({ distance, ...place }) => place);
+  const nearest = placesWithDistance.slice(0, limit);
+  console.log('Returning', nearest.length, 'nearest places');
+  
+  return nearest.map(({ distance, ...place }) => place);
 }
