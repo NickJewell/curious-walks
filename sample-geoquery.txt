@@ -17,3 +17,20 @@ CROSS JOIN params
 WHERE p.lat IS NOT NULL AND p.lon IS NOT NULL
 ORDER BY distance_m
 LIMIT 20;
+
+
+-- Using new location index on places table
+-- Coordinates for Big Ben: Lon -0.1246, Lat 51.5007
+
+select
+  "name",
+  "curio-id",
+  -- Calculate distance in meters
+  st_distance(
+    location, 
+    st_point(-0.1246, 51.5007)::geography
+  ) as distance_meters
+from places
+-- The <-> operator finds the 'nearest neighbors' efficiently using the index
+order by location <-> st_point(-0.1246, 51.5007)::geography
+limit 5;
