@@ -1,5 +1,5 @@
-import React from "react";
-import { StyleSheet } from "react-native";
+import React, { useState, useCallback } from "react";
+import { StyleSheet, Platform } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -13,8 +13,15 @@ import RootStackNavigator from "@/navigation/RootStackNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { HuntProvider } from "@/contexts/HuntContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { SplashScreen } from "@/components/SplashScreen";
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(Platform.OS === 'web');
+
+  const handleSplashFinish = useCallback(() => {
+    setShowSplash(false);
+  }, []);
+
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
@@ -27,6 +34,7 @@ export default function App() {
                     <RootStackNavigator />
                   </NavigationContainer>
                   <StatusBar style="light" />
+                  {showSplash ? <SplashScreen onFinish={handleSplashFinish} /> : null}
                 </KeyboardProvider>
               </GestureHandlerRootView>
             </SafeAreaProvider>
