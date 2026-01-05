@@ -276,6 +276,7 @@ export default function MapScreen() {
               }}
               tracksViewChanges={false}
               zIndex={isTarget ? 100 : 1}
+              onCalloutPress={() => handleHuntPlace(curio)}
             >
               <View style={[
                 styles.marker,
@@ -295,13 +296,10 @@ export default function MapScreen() {
                     <Text style={styles.calloutDescription} numberOfLines={3}>
                       {curio.description}
                     </Text>
-                    <Pressable
-                      style={styles.huntButton}
-                      onPress={() => handleHuntPlace(curio)}
-                    >
+                    <View style={styles.huntButton}>
                       <Feather name="navigation" size={14} color="#FFFFFF" />
-                      <Text style={styles.huntButtonText}>Hunt This Place</Text>
-                    </Pressable>
+                      <Text style={styles.huntButtonText}>Tap to Hunt</Text>
+                    </View>
                   </View>
                 </Callout>
               ) : null}
