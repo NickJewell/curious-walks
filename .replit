@@ -55,4 +55,5 @@ ensurePreviewReachable = "/status"
 
 [userenv.shared]
 EXPO_PUBLIC_SUPABASE_URL = "https://wyaqiumvemsyrjfciuzj.supabase.co"
+EXPO_PUBLIC_SUPABASE_ANON_KEY = "sb_publishable_2zNuGtVYGcRDu587F_8_Sg_p1f8GlZS"
 
