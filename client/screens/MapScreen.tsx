@@ -85,11 +85,21 @@ export default function MapScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [selectedCurio, setSelectedCurio] = useState<Curio | null>(null);
   const debouncedQuery = useDebounce(searchQuery, 300);
 
   const handleHuntPlace = (curio: Curio) => {
+    setSelectedCurio(null);
     setActiveTarget(curio);
     navigation.navigate("Compass");
+  };
+
+  const handleMarkerPress = (curio: Curio) => {
+    setSelectedCurio(curio);
+  };
+
+  const handleClosePanel = () => {
+    setSelectedCurio(null);
   };
 
   const handleResumeCompass = () => {
@@ -276,7 +286,7 @@ export default function MapScreen() {
               }}
               tracksViewChanges={false}
               zIndex={isTarget ? 100 : 1}
-              onCalloutPress={() => handleHuntPlace(curio)}
+              onPress={() => handleMarkerPress(curio)}
             >
               <View style={[
                 styles.marker,
@@ -289,20 +299,6 @@ export default function MapScreen() {
                   color={isGreyed ? "#888" : "#FFFFFF"} 
                 />
               </View>
-              {Callout ? (
-                <Callout tooltip style={styles.calloutContainer}>
-                  <View style={styles.callout}>
-                    <Text style={styles.calloutTitle}>{curio.name}</Text>
-                    <Text style={styles.calloutDescription} numberOfLines={3}>
-                      {curio.description}
-                    </Text>
-                    <View style={styles.huntButton}>
-                      <Feather name="navigation" size={14} color="#FFFFFF" />
-                      <Text style={styles.huntButtonText}>Tap to Hunt</Text>
-                    </View>
-                  </View>
-                </Callout>
-              ) : null}
             </Marker>
           );
         }) : null}
@@ -441,6 +437,31 @@ export default function MapScreen() {
           <Feather name="navigation" size={20} color="#D4AF7A" />
           <Text style={styles.resumeCompassText}>Resume Compass</Text>
         </Pressable>
+      ) : null}
+
+      {selectedCurio && !isHunting ? (
+        <View style={[styles.selectedPanel, { bottom: tabBarHeight + Spacing.lg }]}>
+          <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+          <View style={styles.selectedPanelContent}>
+            <Pressable style={styles.closePanelButton} onPress={handleClosePanel}>
+              <Feather name="x" size={20} color="#888" />
+            </Pressable>
+            <Text style={styles.selectedTitle} numberOfLines={2}>{selectedCurio.name}</Text>
+            <Text style={styles.selectedDescription} numberOfLines={3}>
+              {selectedCurio.description}
+            </Text>
+            <Pressable
+              style={({ pressed }) => [
+                styles.huntPanelButton,
+                pressed && styles.huntPanelButtonPressed,
+              ]}
+              onPress={() => handleHuntPlace(selectedCurio)}
+            >
+              <Feather name="navigation" size={16} color="#FFFFFF" />
+              <Text style={styles.huntPanelButtonText}>Hunt This Place</Text>
+            </Pressable>
+          </View>
+        </View>
       ) : null}
     </View>
   );
@@ -701,6 +722,58 @@ const styles = StyleSheet.create({
   resumeCompassText: {
     color: "#D4AF7A",
     ...Typography.body,
+    fontWeight: "600",
+  },
+  selectedPanel: {
+    position: "absolute",
+    left: Spacing.lg,
+    right: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    overflow: "hidden",
+    backgroundColor: "rgba(21, 26, 35, 0.95)",
+  },
+  selectedPanelContent: {
+    padding: Spacing.lg,
+  },
+  closePanelButton: {
+    position: "absolute",
+    top: Spacing.sm,
+    right: Spacing.sm,
+    width: 32,
+    height: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+  },
+  selectedTitle: {
+    color: Colors.dark.text,
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: Spacing.sm,
+    paddingRight: 32,
+  },
+  selectedDescription: {
+    color: Colors.dark.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: Spacing.md,
+  },
+  huntPanelButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#8B7355",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+  },
+  huntPanelButtonPressed: {
+    opacity: 0.7,
+  },
+  huntPanelButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
     fontWeight: "600",
   },
 });
