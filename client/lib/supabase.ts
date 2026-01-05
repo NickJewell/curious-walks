@@ -51,11 +51,16 @@ export async function getNearestCurios(lat: number, lng: number, limit: number =
   console.log('Supabase key present:', !!supabaseAnonKey);
   console.log('Fetching places from Supabase...');
   
+  // Try fetching with a limit first to see if we get any data
   const { data, error, count } = await supabase
     .from('places')
-    .select('*', { count: 'exact' });
+    .select('*', { count: 'exact' })
+    .limit(5);
   
-  console.log('Query result - data:', data?.length ?? 0, 'items, error:', error, 'count:', count);
+  console.log('Query result - data:', data?.length ?? 0, 'items, error:', JSON.stringify(error), 'count:', count);
+  if (data && data.length > 0) {
+    console.log('First row columns:', Object.keys(data[0]));
+  }
   
   if (error) {
     console.error('Error fetching places:', JSON.stringify(error));
