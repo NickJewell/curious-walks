@@ -3,6 +3,7 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
+import { makeRedirectUri } from 'expo-auth-session';
 import { Platform } from 'react-native';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -40,15 +41,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const redirectUri = Platform.OS === 'web' && typeof window !== 'undefined'
     ? `${window.location.origin}/auth/google/callback`
-    : undefined;
+    : makeRedirectUri({ useProxy: true });
 
-  console.log('OAuth redirect URI:', redirectUri || 'using default');
+  console.log('OAuth redirect URI:', redirectUri);
 
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     clientId: GOOGLE_WEB_CLIENT_ID,
-    iosClientId: GOOGLE_IOS_CLIENT_ID,
-    androidClientId: GOOGLE_ANDROID_CLIENT_ID,
-    ...(redirectUri && { redirectUri }),
+    iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
+    androidClientId: GOOGLE_ANDROID_CLIENT_ID || undefined,
+    redirectUri,
   });
 
   useEffect(() => {
