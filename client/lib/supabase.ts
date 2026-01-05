@@ -46,6 +46,43 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c;
 }
 
+export async function searchCurios(query: string, limit: number = 5): Promise<Curio[]> {
+  if (!query || query.length < 2) return [];
+  
+  const searchTerm = `%${query}%`;
+  
+  const { data, error } = await supabase
+    .from('places')
+    .select('*')
+    .or(`name.ilike.${searchTerm},description.ilike.${searchTerm}`)
+    .limit(limit);
+  
+  if (error) {
+    console.error('Search error:', error.message);
+    return [];
+  }
+
+  if (!data || data.length === 0) {
+    return [];
+  }
+
+  return data.map(place => {
+    const placeLat = place.latitude ?? place.lat ?? place.y;
+    const placeLng = place.longitude ?? place.lng ?? place.lon ?? place.x;
+    const placeId = place.id ?? place.uuid ?? place.place_id ?? String(Math.random());
+    const placeName = place.name ?? place.title ?? 'Unknown';
+    const placeDesc = place.description ?? place.desc ?? place.summary ?? '';
+    
+    return {
+      id: placeId,
+      name: placeName,
+      description: placeDesc,
+      latitude: placeLat,
+      longitude: placeLng,
+    };
+  }).filter(p => p.latitude != null && p.longitude != null);
+}
+
 export async function getNearestCurios(lat: number, lng: number, limit: number = 20): Promise<Curio[]> {
   console.log('Fetching places near:', lat, lng);
   

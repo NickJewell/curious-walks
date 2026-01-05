@@ -1,11 +1,14 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   View,
   StyleSheet,
   Pressable,
   Text,
+  TextInput,
   ActivityIndicator,
   Platform,
+  SectionList,
+  Keyboard,
 } from "react-native";
 import type { Region } from "react-native-maps";
 import SafeMapView, { Marker, Callout, PROVIDER_GOOGLE, isMapAvailable } from "@/components/SafeMapView";
@@ -15,7 +18,18 @@ import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Location from "expo-location";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
-import { supabase, getNearestCurios, Curio } from "@/lib/supabase";
+import { getNearestCurios, searchCurios, Curio } from "@/lib/supabase";
+
+interface GeoResult {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+}
+
+type SearchResult = 
+  | { type: 'place'; data: Curio }
+  | { type: 'location'; data: GeoResult };
 
 const LONDON_CENTER = {
   latitude: 51.5074,
@@ -36,10 +50,22 @@ function getDistanceFromLatLon(lat1: number, lon1: number, lat2: number, lon2: n
   return R * c;
 }
 
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  
+  return debouncedValue;
+}
+
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const mapRef = useRef<any>(null);
+  const markerRefs = useRef<{ [key: string]: any }>({});
   
   const [curios, setCurios] = useState<Curio[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,6 +73,11 @@ export default function MapScreen() {
   const [mapCenter, setMapCenter] = useState<{ latitude: number; longitude: number }>(LONDON_CENTER);
   const [lastSearchCenter, setLastSearchCenter] = useState<{ latitude: number; longitude: number }>(LONDON_CENTER);
   const [showSearchButton, setShowSearchButton] = useState(false);
+  
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const debouncedQuery = useDebounce(searchQuery, 300);
 
   useEffect(() => {
     (async () => {
@@ -66,6 +97,88 @@ export default function MapScreen() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    const performSearch = async () => {
+      if (debouncedQuery.length < 3) {
+        setSearchResults([]);
+        return;
+      }
+      
+      setIsSearching(true);
+      const results: SearchResult[] = [];
+      
+      try {
+        const dbResults = await searchCurios(debouncedQuery, 5);
+        dbResults.forEach(curio => {
+          results.push({ type: 'place', data: curio });
+        });
+        
+        if (dbResults.length < 3) {
+          const geoResults = await Location.geocodeAsync(`${debouncedQuery}, London, UK`);
+          geoResults.slice(0, 3).forEach((geo, index) => {
+            results.push({
+              type: 'location',
+              data: {
+                id: `geo-${index}`,
+                name: debouncedQuery,
+                latitude: geo.latitude,
+                longitude: geo.longitude,
+              }
+            });
+          });
+        }
+      } catch (error) {
+        console.error('Search error:', error);
+      }
+      
+      setSearchResults(results);
+      setIsSearching(false);
+    };
+    
+    performSearch();
+  }, [debouncedQuery]);
+
+  const handleSelectPlace = (curio: Curio) => {
+    Keyboard.dismiss();
+    setSearchQuery("");
+    setSearchResults([]);
+    
+    mapRef.current?.animateToRegion({
+      latitude: curio.latitude,
+      longitude: curio.longitude,
+      latitudeDelta: 0.005,
+      longitudeDelta: 0.005,
+    }, 500);
+    
+    setTimeout(() => {
+      const markerRef = markerRefs.current[curio.id];
+      if (markerRef) {
+        markerRef.showCallout();
+      }
+    }, 600);
+  };
+
+  const handleSelectLocation = async (geo: GeoResult) => {
+    Keyboard.dismiss();
+    setSearchQuery("");
+    setSearchResults([]);
+    
+    mapRef.current?.animateToRegion({
+      latitude: geo.latitude,
+      longitude: geo.longitude,
+      latitudeDelta: 0.02,
+      longitudeDelta: 0.02,
+    }, 500);
+    
+    await loadCurios(geo.latitude, geo.longitude);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
+    setSearchResults([]);
+    Keyboard.dismiss();
+  };
 
   const loadCurios = async (lat: number, lng: number) => {
     setLoading(true);
@@ -135,6 +248,7 @@ export default function MapScreen() {
         {isMapAvailable && Marker ? curios.map((curio) => (
           <Marker
             key={curio.id}
+            ref={(ref: any) => { if (ref) markerRefs.current[curio.id] = ref; }}
             coordinate={{
               latitude: curio.latitude,
               longitude: curio.longitude,
@@ -158,7 +272,88 @@ export default function MapScreen() {
         )) : null}
       </SafeMapView>
 
-      <View style={[styles.topControls, { top: insets.top + Spacing.md }]}>
+      <View style={[styles.searchContainer, { top: insets.top + Spacing.md }]}>
+        <View style={styles.searchBar}>
+          <Feather name="search" size={18} color="#888" style={styles.searchIconLeft} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search places or areas..."
+            placeholderTextColor="#888"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+            autoCorrect={false}
+          />
+          {searchQuery.length > 0 ? (
+            <Pressable onPress={clearSearch} style={styles.clearButton}>
+              <Feather name="x" size={18} color="#888" />
+            </Pressable>
+          ) : null}
+          {isSearching ? (
+            <ActivityIndicator size="small" color={Colors.dark.accent} style={styles.searchSpinner} />
+          ) : null}
+        </View>
+        
+        {searchResults.length > 0 ? (
+          <View style={styles.searchResults}>
+            <SectionList<SearchResult, { title: string; data: SearchResult[] }>
+              sections={[
+                {
+                  title: 'Places',
+                  data: searchResults.filter(r => r.type === 'place'),
+                },
+                {
+                  title: 'Locations',
+                  data: searchResults.filter(r => r.type === 'location'),
+                },
+              ].filter(section => section.data.length > 0)}
+              keyExtractor={(item) => item.type === 'place' ? item.data.id : item.data.id}
+              keyboardShouldPersistTaps="handled"
+              renderSectionHeader={({ section }) => (
+                <View style={styles.sectionHeader}>
+                  <Feather
+                    name={section.title === 'Places' ? 'map-pin' : 'map'}
+                    size={14}
+                    color="#888"
+                    style={styles.sectionIcon}
+                  />
+                  <Text style={styles.sectionTitle}>{section.title}</Text>
+                </View>
+              )}
+              renderItem={({ item }) => (
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.searchResultItem,
+                    pressed && styles.searchResultPressed,
+                  ]}
+                  onPress={() => {
+                    if (item.type === 'place') {
+                      handleSelectPlace(item.data);
+                    } else {
+                      handleSelectLocation(item.data);
+                    }
+                  }}
+                >
+                  <View style={styles.resultTextContainer}>
+                    <Text style={styles.resultTitle}>
+                      {item.type === 'place' ? item.data.name : `${item.data.name}, London`}
+                    </Text>
+                    {item.type === 'place' ? (
+                      <Text style={styles.resultDescription} numberOfLines={1}>
+                        {item.data.description}
+                      </Text>
+                    ) : (
+                      <Text style={styles.resultDescription}>Area in London</Text>
+                    )}
+                  </View>
+                </Pressable>
+              )}
+            />
+          </View>
+        ) : null}
+      </View>
+
+      <View style={[styles.topControls, { top: insets.top + Spacing.md + 60 }]}>
         {userLocation ? (
           <Pressable
             style={({ pressed }) => [
@@ -173,8 +368,8 @@ export default function MapScreen() {
         ) : null}
       </View>
 
-      {showSearchButton ? (
-        <View style={[styles.searchButtonContainer, { top: insets.top + Spacing.md }]}>
+      {showSearchButton && searchResults.length === 0 ? (
+        <View style={[styles.searchAreaButtonContainer, { top: insets.top + Spacing.md + 70 }]}>
           <Pressable
             style={({ pressed }) => [
               styles.searchButton,
@@ -272,7 +467,99 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
-  searchButtonContainer: {
+  searchContainer: {
+    position: "absolute",
+    left: Spacing.md,
+    right: Spacing.md,
+    zIndex: 100,
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
+    height: 48,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  searchIconLeft: {
+    marginRight: Spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: "#1A1A1A",
+    height: "100%",
+  },
+  clearButton: {
+    padding: Spacing.xs,
+  },
+  searchSpinner: {
+    marginLeft: Spacing.xs,
+  },
+  searchResults: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.xs,
+    maxHeight: 300,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+    overflow: "hidden",
+  },
+  searchResultItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+  },
+  searchResultPressed: {
+    backgroundColor: "#F5F5F5",
+  },
+  resultIcon: {
+    marginRight: Spacing.md,
+  },
+  resultTextContainer: {
+    flex: 1,
+  },
+  resultTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1A1A1A",
+    marginBottom: 2,
+  },
+  resultDescription: {
+    fontSize: 13,
+    color: "#666",
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: "#F8F8F8",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E8E8E8",
+  },
+  sectionIcon: {
+    marginRight: Spacing.xs,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#888",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  searchAreaButtonContainer: {
     position: "absolute",
     left: 0,
     right: 0,
