@@ -1,0 +1,124 @@
+# PRD 7: Check-ins, Profile & Gamification (Expo Version)
+
+### **1. Goal**
+
+Drive user retention by tracking physical visits, unlocking a "Digital Passport" history, and rewarding exploration through a badge system.
+
+### **2. User Story**
+
+As a user standing in front of the "London Stone," I want the app to recognize I am there and let me "Check In" so I can earn the "Roman London" badge and track my progress.
+
+### **3. Technical Dependencies**
+
+* **Framework:** Expo (React Native).
+* **Database:** Supabase (`checkins`, `badges`, `user_badges`).
+* **Location:** `expo-location` (for distance calculation).
+* **Math:** `geolib` (for precise distance checking).
+* **UI Components:**
+* **Feedback:** `react-native-confetti-cannon` (for the celebration effect).
+* **Toast:** `react-native-toast-message` (for "Badge Unlocked" alerts).
+
+
+
+---
+
+### **4. Functional Requirements**
+
+#### **4.1 Proximity Detection (The Trigger)**
+
+* **Logic:** The app must constantly compare the User’s Lat/Long against the currently selected Target (or nearest place).
+* **Threshold:**
+* If Distance < **20 meters** (relaxed slightly for GPS drift):
+* **AND** the user has not already checked in (check local state or DB).
+
+
+* **UI Action:**
+* If inside the "Map" View: Pulse the specific pin.
+* If inside the "Compass" View: Change the button from "Navigate" to **"Check In Now!"** (Green).
+* **Haptics:** Trigger `Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)`.
+
+
+
+#### **4.2 The Check-In Action**
+
+* **User Interaction:** User taps "Check In."
+* **Frontend Process:**
+1. **Immediate Feedback:** Fire the Confetti animation on screen.
+2. **Optimistic Update:** Mark the place as "Visited" locally (change pin color to Gold).
+3. **Backend Call:** `INSERT` into `checkins` table.
+
+
+* **Gamification Check (Server or Client):**
+* After the insert, fetch the updated badge status (or use a Database Trigger if sophisticated).
+* *MVP Approach:* On success, check: `if (totalCheckins === 1) awardBadge('First Step');`
+
+
+
+#### **4.3 The Profile Tab (New View)**
+
+* **Route:** `/profile` (The third tab in the bottom bar).
+* **Section 1: The Passport Header**
+* User Avatar & Email.
+* **Big Stats:** "12 Places Visited" | "3 Badges Earned".
+
+
+* **Section 2: Trophy Case (Badges)**
+* A grid of circular icons.
+* **State:**
+* **Locked:** Greyed out / Opacity 0.5.
+* **Unlocked:** Full Color + Date Earned.
+
+
+* **Interaction:** Tapping a badge shows a modal explaining how to get it (e.g., "Visit 5 Pubs").
+
+
+* **Section 3: Visit History**
+* A chronological list of checked-in places.
+* Clicking an item opens that Place's detail view.
+
+
+
+#### **4.4 Badge Logic (MVP)**
+
+* **Standard Badges:**
+* **"The Explorer":** First check-in.
+* **"The Historian":** 10 check-ins.
+* **"The Tour Guide":** Complete an Official Tour (check-in to all items in a `list_type='tour'`).
+
+
+* **Notification:** When a badge is inserted into `user_badges`, show a highly visible Custom Modal Overlay: *"Badge Unlocked: [Badge Name]!"*
+
+---
+
+### **5. Acceptance Criteria**
+
+1. **False Positive Prevention:** "Check In" button is **disabled** or hidden if the user is > 20m away.
+2. **Duplicate Prevention:** User cannot check in to the same place twice (Database Unique Constraint handles this, app handles the error gracefully).
+3. **Visual Reward:** Successfully checking in triggers Haptics and Animation.
+4. **Persistence:** My visit count increases immediately on the Profile tab.
+5. **Offline Handling:** If offline, queue the check-in and retry when online (optional for MVP, but good to note).
+
+---
+
+### **Implementation Note for Replit Agent**
+
+This is where the agent might over-engineer the "Background Location" aspect. Restrict it to keep things simple.
+
+> **Technical Tip for Proximity & Badges:**
+> 1. **Client-Side Check:** Do NOT ping the database every second to check distance. Calculate distance inside the React Native component using the `userLocation` state and the `activeTarget` coordinates.
+> 2. **The "Check-In" Loop:**
+> * When the user presses "Check In":
+> * 1. Await `supabase.from('checkins').insert(...)`.
+> 
+> 
+> * 2. Then Call `get_user_progress(uid)` (The RPC function we created).
+> 
+> 
+> * 3. Update the local "Profile" context with the new stats.
+> 
+> 
+> 
+> 
+> 3. **Confetti:** Use `react-native-confetti-cannon`. It's lightweight and works perfectly in Expo.
+> 
+>
