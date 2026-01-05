@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const webRedirectUri = Platform.OS === 'web' && typeof window !== 'undefined'
-    ? window.location.origin
+    ? `${window.location.origin}/auth/google/callback`
     : redirectUri;
 
   console.log('OAuth redirect URI:', webRedirectUri);
