@@ -114,14 +114,20 @@ export default function CompassScreen({ navigation }: Props) {
           setUserLocation(coords);
 
           if (activeTarget) {
+            console.log('DEBUG Compass: User at', coords.latitude, coords.longitude);
+            console.log('DEBUG Compass: Target at', activeTarget.latitude, activeTarget.longitude);
+            
             const dist = getDistance(
               { latitude: coords.latitude, longitude: coords.longitude },
               { latitude: activeTarget.latitude, longitude: activeTarget.longitude }
             );
+            console.log('DEBUG Compass: Distance =', dist, 'm, hasArrived =', hasArrived, 'canCheckIn =', dist < CHECKIN_THRESHOLD);
+            
             setDistance(dist);
             setCanCheckIn(dist < CHECKIN_THRESHOLD);
 
             if (dist < ARRIVAL_THRESHOLD && !hasArrived) {
+              console.log('DEBUG Compass: TRIGGERING ARRIVAL!');
               setHasArrived(true);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             }
@@ -406,6 +412,40 @@ export default function CompassScreen({ navigation }: Props) {
         </View>
       </View>
 
+      {/* Check-in button when within 20m */}
+      {!isGuest && canCheckIn && !alreadyCheckedIn ? (
+        <View style={styles.checkInContainer}>
+          <Pressable
+            style={[styles.actionButton, styles.checkInButton]}
+            onPress={handleCheckIn}
+            disabled={checkingIn}
+          >
+            {checkingIn ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Feather name="check" size={20} color="#FFFFFF" />
+                <Text style={styles.checkInButtonText}>Check In Now</Text>
+              </>
+            )}
+          </Pressable>
+        </View>
+      ) : !isGuest && !canCheckIn && distance !== null && distance < 50 ? (
+        <View style={styles.checkInContainer}>
+          <View style={[styles.actionButton, styles.disabledCheckInButton]}>
+            <Feather name="map-pin" size={20} color={Colors.dark.textSecondary} />
+            <Text style={styles.disabledCheckInText}>Get within {CHECKIN_THRESHOLD}m to check in</Text>
+          </View>
+        </View>
+      ) : alreadyCheckedIn ? (
+        <View style={styles.checkInContainer}>
+          <View style={[styles.actionButton, styles.checkedInButton]}>
+            <Feather name="check-circle" size={20} color="#4CAF50" />
+            <Text style={styles.checkedInText}>Already Checked In</Text>
+          </View>
+        </View>
+      ) : null}
+
       <View style={[styles.controls, { paddingBottom: insets.bottom + Spacing.lg }]}>
         <Pressable
           style={({ pressed }) => [
@@ -615,6 +655,22 @@ const styles = StyleSheet.create({
   disabledCheckInText: {
     color: Colors.dark.textSecondary,
     ...Typography.body,
+  },
+  checkInContainer: {
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  checkedInButton: {
+    backgroundColor: "rgba(76, 175, 80, 0.15)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+  },
+  checkedInText: {
+    color: "#4CAF50",
+    ...Typography.body,
+    fontWeight: "600",
   },
   actionButtonText: {
     color: Colors.dark.text,
