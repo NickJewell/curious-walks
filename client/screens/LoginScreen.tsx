@@ -43,7 +43,7 @@ export default function LoginScreen() {
   return (
     <View style={styles.container}>
       <Image
-        source={require('@assets/stock_images/london-skyline.jpg')}
+        source={require('@assets/images/splash.jpg')}
         style={styles.heroImage}
         contentFit="cover"
       />
