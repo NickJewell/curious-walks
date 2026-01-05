@@ -12,14 +12,19 @@ import {
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { BlurView } from 'expo-blur';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserProgress, getAllBadges, type UserProgress, type Badge, type UserBadge, type Checkin } from '@/lib/checkins';
 import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
+import type { RootStackParamList } from '@/navigation/RootStackNavigator';
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function ProfileScreen() {
+  const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { user, profile, isGuest, signOut, signInWithGoogle } = useAuth();
@@ -169,12 +174,16 @@ export default function ProfileScreen() {
           </Text>
           
           <View style={styles.statsRow}>
-            <View style={styles.statItem}>
+            <Pressable 
+              style={styles.statItem}
+              onPress={() => navigation.navigate('VisitedPlaces')}
+            >
               <Text style={styles.statValue}>
                 {loading ? '-' : progress?.total_checkins ?? 0}
               </Text>
               <Text style={styles.statLabel}>Places Visited</Text>
-            </View>
+              <Feather name="chevron-right" size={14} color={Colors.dark.textSecondary} style={styles.statChevron} />
+            </Pressable>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statValue}>
@@ -455,6 +464,9 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 12,
     color: Colors.dark.textSecondary,
+    marginTop: Spacing.xs,
+  },
+  statChevron: {
     marginTop: Spacing.xs,
   },
   section: {

@@ -5,6 +5,7 @@ import MainTabNavigator from "@/navigation/MainTabNavigator";
 import CompassScreen from "@/screens/CompassScreen";
 import ListDetailScreen from "@/screens/ListDetailScreen";
 import TourDetailScreen from "@/screens/TourDetailScreen";
+import VisitedPlacesScreen from "@/screens/VisitedPlacesScreen";
 import LoginScreen from "@/screens/LoginScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { Colors } from "@/constants/theme";
@@ -16,6 +17,7 @@ export type RootStackParamList = {
   Compass: undefined;
   ListDetail: { listId: string; listName: string };
   TourDetail: { tourId: string };
+  VisitedPlaces: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -71,6 +73,14 @@ export default function RootStackNavigator() {
           <Stack.Screen
             name="TourDetail"
             component={TourDetailScreen}
+            options={{
+              headerShown: false,
+              animation: "slide_from_right",
+            }}
+          />
+          <Stack.Screen
+            name="VisitedPlaces"
+            component={VisitedPlacesScreen}
             options={{
               headerShown: false,
               animation: "slide_from_right",

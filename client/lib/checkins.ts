@@ -189,3 +189,62 @@ export async function getCheckinCount(userId: string): Promise<number> {
     return 0;
   }
 }
+
+export async function uncheckIn(userId: string, placeId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('checkins')
+      .delete()
+      .eq('user_id', userId)
+      .eq('place_id', placeId);
+    
+    if (error) {
+      console.error('Uncheck-in error:', error);
+      return { success: false, error: error.message };
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error in uncheckIn:', error);
+    return { success: false, error: 'Failed to remove check-in' };
+  }
+}
+
+export async function getAllCheckins(userId: string): Promise<Checkin[]> {
+  try {
+    const { data, error } = await supabase
+      .from('checkins')
+      .select('*')
+      .eq('user_id', userId)
+      .order('checked_in_at', { ascending: false });
+    
+    if (error) {
+      console.error('Error fetching all checkins:', error);
+      return [];
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error('Error in getAllCheckins:', error);
+    return [];
+  }
+}
+
+export async function getCheckedInPlaceIds(userId: string): Promise<Set<string>> {
+  try {
+    const { data, error } = await supabase
+      .from('checkins')
+      .select('place_id')
+      .eq('user_id', userId);
+    
+    if (error) {
+      console.error('Error fetching checked-in place IDs:', error);
+      return new Set();
+    }
+    
+    return new Set(data?.map(c => c.place_id) || []);
+  } catch (error) {
+    console.error('Error in getCheckedInPlaceIds:', error);
+    return new Set();
+  }
+}

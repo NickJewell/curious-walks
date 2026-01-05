@@ -17,7 +17,7 @@ import type { Region } from "react-native-maps";
 import SafeMapView, { Marker, Callout, PROVIDER_GOOGLE, isMapAvailable } from "@/components/SafeMapView";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
@@ -28,6 +28,7 @@ import { getNearestCurios, searchCurios, Curio } from "@/lib/supabase";
 import { useHunt } from "@/contexts/HuntContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { getUserLists, createList, addPlaceToList } from "@/lib/lists";
+import { getCheckedInPlaceIds } from "@/lib/checkins";
 import type { ListWithItemCount } from "../../shared/schema";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -102,6 +103,19 @@ export default function MapScreen() {
   const [showCreateListInput, setShowCreateListInput] = useState(false);
   const [newListName, setNewListName] = useState("");
   const [savingToList, setSavingToList] = useState(false);
+  const [checkedInPlaceIds, setCheckedInPlaceIds] = useState<Set<string>>(new Set());
+
+  useFocusEffect(
+    useCallback(() => {
+      const loadCheckedInPlaces = async () => {
+        if (user && !isGuest) {
+          const ids = await getCheckedInPlaceIds(user.id);
+          setCheckedInPlaceIds(ids);
+        }
+      };
+      loadCheckedInPlaces();
+    }, [user?.id, isGuest])
+  );
 
   const handleHuntPlace = (curio: Curio) => {
     setSelectedCurio(null);
@@ -358,6 +372,7 @@ export default function MapScreen() {
         {isMapAvailable && Marker ? curios.map((curio) => {
           const isTarget = isHunting && activeTarget?.id === curio.id;
           const isGreyed = isHunting && activeTarget?.id !== curio.id;
+          const isCheckedIn = checkedInPlaceIds.has(curio.id);
           
           return (
             <Marker
@@ -375,9 +390,10 @@ export default function MapScreen() {
                 styles.marker,
                 isTarget && styles.markerTarget,
                 isGreyed && styles.markerGreyed,
+                isCheckedIn && styles.markerCheckedIn,
               ]}>
                 <Feather 
-                  name="map-pin" 
+                  name={isCheckedIn ? "check" : "map-pin"}
                   size={isTarget ? 20 : 16} 
                   color={isGreyed ? "#888" : "#FFFFFF"} 
                 />
@@ -741,6 +757,9 @@ const styles = StyleSheet.create({
   markerGreyed: {
     backgroundColor: "#4A4E57",
     opacity: 0.6,
+  },
+  markerCheckedIn: {
+    backgroundColor: "#4CAF50",
   },
   calloutContainer: {
     width: 280,
