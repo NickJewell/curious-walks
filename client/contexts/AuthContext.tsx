@@ -34,6 +34,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isGuest, setIsGuest] = useState(false);
 
+  // Handle OAuth callback on web
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const handleAuthCallback = async () => {
+        const hash = window.location.hash;
+        if (hash && hash.includes('access_token')) {
+          const params = new URLSearchParams(hash.substring(1));
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+          
+          if (accessToken && refreshToken) {
+            await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            // Clean up URL
+            window.history.replaceState(null, '', window.location.pathname);
+          }
+        }
+      };
+      handleAuthCallback();
+    }
+  }, []);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -86,10 +110,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = async () => {
     try {
-      const redirectUrl = makeRedirectUri({
-        scheme: 'lantern',
-        path: 'google-auth',
-      });
+      let redirectUrl: string;
+      
+      if (Platform.OS === 'web') {
+        // Use current origin for web callback (secure - no external input)
+        redirectUrl = `${window.location.origin}/auth/google/callback`;
+      } else {
+        // Use deep link for native
+        redirectUrl = makeRedirectUri({
+          scheme: 'lantern',
+          path: 'google-auth',
+        });
+      }
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
