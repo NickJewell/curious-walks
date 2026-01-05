@@ -14,6 +14,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { HuntProvider } from "@/contexts/HuntContext";
 import { TourProvider } from "@/contexts/TourContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { CheckinProvider } from "@/contexts/CheckinContext";
 import { SplashScreen } from "@/components/SplashScreen";
 
 export default function App() {
@@ -27,6 +28,7 @@ export default function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
+          <CheckinProvider>
           <HuntProvider>
             <TourProvider>
               <SafeAreaProvider>
@@ -42,6 +44,7 @@ export default function App() {
             </SafeAreaProvider>
             </TourProvider>
           </HuntProvider>
+          </CheckinProvider>
         </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>

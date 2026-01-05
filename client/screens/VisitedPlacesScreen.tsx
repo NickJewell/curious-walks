@@ -14,6 +14,7 @@ import { Feather } from '@expo/vector-icons';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@/navigation/RootStackNavigator';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCheckins } from '@/contexts/CheckinContext';
 import { getAllCheckins, uncheckIn, type Checkin } from '@/lib/checkins';
 import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
 
@@ -24,6 +25,7 @@ interface Props {
 export default function VisitedPlacesScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { removeCheckin } = useCheckins();
   
   const [loading, setLoading] = useState(true);
   const [checkins, setCheckins] = useState<Checkin[]>([]);
@@ -66,6 +68,7 @@ export default function VisitedPlacesScreen({ navigation }: Props) {
               const result = await uncheckIn(user.id, checkin.place_id);
               if (result.success) {
                 setCheckins(prev => prev.filter(c => c.id !== checkin.id));
+                removeCheckin(checkin.place_id);
               } else {
                 Alert.alert('Error', 'Failed to remove check-in');
               }

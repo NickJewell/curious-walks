@@ -17,6 +17,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { BlurView } from 'expo-blur';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCheckins } from '@/contexts/CheckinContext';
 import { getUserProgress, getAllBadges, uncheckIn, type UserProgress, type Badge, type UserBadge, type Checkin } from '@/lib/checkins';
 import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
 import type { RootStackParamList } from '@/navigation/RootStackNavigator';
@@ -28,6 +29,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const { user, profile, isGuest, signOut, signInWithGoogle } = useAuth();
+  const { refreshTrigger, removeCheckin } = useCheckins();
   
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState<UserProgress | null>(null);
@@ -58,6 +60,7 @@ export default function ProfileScreen() {
                   total_checkins: progress.total_checkins - 1,
                   recent_checkins: updatedCheckins,
                 });
+                removeCheckin(checkin.place_id);
               }
             } catch (error) {
               console.error('Error removing check-in:', error);
@@ -90,7 +93,7 @@ export default function ProfileScreen() {
       };
       
       loadData();
-    }, [user?.id, isGuest])
+    }, [user?.id, isGuest, refreshTrigger])
   );
 
   const handleSignOut = async () => {

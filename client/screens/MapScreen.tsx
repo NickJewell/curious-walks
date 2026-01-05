@@ -27,8 +27,8 @@ import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { getNearestCurios, searchCurios, Curio } from "@/lib/supabase";
 import { useHunt } from "@/contexts/HuntContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCheckins } from "@/contexts/CheckinContext";
 import { getUserLists, createList, addPlaceToList } from "@/lib/lists";
-import { getCheckedInPlaceIds } from "@/lib/checkins";
 import type { ListWithItemCount } from "../../shared/schema";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -81,6 +81,7 @@ export default function MapScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { activeTarget, setActiveTarget, isHunting } = useHunt();
   const { user, isGuest, signOut } = useAuth();
+  const { checkedInPlaceIds } = useCheckins();
   const mapRef = useRef<any>(null);
   const markerRefs = useRef<{ [key: string]: any }>({});
   
@@ -103,19 +104,6 @@ export default function MapScreen() {
   const [showCreateListInput, setShowCreateListInput] = useState(false);
   const [newListName, setNewListName] = useState("");
   const [savingToList, setSavingToList] = useState(false);
-  const [checkedInPlaceIds, setCheckedInPlaceIds] = useState<Set<string>>(new Set());
-
-  useFocusEffect(
-    useCallback(() => {
-      const loadCheckedInPlaces = async () => {
-        if (user && !isGuest) {
-          const ids = await getCheckedInPlaceIds(user.id);
-          setCheckedInPlaceIds(ids);
-        }
-      };
-      loadCheckedInPlaces();
-    }, [user?.id, isGuest])
-  );
 
   const handleHuntPlace = (curio: Curio) => {
     setSelectedCurio(null);

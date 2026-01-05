@@ -20,6 +20,7 @@ import ConfettiCannon from "react-native-confetti-cannon";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useHunt } from "@/contexts/HuntContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCheckins } from "@/contexts/CheckinContext";
 import { checkIn, checkAndAwardBadges, hasCheckedIn, uncheckIn, type UserBadge } from "@/lib/checkins";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
@@ -57,6 +58,7 @@ export default function CompassScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { activeTarget, setActiveTarget } = useHunt();
   const { user, isGuest } = useAuth();
+  const { addCheckin, removeCheckin } = useCheckins();
 
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [distance, setDistance] = useState<number | null>(null);
@@ -226,6 +228,7 @@ export default function CompassScreen({ navigation }: Props) {
       if (result.success && result.isNewCheckin) {
         setShowConfetti(true);
         setAlreadyCheckedIn(true);
+        addCheckin(activeTarget.id);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         
         const newBadges = await checkAndAwardBadges(user.id);
@@ -251,6 +254,7 @@ export default function CompassScreen({ navigation }: Props) {
       const result = await uncheckIn(user.id, activeTarget.id);
       if (result.success) {
         setAlreadyCheckedIn(false);
+        removeCheckin(activeTarget.id);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (error) {
