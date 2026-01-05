@@ -1,0 +1,199 @@
+PRD 3: Search & Discovery (Expo Version)
+1. Goal
+Allow users to find specific historical curiosities by name or navigate quickly to a general area of London (e.g., "Soho") to explore that neighborhood.
+
+2. User Story
+As a user, I want to type "Roman Wall" to find that specific ruin, or "Covent Garden" to move the map to that district so I can see what curiosities are nearby.
+
+3. Technical Dependencies
+Framework: Expo (React Native).
+
+Map Control: react-native-maps (specifically animateToRegion method).
+
+Geocoding: expo-location (specifically Location.geocodeAsync).
+
+Backend: Supabase Client (Text search query).
+
+UI Components: TextInput, FlatList, KeyboardAvoidingView.
+
+4. Functional Requirements
+4.1 The Search Interface (UI)
+Component: A "Floating Search Bar" positioned at the top of the screen.
+
+Styling:
+
+Position: Absolute (z-index high).
+
+Layout: Inside SafeAreaView to avoid the notch.
+
+Appearance: White rounded container with a "Search" icon (Lucide/Ionicon) on the left and a "Clear" (X) button on the right when text is present.
+
+Shadow: Essential for visibility over the map (elevation: 5 for Android, shadowOpacity for iOS).
+
+4.2 The Search Logic (Dual-Mode)
+The search function must perform two parallel queries when the user types:
+
+Database Search (The "Curiosities"):
+
+Query the places table.
+
+Filter: name OR description (case-insensitive ilike).
+
+Limit: Top 5 matches.
+
+Location Search (The "Geography"):
+
+If the database yields few results, use Location.geocodeAsync(query) from Expo.
+
+Scope: Append ", London, UK" to the query behind the scenes to bias results towards London (prevent jumping to Soho, New York).
+
+4.3 The Results List
+Component: A FlatList rendered immediately below the search bar.
+
+Visibility: Only visible when the user has typed > 2 characters.
+
+Content:
+
+Section 1: Places (Icon: Pin). Display name and short description.
+
+Section 2: Locations (Icon: Map). Display the formatted address (e.g., "Covent Garden, London").
+
+Keyboard Handling: The list must be scrollable, and tapping a result must dismiss the keyboard (Keyboard.dismiss()).
+
+4.4 Selection Actions
+Scenario A: User selects a "Place" (Database Record)
+
+Fetch the coordinates (lat, lon) of the selected item.
+
+Call mapRef.current.animateToRegion() to center the camera on the object.
+
+Zoom: Zoom in close (e.g., latitudeDelta: 0.005).
+
+Pin Interaction: Automatically open the "Callout" (Popup) for that pin.
+
+Scenario B: User selects a "Location" (Geocode Result)
+
+Get the coordinates from the geocoder.
+
+Call mapRef.current.animateToRegion() to center the camera on the district.
+
+Zoom: Zoom out slightly (e.g., latitudeDelta: 0.02) to show the neighborhood.
+
+Trigger Data Fetch: Fire the get_nearest_places function for this new center point to populate the map with markers.
+
+5. Acceptance Criteria
+UI Layering: The search bar sits cleanly on top of the map and does not disappear when the map moves.
+
+Database Match: Typing "Stone" returns "London Stone" and "Seven Stones" from the Supabase DB.
+
+Geocode Match: Typing "Hyde Park" moves the map to Hyde Park and loads the pins there.
+
+Clean Up: Tapping the "X" button clears the text, hides the list, and dismisses the keyboard.
+
+No Lag: Typing does not freeze the UI (implement a 300ms "debounce" on the input).
+
+Implementation Note for Replit Agent
+Search often creates performance issues in React Native if not handled correctly. Pass this note:
+
+Performance Tip: "Please use lodash.debounce (or a custom debounce hook) on the Search Input. Do not query Supabase on every single keystroke; wait 300-500ms after the user stops typing.
+
+Also, use Keyboard.dismiss() inside the onPress handler for the search results, otherwise the keyboard remains stuck open covering the map."PRD 3: Search & Discovery (Expo Version)
+1. Goal
+Allow users to find specific historical curiosities by name or navigate quickly to a general area of London (e.g., "Soho") to explore that neighborhood.
+
+2. User Story
+As a user, I want to type "Roman Wall" to find that specific ruin, or "Covent Garden" to move the map to that district so I can see what curiosities are nearby.
+
+3. Technical Dependencies
+Framework: Expo (React Native).
+
+Map Control: react-native-maps (specifically animateToRegion method).
+
+Geocoding: expo-location (specifically Location.geocodeAsync).
+
+Backend: Supabase Client (Text search query).
+
+UI Components: TextInput, FlatList, KeyboardAvoidingView.
+
+4. Functional Requirements
+4.1 The Search Interface (UI)
+Component: A "Floating Search Bar" positioned at the top of the screen.
+
+Styling:
+
+Position: Absolute (z-index high).
+
+Layout: Inside SafeAreaView to avoid the notch.
+
+Appearance: White rounded container with a "Search" icon (Lucide/Ionicon) on the left and a "Clear" (X) button on the right when text is present.
+
+Shadow: Essential for visibility over the map (elevation: 5 for Android, shadowOpacity for iOS).
+
+4.2 The Search Logic (Dual-Mode)
+The search function must perform two parallel queries when the user types:
+
+Database Search (The "Curiosities"):
+
+Query the places table.
+
+Filter: name OR description (case-insensitive ilike).
+
+Limit: Top 5 matches.
+
+Location Search (The "Geography"):
+
+If the database yields few results, use Location.geocodeAsync(query) from Expo.
+
+Scope: Append ", London, UK" to the query behind the scenes to bias results towards London (prevent jumping to Soho, New York).
+
+4.3 The Results List
+Component: A FlatList rendered immediately below the search bar.
+
+Visibility: Only visible when the user has typed > 2 characters.
+
+Content:
+
+Section 1: Places (Icon: Pin). Display name and short description.
+
+Section 2: Locations (Icon: Map). Display the formatted address (e.g., "Covent Garden, London").
+
+Keyboard Handling: The list must be scrollable, and tapping a result must dismiss the keyboard (Keyboard.dismiss()).
+
+4.4 Selection Actions
+Scenario A: User selects a "Place" (Database Record)
+
+Fetch the coordinates (lat, lon) of the selected item.
+
+Call mapRef.current.animateToRegion() to center the camera on the object.
+
+Zoom: Zoom in close (e.g., latitudeDelta: 0.005).
+
+Pin Interaction: Automatically open the "Callout" (Popup) for that pin.
+
+Scenario B: User selects a "Location" (Geocode Result)
+
+Get the coordinates from the geocoder.
+
+Call mapRef.current.animateToRegion() to center the camera on the district.
+
+Zoom: Zoom out slightly (e.g., latitudeDelta: 0.02) to show the neighborhood.
+
+Trigger Data Fetch: Fire the get_nearest_places function for this new center point to populate the map with markers.
+
+5. Acceptance Criteria
+UI Layering: The search bar sits cleanly on top of the map and does not disappear when the map moves.
+
+Database Match: Typing "Stone" returns "London Stone" and "Seven Stones" from the Supabase DB.
+
+Geocode Match: Typing "Hyde Park" moves the map to Hyde Park and loads the pins there.
+
+Clean Up: Tapping the "X" button clears the text, hides the list, and dismisses the keyboard.
+
+No Lag: Typing does not freeze the UI (implement a 300ms "debounce" on the input).
+
+Implementation Note for Replit Agent
+Search often creates performance issues in React Native if not handled correctly. Pass this note:
+
+Performance Tip: "Please use lodash.debounce (or a custom debounce hook) on the Search Input. Do not query Supabase on every single keystroke; wait 300-500ms after the user stops typing.
+
+Also, use Keyboard.dismiss() inside the onPress handler for the search results, otherwise the keyboard remains stuck open covering the map."
