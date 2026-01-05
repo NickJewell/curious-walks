@@ -335,6 +335,7 @@ export default function ListsScreen() {
         </View>
       ) : activeTab === 'lists' ? (
         <FlatList
+          key="lists-flatlist"
           data={lists}
           keyExtractor={(item) => item.id}
           renderItem={renderListItem}
@@ -348,6 +349,7 @@ export default function ListsScreen() {
         />
       ) : (
         <FlatList
+          key="tours-flatlist"
           data={tours}
           keyExtractor={(item) => item.id}
           renderItem={renderTourCard}
