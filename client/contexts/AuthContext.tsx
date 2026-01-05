@@ -3,7 +3,7 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
-import { makeRedirectUri } from 'expo-auth-session';
+import { makeRedirectUri, ResponseType } from 'expo-auth-session';
 import { Platform } from 'react-native';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -44,19 +44,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     path: 'auth/google/callback',
   });
 
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    webClientId: GOOGLE_WEB_CLIENT_ID,
+  const webRedirectUri = Platform.OS === 'web' && typeof window !== 'undefined'
+    ? window.location.origin
+    : redirectUri;
+
+  console.log('OAuth redirect URI:', webRedirectUri);
+
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: GOOGLE_WEB_CLIENT_ID,
     iosClientId: GOOGLE_IOS_CLIENT_ID,
     androidClientId: GOOGLE_ANDROID_CLIENT_ID,
-    redirectUri: Platform.OS === 'web' 
-      ? `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/google/callback`
-      : redirectUri,
+    redirectUri: webRedirectUri,
   });
 
   useEffect(() => {
     const handleGoogleResponse = async () => {
+      console.log('Google OAuth response:', response?.type);
+      
       if (response?.type === 'success') {
         const { id_token } = response.params;
+        console.log('Got id_token:', id_token ? 'yes' : 'no');
         
         if (id_token) {
           try {
@@ -67,11 +74,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             
             if (error) {
               console.error('Supabase signInWithIdToken error:', error);
+            } else {
+              console.log('Supabase sign in successful');
             }
           } catch (error) {
             console.error('Error exchanging Google token:', error);
           }
         }
+      } else if (response?.type === 'error') {
+        console.error('Google OAuth error:', response.error);
       }
     };
 
