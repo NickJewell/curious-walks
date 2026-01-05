@@ -1,0 +1,110 @@
+# PRD 4: Compass Navigation ("The Hunt")
+
+### **1. Goal**
+
+Provide a gamified "treasure hunt" navigation experience where users are guided by a directional arrow and distance readout, rather than a turn-by-turn route.
+
+### **2. User Story**
+
+As a user, I want to select a curiosity and switch to a "Compass View" that points me directly to it, so I can find my way by looking at the streets rather than staring at a map line.
+
+### **3. Technical Dependencies**
+
+* **Framework:** Expo (React Native).
+* **Sensors:** `expo-sensors` (specifically **Magnetometer**).
+* **Location:** `expo-location` (to calculate bearing from user to target).
+* **Math Library:** `geolib` (highly recommended for calculating distance and bearing easily) or custom Haversine formulas.
+
+---
+
+### **4. Functional Requirements**
+
+#### **4.1 Navigation State Management**
+
+* **Global State:** The app needs an `activeTarget` state (which holds the `curio-id` and coordinates of the place being hunted).
+* **Trigger:**
+* In the "Place Detail" view (or Map Callout), add a primary button: **"Hunt This Place"**.
+* Action: Sets `activeTarget` and immediately switches the screen to **Compass Mode**.
+
+
+
+#### **4.2 The Compass View (UI)**
+
+* **Layout:** A full-screen view focused on visibility outdoors.
+* **Visual Elements:**
+* **The Arrow:** A large, high-contrast SVG arrow in the center of the screen.
+* **The Distance:** A large text readout (e.g., "150m") below the arrow. Updates in real-time.
+* **The Target:** Display the Name and Image of the place at the top.
+* **Controls:**
+* "View on Map" Button: Flips the view back to the Map (see 4.4).
+* "Stop Hunt" Button: Clears the `activeTarget` and returns to standard Map mode.
+
+
+
+
+
+#### **4.3 The Compass Logic (The Math)**
+
+* **Inputs:**
+* User Location ().
+* Target Location ().
+* Device Heading (): From Magnetometer (0–360 degrees).
+
+
+* **Calculation (Loop every ~100ms):**
+1. **Calculate Bearing ():** The angle from User to Target (North = 0).
+2. **Calculate Rotation ():** .
+3. **Apply Style:** Rotate the Arrow image by  degrees.
+
+
+* **Result:** If the target is East () and the user faces North (), the arrow points Right (). If the user turns to face East (), the arrow points Up ().
+
+#### **4.4 The "Active Hunt" Map View**
+
+* **Switching Back:** If the user clicks "View on Map" from the Compass screen:
+* **Visual Changes:**
+* **Target Pin:** Render in **Gold** (or a distinct highlight color/size) and keep it always z-indexed on top.
+* **Other Pins:** Render in **Grey** or semi-transparent to reduce noise.
+* **User Pin:** Remains Blue.
+
+
+* **UI Overlay:** A floating "Resume Compass" button appears (bottom right) to quickly switch back to the Arrow view.
+
+#### **4.5 Arrival Logic (Link to PRD 7)**
+
+* **Threshold:** When Distance < 10 meters:
+* **Haptic Feedback:** Vibrate the phone.
+* **Visual:** The Compass screen changes to a "You Arrived!" state.
+* **Action:** Auto-trigger the "Check-In" button or unlocking animation.
+
+
+
+---
+
+### **5. Acceptance Criteria**
+
+1. **Sensor Permissions:** App does not crash if Magnetometer is unavailable; it shows a graceful error ("Compass not supported").
+2. **Smoothness:** The arrow rotates smoothly as the user turns their body (use React Native `Animated` API or `LayoutAnimation` to dampen the jitter).
+3. **Accuracy:** The arrow points consistently toward the target regardless of phone orientation.
+4. **State Persistence:** Switching between Map and Compass does not lose the target.
+
+---
+
+### **Implementation Note for Replit Agent**
+
+The math for the compass is the most common failure point. Provide this specific instruction to the Agent:
+
+> **Technical Tip for Compass Logic:**
+> 1. **Use `geolib`:** Install `geolib` to calculate the bearing. Do not write raw trigonometry if possible.
+> * `const bearing = getGreatCircleBearing(userLoc, targetLoc);`
+> 
+> 
+> 2. **Magnetometer Jitter:** The raw sensor data is very noisy. You must implement a simple **Low-Pass Filter** or average the last 5 readings to stop the arrow from shaking wildly.
+> 3. **Rotation Logic:**
+> * Remember that React Native rotation transforms use degrees as strings (e.g., `"45deg"`).
+> * `rotate value = (bearing - magnetometerHeading)`.
+> 
+> 
+> 4. **Permissions:** Remember that `expo-location` permissions are separate from sensor usage. Ensure location is active before calculating bearing.
+> 
+>
