@@ -6,6 +6,8 @@ import {
   Pressable,
   Platform,
   Animated,
+  Modal,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
@@ -14,8 +16,11 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import { Magnetometer } from "expo-sensors";
 import { getGreatCircleBearing, getDistance } from "geolib";
+import ConfettiCannon from "react-native-confetti-cannon";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useHunt } from "@/contexts/HuntContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { checkIn, checkAndAwardBadges, hasCheckedIn, type UserBadge } from "@/lib/checkins";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -46,28 +51,46 @@ function circularMean(current: number, target: number, factor: number): number {
   return normalizeAngle(result);
 }
 
+const CHECKIN_THRESHOLD = 20;
+
 export default function CompassScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { activeTarget, setActiveTarget } = useHunt();
+  const { user, isGuest } = useAuth();
 
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [distance, setDistance] = useState<number | null>(null);
   const [hasArrived, setHasArrived] = useState(false);
   const [magnetometerAvailable, setMagnetometerAvailable] = useState(true);
   const [heading, setHeading] = useState(0);
+  
+  const [canCheckIn, setCanCheckIn] = useState(false);
+  const [alreadyCheckedIn, setAlreadyCheckedIn] = useState(false);
+  const [checkingIn, setCheckingIn] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [newBadge, setNewBadge] = useState<UserBadge | null>(null);
+  const [showBadgeModal, setShowBadgeModal] = useState(false);
 
   const arrowRotation = useRef(new Animated.Value(0)).current;
   const filteredHeading = useRef(0);
   const lastHeadingRef = useRef(0);
+  const confettiRef = useRef<ConfettiCannon>(null);
 
   useEffect(() => {
     setHasArrived(false);
     setDistance(null);
     setUserLocation(null);
+    setCanCheckIn(false);
+    setAlreadyCheckedIn(false);
+    setShowConfetti(false);
     arrowRotation.setValue(0);
     filteredHeading.current = 0;
     lastHeadingRef.current = 0;
-  }, [activeTarget?.id]);
+    
+    if (activeTarget && user && !isGuest) {
+      hasCheckedIn(user.id, activeTarget.id).then(setAlreadyCheckedIn);
+    }
+  }, [activeTarget?.id, user?.id]);
 
   useEffect(() => {
     let locationSub: Location.LocationSubscription | null = null;
@@ -96,6 +119,7 @@ export default function CompassScreen({ navigation }: Props) {
               { latitude: activeTarget.latitude, longitude: activeTarget.longitude }
             );
             setDistance(dist);
+            setCanCheckIn(dist < CHECKIN_THRESHOLD);
 
             if (dist < ARRIVAL_THRESHOLD && !hasArrived) {
               setHasArrived(true);
@@ -168,6 +192,40 @@ export default function CompassScreen({ navigation }: Props) {
     navigation.navigate("Main");
   };
 
+  const handleCheckIn = async () => {
+    if (!activeTarget || !user || isGuest || checkingIn || alreadyCheckedIn) return;
+    
+    setCheckingIn(true);
+    
+    try {
+      const result = await checkIn(
+        user.id,
+        activeTarget.id,
+        activeTarget.name,
+        activeTarget.latitude,
+        activeTarget.longitude
+      );
+      
+      if (result.success && result.isNewCheckin) {
+        setShowConfetti(true);
+        setAlreadyCheckedIn(true);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        
+        const newBadges = await checkAndAwardBadges(user.id);
+        if (newBadges.length > 0) {
+          setNewBadge(newBadges[0]);
+          setTimeout(() => setShowBadgeModal(true), 1500);
+        }
+      } else if (result.success && !result.isNewCheckin) {
+        setAlreadyCheckedIn(true);
+      }
+    } catch (error) {
+      console.error('Check-in error:', error);
+    } finally {
+      setCheckingIn(false);
+    }
+  };
+
   const formatDistance = (meters: number): string => {
     if (meters >= 1000) {
       return `${(meters / 1000).toFixed(1)}km`;
@@ -206,22 +264,95 @@ export default function CompassScreen({ navigation }: Props) {
   if (hasArrived) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
+        {showConfetti ? (
+          <ConfettiCannon
+            ref={confettiRef}
+            count={200}
+            origin={{ x: -10, y: 0 }}
+            autoStart={true}
+            fadeOut={true}
+          />
+        ) : null}
+        
         <View style={styles.arrivedContainer}>
           <View style={styles.arrivedIcon}>
-            <Feather name="check-circle" size={80} color="#4CAF50" />
+            <Feather 
+              name={alreadyCheckedIn ? "check-circle" : "map-pin"} 
+              size={80} 
+              color={alreadyCheckedIn ? "#4CAF50" : "#D4AF7A"} 
+            />
           </View>
-          <Text style={styles.arrivedTitle}>You Arrived!</Text>
+          <Text style={styles.arrivedTitle}>
+            {alreadyCheckedIn ? "Checked In!" : "You Arrived!"}
+          </Text>
           <Text style={styles.arrivedSubtitle}>{activeTarget.name}</Text>
           <Text style={styles.arrivedDescription} numberOfLines={4}>
             {activeTarget.description}
           </Text>
+          
+          {!isGuest && !alreadyCheckedIn ? (
+            <Pressable
+              style={[styles.actionButton, styles.checkInButton]}
+              onPress={handleCheckIn}
+              disabled={checkingIn}
+            >
+              {checkingIn ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Feather name="check" size={20} color="#FFFFFF" />
+                  <Text style={styles.checkInButtonText}>Check In Now</Text>
+                </>
+              )}
+            </Pressable>
+          ) : null}
+          
           <Pressable
             style={[styles.actionButton, styles.primaryButton]}
             onPress={handleStopHunt}
           >
-            <Text style={styles.actionButtonText}>Complete Hunt</Text>
+            <Text style={styles.actionButtonText}>
+              {alreadyCheckedIn ? "Done" : "Complete Hunt"}
+            </Text>
           </Pressable>
         </View>
+        
+        <Modal
+          visible={showBadgeModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowBadgeModal(false)}
+        >
+          <View style={styles.badgeModalOverlay}>
+            <Pressable 
+              style={StyleSheet.absoluteFill}
+              onPress={() => setShowBadgeModal(false)}
+            />
+            <View style={styles.badgeModalContent}>
+              <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+              <View style={styles.badgeModalInner}>
+                <View style={styles.badgeIcon}>
+                  <Feather 
+                    name={(newBadge?.icon_name as any) || "award"} 
+                    size={48} 
+                    color="#D4AF7A" 
+                  />
+                </View>
+                <Text style={styles.badgeModalTitle}>Badge Unlocked!</Text>
+                <Text style={styles.badgeModalName}>{newBadge?.name}</Text>
+                <Text style={styles.badgeModalDescription}>
+                  {newBadge?.description}
+                </Text>
+                <Pressable
+                  style={styles.badgeModalButton}
+                  onPress={() => setShowBadgeModal(false)}
+                >
+                  <Text style={styles.badgeModalButtonText}>Awesome!</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     );
   }
@@ -444,12 +575,77 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing["3xl"],
     paddingVertical: Spacing.lg,
     borderRadius: BorderRadius.md,
+    marginBottom: Spacing.md,
   },
   primaryButton: {
     backgroundColor: Colors.dark.accent,
   },
+  checkInButton: {
+    backgroundColor: "#4CAF50",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  checkInButtonText: {
+    color: "#FFFFFF",
+    ...Typography.headline,
+    fontWeight: "600",
+  },
   actionButtonText: {
     color: Colors.dark.text,
+    ...Typography.headline,
+    fontWeight: "600",
+  },
+  badgeModalOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+  },
+  badgeModalContent: {
+    width: "80%",
+    borderRadius: BorderRadius.lg,
+    overflow: "hidden",
+  },
+  badgeModalInner: {
+    padding: Spacing["3xl"],
+    alignItems: "center",
+  },
+  badgeIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "rgba(212, 175, 122, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: Spacing.xl,
+  },
+  badgeModalTitle: {
+    color: "#D4AF7A",
+    ...Typography.title,
+    marginBottom: Spacing.sm,
+  },
+  badgeModalName: {
+    color: Colors.dark.text,
+    fontSize: 24,
+    fontWeight: "700",
+    marginBottom: Spacing.md,
+    textAlign: "center",
+  },
+  badgeModalDescription: {
+    color: Colors.dark.textSecondary,
+    ...Typography.body,
+    textAlign: "center",
+    marginBottom: Spacing.xl,
+  },
+  badgeModalButton: {
+    backgroundColor: "#D4AF7A",
+    paddingHorizontal: Spacing["3xl"],
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  badgeModalButtonText: {
+    color: "#1A1A1A",
     ...Typography.headline,
     fontWeight: "600",
   },
