@@ -28,13 +28,17 @@
       "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
+    "splash": {
+      "image": "./assets/images/splash.jpg",
+      "resizeMode": "cover",
+      "backgroundColor": "#0A0E14"
+    },
     "plugins": [
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
+          "image": "./assets/images/splash.jpg",
+          "resizeMode": "cover",
           "backgroundColor": "#0A0E14",
           "dark": {
             "backgroundColor": "#0A0E14"
