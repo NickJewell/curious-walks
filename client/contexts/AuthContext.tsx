@@ -2,10 +2,15 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
 import { makeRedirectUri } from 'expo-auth-session';
 import { Platform } from 'react-native';
 
 WebBrowser.maybeCompleteAuthSession();
+
+const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
+const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
+const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || '';
 
 interface UserProfile {
   id: string;
@@ -34,29 +39,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isGuest, setIsGuest] = useState(false);
 
-  // Handle OAuth callback on web
+  const redirectUri = makeRedirectUri({
+    scheme: 'lantern',
+    path: 'auth/google/callback',
+  });
+
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+    iosClientId: GOOGLE_IOS_CLIENT_ID,
+    androidClientId: GOOGLE_ANDROID_CLIENT_ID,
+    redirectUri: Platform.OS === 'web' 
+      ? `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/google/callback`
+      : redirectUri,
+  });
+
   useEffect(() => {
-    if (Platform.OS === 'web') {
-      const handleAuthCallback = async () => {
-        const hash = window.location.hash;
-        if (hash && hash.includes('access_token')) {
-          const params = new URLSearchParams(hash.substring(1));
-          const accessToken = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
-          
-          if (accessToken && refreshToken) {
-            await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
+    const handleGoogleResponse = async () => {
+      if (response?.type === 'success') {
+        const { id_token } = response.params;
+        
+        if (id_token) {
+          try {
+            const { data, error } = await supabase.auth.signInWithIdToken({
+              provider: 'google',
+              token: id_token,
             });
-            // Clean up URL
-            window.history.replaceState(null, '', window.location.pathname);
+            
+            if (error) {
+              console.error('Supabase signInWithIdToken error:', error);
+            }
+          } catch (error) {
+            console.error('Error exchanging Google token:', error);
           }
         }
-      };
-      handleAuthCallback();
-    }
-  }, []);
+      }
+    };
+
+    handleGoogleResponse();
+  }, [response]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -109,53 +129,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
+    if (!GOOGLE_WEB_CLIENT_ID) {
+      console.error('Google Web Client ID not configured. Please set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID');
+      throw new Error('Google authentication not configured');
+    }
+    
     try {
-      let redirectUrl: string;
-      
-      if (Platform.OS === 'web') {
-        // Use current origin for web callback (secure - no external input)
-        redirectUrl = `${window.location.origin}/auth/google/callback`;
-      } else {
-        // Use deep link for native
-        redirectUrl = makeRedirectUri({
-          scheme: 'lantern',
-          path: 'google-auth',
-        });
-      }
-
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectUrl,
-          skipBrowserRedirect: true,
-        },
-      });
-
-      if (error) throw error;
-      if (!data.url) throw new Error('No OAuth URL returned');
-
-      if (Platform.OS === 'web') {
-        window.location.href = data.url;
-      } else {
-        const result = await WebBrowser.openAuthSessionAsync(
-          data.url,
-          redirectUrl
-        );
-
-        if (result.type === 'success') {
-          const url = new URL(result.url);
-          const params = new URLSearchParams(url.hash.substring(1));
-          const accessToken = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
-
-          if (accessToken && refreshToken) {
-            await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-          }
-        }
-      }
+      await promptAsync();
     } catch (error) {
       console.error('Google sign-in error:', error);
       throw error;
