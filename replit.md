@@ -23,14 +23,23 @@ Preferred communication style: Simple, everyday language.
 
 **Navigation Structure:**
 - Stack navigator as root with tab navigator nested inside
-- 4 bottom tabs: Map, Explore, Routes, Settings
-- Modal presentations for location details and filters
+- Single "Explore" tab with full-screen map
+- Compass screen for hunt navigation (full-screen modal)
 - Platform-specific implementations (.web.tsx files for web compatibility)
+
+**Compass Navigation ("Hunt" Mode):**
+- HuntContext provides global state for active hunt target
+- CompassScreen displays directional arrow pointing to target
+- Magnetometer integration with circular mean low-pass filter for smooth rotation
+- Real-time distance readout with arrival detection at <10m
+- Haptic feedback on arrival
+- Map shows gold target marker and greyed other markers during hunt
 
 **State Management:**
 - TanStack Query handles all server data fetching and caching
 - Local component state for UI interactions (search, filters, selections)
-- No global state management library needed due to query-based architecture
+- HuntContext (React Context) for compass navigation hunt state
+- No additional global state management library needed
 
 **Key Design Patterns:**
 - Themed components (ThemedView, ThemedText) for consistent styling
@@ -102,10 +111,14 @@ Preferred communication style: Simple, everyday language.
 - expo-location: User geolocation and permission handling
 - expo-blur: Glassmorphism effects for UI
 - expo-constants: App metadata access
-- expo-haptics: Tactile feedback
+- expo-haptics: Tactile feedback for arrival detection
 - expo-image: Optimized image loading
 - expo-symbols: System icons
 - expo-web-browser: External link handling
+- expo-sensors: Magnetometer for compass heading
+
+**Geospatial Libraries:**
+- geolib: Bearing calculation and distance measurement for compass navigation
 
 **Navigation:**
 - @react-navigation/native: Core navigation
