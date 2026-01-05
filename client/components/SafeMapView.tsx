@@ -48,6 +48,7 @@ function MapFallback() {
 
 let MapViewComponent: any = null;
 let MarkerComponent: any = null;
+let CalloutComponent: any = null;
 let PolylineComponent: any = null;
 let PROVIDER_GOOGLE_VALUE: any = undefined;
 let mapModuleAvailable = false;
@@ -56,6 +57,7 @@ try {
   const maps = require("react-native-maps");
   MapViewComponent = maps.default;
   MarkerComponent = maps.Marker;
+  CalloutComponent = maps.Callout;
   PolylineComponent = maps.Polyline;
   PROVIDER_GOOGLE_VALUE = maps.PROVIDER_GOOGLE;
   mapModuleAvailable = true;
@@ -65,7 +67,7 @@ try {
 
 export const isMapAvailable = mapModuleAvailable;
 
-export { MarkerComponent as Marker, PolylineComponent as Polyline, PROVIDER_GOOGLE_VALUE as PROVIDER_GOOGLE };
+export { MarkerComponent as Marker, CalloutComponent as Callout, PolylineComponent as Polyline, PROVIDER_GOOGLE_VALUE as PROVIDER_GOOGLE };
 
 interface SafeMapViewProps {
   children?: ReactNode;
@@ -97,7 +99,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
   },
   title: {
-    ...Typography.title1,
+    ...Typography.title,
     color: Colors.dark.text,
     marginTop: Spacing.lg,
     marginBottom: Spacing.md,

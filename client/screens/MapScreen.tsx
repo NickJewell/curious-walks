@@ -5,23 +5,17 @@ import {
   Pressable,
   Text,
   ActivityIndicator,
+  Platform,
 } from "react-native";
-import type { Region, MapMarkerProps } from "react-native-maps";
-import SafeMapView, { Marker, PROVIDER_GOOGLE, isMapAvailable } from "@/components/SafeMapView";
+import type { Region } from "react-native-maps";
+import SafeMapView, { Marker, Callout, PROVIDER_GOOGLE, isMapAvailable } from "@/components/SafeMapView";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Location from "expo-location";
-import { useQuery } from "@tanstack/react-query";
-import { Colors, Spacing, BorderRadius, Typography, CategoryColors } from "@/constants/theme";
-import type { RootStackParamList } from "@/navigation/RootStackNavigator";
-import type { Location as LocationType, Category } from "@shared/schema";
-import LocationPreviewCard from "@/components/LocationPreviewCard";
-import SelectionActionPanel from "@/components/SelectionActionPanel";
-import { useSelection } from "@/lib/selection-context";
+import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
+import { supabase, getNearestCurios, Curio } from "@/lib/supabase";
 
 const LONDON_CENTER = {
   latitude: 51.5074,
@@ -30,88 +24,79 @@ const LONDON_CENTER = {
   longitudeDelta: 0.1,
 };
 
+function getDistanceFromLatLon(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const mapRef = useRef<any>(null);
-  const { isSelecting, toggleSelection, selectLocation, deselectLocation, isSelected, selectedLocations } = useSelection();
   
-  const [selectedLocation, setSelectedLocation] = useState<LocationType | null>(null);
+  const [curios, setCurios] = useState<Curio[]>([]);
+  const [loading, setLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-
-  const { data: locations = [], isLoading: locationsLoading } = useQuery<LocationType[]>({
-    queryKey: ["/api/locations"],
-  });
-
-  const { data: categories = [] } = useQuery<Category[]>({
-    queryKey: ["/api/categories"],
-  });
+  const [mapCenter, setMapCenter] = useState<{ latitude: number; longitude: number }>(LONDON_CENTER);
+  const [lastSearchCenter, setLastSearchCenter] = useState<{ latitude: number; longitude: number }>(LONDON_CENTER);
+  const [showSearchButton, setShowSearchButton] = useState(false);
 
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === "granted") {
         const location = await Location.getCurrentPositionAsync({});
-        setUserLocation({
+        const coords = {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
-        });
+        };
+        setUserLocation(coords);
+        setMapCenter(coords);
+        setLastSearchCenter(coords);
+        loadCurios(coords.latitude, coords.longitude);
+      } else {
+        loadCurios(LONDON_CENTER.latitude, LONDON_CENTER.longitude);
       }
     })();
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (userLocation && mapRef.current) {
-        setTimeout(() => {
-          mapRef.current?.animateToRegion({
-            ...userLocation,
-            latitudeDelta: 0.05,
-            longitudeDelta: 0.05,
-          }, 300);
-        }, 100);
-      }
-    }, [userLocation])
-  );
-
-  const getCategoryColor = useCallback((categoryId: string) => {
-    const category = categories.find(c => c.id === categoryId);
-    if (category) {
-      return CategoryColors[category.slug] || Colors.dark.accent;
-    }
-    return Colors.dark.accent;
-  }, [categories]);
-
-  const getCategory = useCallback((categoryId: string) => {
-    return categories.find(c => c.id === categoryId);
-  }, [categories]);
-
-  const handleMarkerPress = (location: LocationType) => {
-    if (isSelecting) {
-      if (isSelected(location.id)) {
-        deselectLocation(location.id);
-      } else {
-        selectLocation(location);
-      }
-    } else {
-      setSelectedLocation(location);
-      mapRef.current?.animateToRegion({
-        latitude: location.latitude,
-        longitude: location.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }, 300);
+  const loadCurios = async (lat: number, lng: number) => {
+    setLoading(true);
+    try {
+      const data = await getNearestCurios(lat, lng, 20);
+      setCurios(data);
+      setLastSearchCenter({ latitude: lat, longitude: lng });
+      setShowSearchButton(false);
+    } catch (error) {
+      console.error("Error loading curios:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleLocationPress = () => {
-    if (selectedLocation) {
-      navigation.navigate("LocationDetail", { 
-        location: selectedLocation,
-        category: getCategory(selectedLocation.categoryId),
-      });
-    }
+  const onRegionChangeComplete = useCallback((region: Region) => {
+    const newCenter = { latitude: region.latitude, longitude: region.longitude };
+    setMapCenter(newCenter);
+    
+    const distance = getDistanceFromLatLon(
+      lastSearchCenter.latitude,
+      lastSearchCenter.longitude,
+      newCenter.latitude,
+      newCenter.longitude
+    );
+    
+    setShowSearchButton(distance > 500);
+  }, [lastSearchCenter]);
+
+  const handleSearchThisArea = () => {
+    loadCurios(mapCenter.latitude, mapCenter.longitude);
   };
 
   const centerOnUser = () => {
@@ -124,16 +109,12 @@ export default function MapScreen() {
     }
   };
 
-  const closePreview = () => {
-    setSelectedLocation(null);
-  };
-
-  if (locationsLoading) {
+  if (loading && curios.length === 0) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: Colors.dark.backgroundRoot }]}>
         <ActivityIndicator size="large" color={Colors.dark.accent} />
         <Text style={[styles.loadingText, { color: Colors.dark.textSecondary }]}>
-          Loading mysterious locations...
+          Finding nearby curiosities...
         </Text>
       </View>
     );
@@ -145,55 +126,39 @@ export default function MapScreen() {
         ref={mapRef}
         style={styles.map}
         provider={PROVIDER_GOOGLE}
-        initialRegion={LONDON_CENTER}
+        initialRegion={userLocation ? { ...userLocation, latitudeDelta: 0.05, longitudeDelta: 0.05 } : LONDON_CENTER}
         showsUserLocation
         showsMyLocationButton={false}
         userInterfaceStyle="dark"
-        onPress={closePreview}
+        onRegionChangeComplete={onRegionChangeComplete}
       >
-        {isMapAvailable && Marker && categories.length > 0 ? locations.map((location) => {
-          const category = getCategory(location.categoryId);
-          const markerColor = category ? CategoryColors[category.slug] || Colors.dark.accent : Colors.dark.accent;
-          const iconName = category?.iconName || "map-pin";
-          const locationIsSelected = isSelected(location.id);
-          return (
-            <Marker
-              key={`${location.id}-${category?.id || 'loading'}-${locationIsSelected}`}
-              coordinate={{
-                latitude: location.latitude,
-                longitude: location.longitude,
-              }}
-              tracksViewChanges={false}
-              stopPropagation
-              onPress={() => handleMarkerPress(location)}
-            >
-              <View style={[
-                styles.marker, 
-                { backgroundColor: markerColor },
-                locationIsSelected && styles.markerSelected
-              ]}>
-                {isSelecting && locationIsSelected ? (
-                  <Feather name="check" size={16} color="#FFFFFF" />
-                ) : (
-                  <Feather name={iconName as any} size={16} color="#FFFFFF" />
-                )}
-              </View>
-            </Marker>
-          );
-        }) : null}
+        {isMapAvailable && Marker ? curios.map((curio) => (
+          <Marker
+            key={curio.id}
+            coordinate={{
+              latitude: curio.latitude,
+              longitude: curio.longitude,
+            }}
+            tracksViewChanges={false}
+          >
+            <View style={styles.marker}>
+              <Feather name="map-pin" size={16} color="#FFFFFF" />
+            </View>
+            {Callout ? (
+              <Callout tooltip style={styles.calloutContainer}>
+                <View style={styles.callout}>
+                  <Text style={styles.calloutTitle}>{curio.name}</Text>
+                  <Text style={styles.calloutDescription} numberOfLines={3}>
+                    {curio.description}
+                  </Text>
+                </View>
+              </Callout>
+            ) : null}
+          </Marker>
+        )) : null}
       </SafeMapView>
 
       <View style={[styles.topControls, { top: insets.top + Spacing.md }]}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.controlButton,
-            pressed && styles.controlButtonPressed,
-          ]}
-          onPress={toggleSelection}
-        >
-          <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
-          <Feather name={isSelecting ? "x" : "check-square"} size={20} color={isSelecting ? Colors.dark.accent : Colors.dark.text} />
-        </Pressable>
         {userLocation ? (
           <Pressable
             style={({ pressed }) => [
@@ -208,18 +173,29 @@ export default function MapScreen() {
         ) : null}
       </View>
 
-      {selectedLocation && !isSelecting ? (
-        <View style={[styles.previewContainer, { bottom: tabBarHeight + Spacing.lg }]}>
-          <LocationPreviewCard
-            location={selectedLocation}
-            category={getCategory(selectedLocation.categoryId)}
-            onPress={handleLocationPress}
-            onClose={closePreview}
-            userLocation={userLocation}
-          />
+      {showSearchButton ? (
+        <View style={[styles.searchButtonContainer, { top: insets.top + Spacing.md }]}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.searchButton,
+              pressed && styles.searchButtonPressed,
+            ]}
+            onPress={handleSearchThisArea}
+          >
+            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+            <Feather name="search" size={16} color={Colors.dark.text} style={styles.searchIcon} />
+            <Text style={styles.searchButtonText}>Search This Area</Text>
+          </Pressable>
         </View>
       ) : null}
-      <SelectionActionPanel />
+
+      {loading ? (
+        <View style={[styles.loadingOverlay, { bottom: tabBarHeight + Spacing.lg }]}>
+          <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
+          <ActivityIndicator size="small" color={Colors.dark.accent} />
+          <Text style={styles.loadingOverlayText}>Searching...</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -263,6 +239,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
+    backgroundColor: Colors.dark.accent,
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
@@ -271,16 +248,70 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  markerSelected: {
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  calloutContainer: {
+    width: 250,
   },
-  previewContainer: {
+  callout: {
+    backgroundColor: Colors.dark.backgroundCard,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  calloutTitle: {
+    color: Colors.dark.text,
+    ...Typography.subtitle,
+    marginBottom: Spacing.xs,
+  },
+  calloutDescription: {
+    color: Colors.dark.textSecondary,
+    ...Typography.caption,
+  },
+  searchButtonContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  searchButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    overflow: "hidden",
+    backgroundColor: "rgba(21, 26, 35, 0.9)",
+  },
+  searchButtonPressed: {
+    opacity: 0.8,
+  },
+  searchIcon: {
+    marginRight: Spacing.xs,
+  },
+  searchButtonText: {
+    color: Colors.dark.text,
+    ...Typography.body,
+    fontWeight: "600",
+  },
+  loadingOverlay: {
     position: "absolute",
     left: Spacing.lg,
     right: Spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    overflow: "hidden",
+    backgroundColor: "rgba(21, 26, 35, 0.9)",
+  },
+  loadingOverlayText: {
+    color: Colors.dark.textSecondary,
+    ...Typography.caption,
+    marginLeft: Spacing.sm,
   },
 });
