@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,38 +7,31 @@ import {
   Alert,
   ActivityIndicator,
   TextInput,
-  Dimensions,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
-import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import {
   GestureHandlerRootView,
-  Swipeable,
-  PanGestureHandler,
-  PanGestureHandlerGestureEvent,
+  Gesture,
+  GestureDetector,
 } from 'react-native-gesture-handler';
 import Animated, {
-  useAnimatedGestureHandler,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
   runOnJS,
-  scrollTo,
-  useAnimatedRef,
-  FadeIn,
 } from 'react-native-reanimated';
 
 import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
-import { useAuth } from '@/contexts/AuthContext';
 import { useHunt } from '@/contexts/HuntContext';
 import { getListItems, removePlaceFromList, reorderListItems, updateListName, getListById } from '@/lib/lists';
 import type { ListItem, UserList } from '../../shared/schema';
 import type { RootStackParamList } from '@/navigation/RootStackNavigator';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ITEM_HEIGHT = 72;
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -157,31 +150,6 @@ export default function ListDetailScreen() {
     await reorderListItems(listId, reorderData);
   }, [items, listId]);
 
-  const renderRightActions = (itemId: string, placeName: string) => {
-    return (
-      <Pressable
-        style={styles.deleteAction}
-        onPress={() => handleRemoveItem(itemId, placeName)}
-      >
-        <Feather name="trash-2" size={20} color="#FFFFFF" />
-      </Pressable>
-    );
-  };
-
-  const renderItem = (item: ListItem, index: number) => {
-    return (
-      <DraggableItem
-        key={item.id}
-        item={item}
-        index={index}
-        itemsCount={items.length}
-        onMove={moveItem}
-        onRemove={() => handleRemoveItem(item.id, item.place_name)}
-        renderRightActions={() => renderRightActions(item.id, item.place_name)}
-      />
-    );
-  };
-
   if (loading) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
@@ -229,7 +197,7 @@ export default function ListDetailScreen() {
           </Text>
         </View>
       ) : (
-        <Animated.ScrollView
+        <ScrollView
           style={styles.scrollView}
           contentContainerStyle={[
             styles.scrollContent,
@@ -241,10 +209,19 @@ export default function ListDetailScreen() {
             {items.length} {items.length === 1 ? 'place' : 'places'}
           </Text>
           <Text style={styles.hintText}>
-            Swipe left to remove, hold and drag to reorder
+            Tap and hold, then drag to reorder
           </Text>
-          {items.map((item, index) => renderItem(item, index))}
-        </Animated.ScrollView>
+          {items.map((item, index) => (
+            <DraggableItem
+              key={item.id}
+              item={item}
+              index={index}
+              itemsCount={items.length}
+              onMove={moveItem}
+              onRemove={() => handleRemoveItem(item.id, item.place_name)}
+            />
+          ))}
+        </ScrollView>
       )}
 
       {items.length > 0 ? (
@@ -272,7 +249,6 @@ interface DraggableItemProps {
   itemsCount: number;
   onMove: (from: number, to: number) => void;
   onRemove: () => void;
-  renderRightActions: () => React.ReactNode;
 }
 
 function DraggableItem({
@@ -281,51 +257,79 @@ function DraggableItem({
   itemsCount,
   onMove,
   onRemove,
-  renderRightActions,
 }: DraggableItemProps) {
   const translateY = useSharedValue(0);
+  const translateX = useSharedValue(0);
   const isActive = useSharedValue(false);
-  const contextY = useSharedValue(0);
+  const startY = useSharedValue(0);
 
-  const gestureHandler = useAnimatedGestureHandler<
-    PanGestureHandlerGestureEvent,
-    { startY: number }
-  >({
-    onStart: (_, ctx) => {
-      ctx.startY = translateY.value;
+  const handleMoveComplete = (fromIndex: number, toIndex: number) => {
+    onMove(fromIndex, toIndex);
+  };
+
+  const panGesture = Gesture.Pan()
+    .activateAfterLongPress(200)
+    .onStart(() => {
+      startY.value = translateY.value;
       isActive.value = true;
-    },
-    onActive: (event, ctx) => {
-      translateY.value = ctx.startY + event.translationY;
-    },
-    onEnd: () => {
+    })
+    .onUpdate((event) => {
+      translateY.value = startY.value + event.translationY;
+    })
+    .onEnd(() => {
       const newIndex = Math.round(translateY.value / ITEM_HEIGHT) + index;
       const clampedIndex = Math.max(0, Math.min(itemsCount - 1, newIndex));
       
       if (clampedIndex !== index) {
-        runOnJS(onMove)(index, clampedIndex);
+        runOnJS(handleMoveComplete)(index, clampedIndex);
       }
       
       translateY.value = withSpring(0);
       isActive.value = false;
-    },
-  });
+    });
+
+  const swipeGesture = Gesture.Pan()
+    .activeOffsetX([-20, 20])
+    .onUpdate((event) => {
+      if (event.translationX < 0) {
+        translateX.value = Math.max(event.translationX, -80);
+      }
+    })
+    .onEnd((event) => {
+      if (event.translationX < -40) {
+        translateX.value = withSpring(-60);
+      } else {
+        translateX.value = withSpring(0);
+      }
+    });
 
   const animatedStyle = useAnimatedStyle(() => {
     return {
-      transform: [{ translateY: translateY.value }],
+      transform: [
+        { translateY: translateY.value },
+        { translateX: translateX.value },
+      ],
       zIndex: isActive.value ? 100 : 1,
       shadowOpacity: isActive.value ? 0.3 : 0,
     };
   });
 
+  const deleteButtonStyle = useAnimatedStyle(() => {
+    return {
+      opacity: translateX.value < -20 ? 1 : 0,
+    };
+  });
+
   return (
-    <Animated.View style={[styles.itemWrapper, animatedStyle]}>
-      <Swipeable
-        renderRightActions={renderRightActions}
-        overshootRight={false}
-      >
-        <View style={styles.itemContainer}>
+    <View style={styles.itemWrapper}>
+      <Animated.View style={[styles.deleteButton, deleteButtonStyle]}>
+        <Pressable style={styles.deleteAction} onPress={onRemove}>
+          <Feather name="trash-2" size={20} color="#FFFFFF" />
+        </Pressable>
+      </Animated.View>
+      
+      <GestureDetector gesture={Gesture.Race(panGesture, swipeGesture)}>
+        <Animated.View style={[styles.itemContainer, animatedStyle]}>
           <View style={styles.itemContent}>
             <View style={styles.orderBadge}>
               <Text style={styles.orderNumber}>{index + 1}</Text>
@@ -338,15 +342,13 @@ function DraggableItem({
                 {item.place_description}
               </Text>
             </View>
-            <PanGestureHandler onGestureEvent={gestureHandler}>
-              <Animated.View style={styles.dragHandle}>
-                <Feather name="menu" size={20} color={Colors.dark.textSecondary} />
-              </Animated.View>
-            </PanGestureHandler>
+            <View style={styles.dragHandle}>
+              <Feather name="menu" size={20} color={Colors.dark.textSecondary} />
+            </View>
           </View>
-        </View>
-      </Swipeable>
-    </Animated.View>
+        </Animated.View>
+      </GestureDetector>
+    </View>
   );
 }
 
@@ -412,14 +414,22 @@ const styles = StyleSheet.create({
   },
   itemWrapper: {
     marginBottom: Spacing.sm,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
+    position: 'relative',
+  },
+  deleteButton: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
   },
   itemContainer: {
     backgroundColor: Colors.dark.backgroundSecondary,
     borderRadius: BorderRadius.md,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
   },
   itemContent: {
     flexDirection: 'row',
@@ -464,6 +474,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     width: 60,
+    height: ITEM_HEIGHT,
     borderTopRightRadius: BorderRadius.md,
     borderBottomRightRadius: BorderRadius.md,
   },
