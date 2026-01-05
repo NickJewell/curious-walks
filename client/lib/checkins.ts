@@ -71,16 +71,22 @@ export async function checkIn(
   latitude: number,
   longitude: number
 ): Promise<{ success: boolean; isNewCheckin: boolean; error?: string }> {
+  console.log('DEBUG checkIn called with:', { userId, placeId, placeName, latitude, longitude });
+  
   try {
-    const { error } = await supabase.from('checkins').insert({
+    const insertData = {
       user_id: userId,
       place_id: placeId,
       place_name: placeName,
       place_latitude: latitude,
       place_longitude: longitude,
-    });
+    };
+    console.log('DEBUG inserting:', insertData);
+    
+    const { error } = await supabase.from('checkins').insert(insertData);
     
     if (error) {
+      console.log('DEBUG Supabase error:', error);
       if (error.code === '23505') {
         return { success: true, isNewCheckin: false };
       }
@@ -88,6 +94,7 @@ export async function checkIn(
       return { success: false, isNewCheckin: false, error: error.message };
     }
     
+    console.log('DEBUG check-in successful!');
     return { success: true, isNewCheckin: true };
   } catch (error) {
     console.error('Error in checkIn:', error);

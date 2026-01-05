@@ -197,6 +197,14 @@ export default function CompassScreen({ navigation }: Props) {
     
     setCheckingIn(true);
     
+    console.log('DEBUG: Attempting check-in with:', {
+      userId: user.id,
+      placeId: activeTarget.id,
+      placeName: activeTarget.name,
+      lat: activeTarget.latitude,
+      lon: activeTarget.longitude
+    });
+    
     try {
       const result = await checkIn(
         user.id,
@@ -205,6 +213,8 @@ export default function CompassScreen({ navigation }: Props) {
         activeTarget.latitude,
         activeTarget.longitude
       );
+      
+      console.log('DEBUG: Check-in result:', result);
       
       if (result.success && result.isNewCheckin) {
         setShowConfetti(true);
