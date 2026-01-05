@@ -1,0 +1,19 @@
+-- Nearest 20 rows to an input point (lat, lon) using PostGIS
+-- Assumes places(lat double precision, lon double precision)
+
+WITH params AS (
+  SELECT
+    51.320863::double precision AS q_lat,
+    -0.138098::double precision AS q_lon
+)
+SELECT
+  p.*,
+  ST_Distance(
+    ST_SetSRID(ST_MakePoint(p.lon, p.lat), 4326)::geography,
+    ST_SetSRID(ST_MakePoint(params.q_lon, params.q_lat), 4326)::geography
+  ) AS distance_m
+FROM places p
+CROSS JOIN params
+WHERE p.lat IS NOT NULL AND p.lon IS NOT NULL
+ORDER BY distance_m
+LIMIT 20;
