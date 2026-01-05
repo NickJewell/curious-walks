@@ -4,6 +4,7 @@ import { ActivityIndicator, View, StyleSheet } from "react-native";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
 import CompassScreen from "@/screens/CompassScreen";
 import ListDetailScreen from "@/screens/ListDetailScreen";
+import TourDetailScreen from "@/screens/TourDetailScreen";
 import LoginScreen from "@/screens/LoginScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { Colors } from "@/constants/theme";
@@ -14,6 +15,7 @@ export type RootStackParamList = {
   Main: undefined;
   Compass: undefined;
   ListDetail: { listId: string; listName: string };
+  TourDetail: { tourId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -61,6 +63,14 @@ export default function RootStackNavigator() {
           <Stack.Screen
             name="ListDetail"
             component={ListDetailScreen}
+            options={{
+              headerShown: false,
+              animation: "slide_from_right",
+            }}
+          />
+          <Stack.Screen
+            name="TourDetail"
+            component={TourDetailScreen}
             options={{
               headerShown: false,
               animation: "slide_from_right",

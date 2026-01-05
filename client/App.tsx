@@ -12,6 +12,7 @@ import { queryClient } from "@/lib/query-client";
 import RootStackNavigator from "@/navigation/RootStackNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { HuntProvider } from "@/contexts/HuntContext";
+import { TourProvider } from "@/contexts/TourContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SplashScreen } from "@/components/SplashScreen";
 
@@ -27,7 +28,8 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <HuntProvider>
-            <SafeAreaProvider>
+            <TourProvider>
+              <SafeAreaProvider>
               <GestureHandlerRootView style={styles.root}>
                 <KeyboardProvider>
                   <NavigationContainer>
@@ -38,6 +40,7 @@ export default function App() {
                 </KeyboardProvider>
               </GestureHandlerRootView>
             </SafeAreaProvider>
+            </TourProvider>
           </HuntProvider>
         </AuthProvider>
       </QueryClientProvider>
