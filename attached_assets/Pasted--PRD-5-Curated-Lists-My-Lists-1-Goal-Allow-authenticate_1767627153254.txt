@@ -1,0 +1,97 @@
+# PRD 5: Curated Lists ("My Lists")
+
+### **1. Goal**
+
+Allow authenticated users to create named lists of places (e.g., "Sunday Pub Walk"), save interesting spots they find on the map, and reorder them to create a personal itinerary.
+
+### **2. User Story**
+
+As a user, I want to create a list called "Architecture Tour," add 5 buildings I found on the map, and drag them into the correct walking order so I have a plan for the weekend.
+
+### **3. Technical Dependencies**
+
+* **Framework:** Expo (React Native).
+* **Database:** Supabase (`lists` and `list_items` tables).
+* **UI Components:**
+* **Drag & Drop:** `react-native-draggable-flatlist` (Essential for the reordering requirement).
+* **Swipe Actions:** `react-native-gesture-handler` (For "Swipe to Delete").
+* **Modals:** `react-native-modal` or standard React Native `Modal`.
+
+
+
+---
+
+### **4. Functional Requirements**
+
+#### **4.1 The "Lists" Tab (Main View)**
+
+* **Route:** `/lists` (The second tab in the bottom bar).
+* **Content:**
+* **Header:** Title "My Lists" + "Create New" Button (Plus Icon).
+* **Body:** A vertical list of cards representing the user's lists.
+* **Card Data:** List Name, Item Count (e.g., "5 places"), and Created Date.
+
+
+* **Interaction:** Tapping a card opens the **List Detail View** (4.3).
+
+#### **4.2 Creating & Managing Lists**
+
+* **Create:**
+* Clicking "+" opens a small modal.
+* Input: "List Name" (Required).
+* Action: `INSERT` into `lists` table (linked to `auth.uid()`).
+
+
+* **Add to List (From Map):**
+* On the **Place Detail** screen (Map Overlay), add a button: **"Save to List"**.
+* **Selection Modal:** Shows existing lists + "Create New List" option.
+* **Logic:** `INSERT` into `list_items`.
+* *Auto-Increment:* Query the current `max(order_index)` for that list and set the new item to `max + 1` so it appears at the bottom.
+
+
+
+
+
+#### **4.3 List Detail View (The Itinerary)**
+
+* **Header:** List Name (Editable) + "Start Hunt" Button (Future: Launches Compass for item #1).
+* **Body:** A draggable list of places.
+* **Item Card:**
+* Thumbnail Image.
+* Place Name.
+* "Grip" Icon (Three lines) on the right to indicate draggable area.
+
+
+* **Reordering Logic:**
+* User holds the grip and drags Item A below Item B.
+* **Frontend:** Update the local state immediately (Optimistic UI).
+* **Backend:** On drop, fire a batch update to Supabase to update the `order_index` for all affected items.
+
+
+
+#### **4.4 Editing & Deleting**
+
+* **Delete Item:** Swipe left on a row to reveal a red "Remove" button. (Delete from `list_items`).
+* **Delete List:** In the main Lists tab, swipe left on a list card to delete the entire list (Cascading delete in DB).
+
+---
+
+### **5. Acceptance Criteria**
+
+1. **Persistence:** Creating a list and refreshing the app keeps the list visible.
+2. **Uniqueness:** A user cannot add the same Place to the same List twice (handle the SQL unique constraint error gracefully with a "Already in list" toast).
+3. **Ordering:** Dragging an item to the top of the list saves that order. When I reopen the list later, it is still at the top.
+4. **Security:** I can only see *my* lists. I cannot see other users' private lists.
+
+---
+
+### **Implementation Note for Replit Agent**
+
+Drag-and-drop is tricky in React Native. Give the agent this specific advice:
+
+> **Technical Tip for Draggable Lists:**
+> 1. **Library:** Use `react-native-draggable-flatlist`. It is the standard for Expo.
+> 2. **Scroll Conflict:** You must wrap the entire screen in `GestureHandlerRootView` (from `react-native-gesture-handler`) or the drag gestures will not work.
+> 3. **Batch Updates:** When saving the new order to Supabase, do **not** fire 10 separate update calls. Use an `upsert` with the new array of data to minimize network traffic.
+> 
+>
