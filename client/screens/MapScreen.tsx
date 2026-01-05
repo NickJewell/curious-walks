@@ -9,6 +9,9 @@ import {
   Platform,
   SectionList,
   Keyboard,
+  Modal,
+  FlatList,
+  Alert,
 } from "react-native";
 import type { Region } from "react-native-maps";
 import SafeMapView, { Marker, Callout, PROVIDER_GOOGLE, isMapAvailable } from "@/components/SafeMapView";
@@ -19,9 +22,13 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Location from "expo-location";
+import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { getNearestCurios, searchCurios, Curio } from "@/lib/supabase";
 import { useHunt } from "@/contexts/HuntContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { getUserLists, createList, addPlaceToList } from "@/lib/lists";
+import type { ListWithItemCount } from "../../shared/schema";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 interface GeoResult {
@@ -72,6 +79,7 @@ export default function MapScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
   const { activeTarget, setActiveTarget, isHunting } = useHunt();
+  const { user, isGuest, signOut } = useAuth();
   const mapRef = useRef<any>(null);
   const markerRefs = useRef<{ [key: string]: any }>({});
   
@@ -87,6 +95,13 @@ export default function MapScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [selectedCurio, setSelectedCurio] = useState<Curio | null>(null);
   const debouncedQuery = useDebounce(searchQuery, 300);
+
+  const [showListModal, setShowListModal] = useState(false);
+  const [userLists, setUserLists] = useState<ListWithItemCount[]>([]);
+  const [loadingLists, setLoadingLists] = useState(false);
+  const [showCreateListInput, setShowCreateListInput] = useState(false);
+  const [newListName, setNewListName] = useState("");
+  const [savingToList, setSavingToList] = useState(false);
 
   const handleHuntPlace = (curio: Curio) => {
     setSelectedCurio(null);
@@ -104,6 +119,74 @@ export default function MapScreen() {
 
   const handleResumeCompass = () => {
     navigation.navigate("Compass");
+  };
+
+  const handleSaveToList = async () => {
+    if (isGuest || !user?.id) {
+      Alert.alert(
+        "Sign In Required",
+        "Create an account to save places to your lists.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Sign In", onPress: () => signOut() },
+        ]
+      );
+      return;
+    }
+
+    setShowListModal(true);
+    setLoadingLists(true);
+    try {
+      const lists = await getUserLists(user.id);
+      setUserLists(lists);
+    } catch (error) {
+      console.error("Error loading lists:", error);
+    } finally {
+      setLoadingLists(false);
+    }
+  };
+
+  const handleSelectList = async (listId: string) => {
+    if (!selectedCurio) return;
+
+    setSavingToList(true);
+    try {
+      const result = await addPlaceToList(listId, selectedCurio);
+      if (result.success) {
+        Alert.alert("Saved", `Added to your list!`);
+        setShowListModal(false);
+      } else {
+        Alert.alert("Already Saved", result.error || "This place is already in the list.");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to save place.");
+    } finally {
+      setSavingToList(false);
+    }
+  };
+
+  const handleCreateAndAddToList = async () => {
+    if (!newListName.trim() || !user?.id || !selectedCurio) return;
+
+    setSavingToList(true);
+    try {
+      const newList = await createList(user.id, newListName);
+      if (newList) {
+        const result = await addPlaceToList(newList.id, selectedCurio);
+        if (result.success) {
+          Alert.alert("Saved", `Created "${newListName}" and added the place!`);
+          setShowListModal(false);
+          setNewListName("");
+          setShowCreateListInput(false);
+        } else {
+          Alert.alert("Error", result.error || "Failed to add place to new list.");
+        }
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to create list.");
+    } finally {
+      setSavingToList(false);
+    }
   };
 
   useEffect(() => {
@@ -450,19 +533,150 @@ export default function MapScreen() {
             <Text style={styles.selectedDescription} numberOfLines={3}>
               {selectedCurio.description}
             </Text>
-            <Pressable
-              style={({ pressed }) => [
-                styles.huntPanelButton,
-                pressed && styles.huntPanelButtonPressed,
-              ]}
-              onPress={() => handleHuntPlace(selectedCurio)}
-            >
-              <Feather name="navigation" size={16} color="#FFFFFF" />
-              <Text style={styles.huntPanelButtonText}>Hunt This Place</Text>
-            </Pressable>
+            <View style={styles.panelButtons}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.saveListButton,
+                  pressed && styles.saveListButtonPressed,
+                ]}
+                onPress={handleSaveToList}
+              >
+                <Feather name="bookmark" size={16} color={Colors.dark.text} />
+                <Text style={styles.saveListButtonText}>Save to List</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.huntPanelButton,
+                  pressed && styles.huntPanelButtonPressed,
+                ]}
+                onPress={() => handleHuntPlace(selectedCurio)}
+              >
+                <Feather name="navigation" size={16} color="#FFFFFF" />
+                <Text style={styles.huntPanelButtonText}>Hunt</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       ) : null}
+
+      <Modal
+        visible={showListModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => {
+          setShowListModal(false);
+          setShowCreateListInput(false);
+          setNewListName("");
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => {
+              setShowListModal(false);
+              setShowCreateListInput(false);
+              setNewListName("");
+            }}
+          />
+          <Animated.View
+            entering={FadeIn.duration(200)}
+            exiting={FadeOut.duration(150)}
+            style={styles.modalContent}
+          >
+            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+            <View style={styles.modalInner}>
+              <Text style={styles.modalTitle}>Save to List</Text>
+              
+              {loadingLists ? (
+                <ActivityIndicator size="large" color={Colors.dark.accent} style={styles.modalLoader} />
+              ) : (
+                <>
+                  {userLists.length > 0 ? (
+                    <FlatList
+                      data={userLists}
+                      keyExtractor={(item) => item.id}
+                      style={styles.listSelector}
+                      renderItem={({ item }) => (
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.listOption,
+                            pressed && styles.listOptionPressed,
+                          ]}
+                          onPress={() => handleSelectList(item.id)}
+                          disabled={savingToList}
+                        >
+                          <Feather name="list" size={18} color={Colors.dark.accent} />
+                          <View style={styles.listOptionInfo}>
+                            <Text style={styles.listOptionName}>{item.name}</Text>
+                            <Text style={styles.listOptionCount}>
+                              {item.item_count} {item.item_count === 1 ? 'place' : 'places'}
+                            </Text>
+                          </View>
+                          <Feather name="plus" size={18} color={Colors.dark.textSecondary} />
+                        </Pressable>
+                      )}
+                    />
+                  ) : (
+                    <Text style={styles.noListsText}>No lists yet. Create your first one!</Text>
+                  )}
+
+                  {showCreateListInput ? (
+                    <View style={styles.createListContainer}>
+                      <TextInput
+                        style={styles.createListInput}
+                        placeholder="New list name"
+                        placeholderTextColor={Colors.dark.textSecondary}
+                        value={newListName}
+                        onChangeText={setNewListName}
+                        autoFocus
+                        returnKeyType="done"
+                        onSubmitEditing={handleCreateAndAddToList}
+                      />
+                      <View style={styles.createListButtons}>
+                        <Pressable
+                          style={[styles.createListBtn, styles.createListBtnCancel]}
+                          onPress={() => {
+                            setShowCreateListInput(false);
+                            setNewListName("");
+                          }}
+                        >
+                          <Text style={styles.createListBtnCancelText}>Cancel</Text>
+                        </Pressable>
+                        <Pressable
+                          style={[
+                            styles.createListBtn,
+                            styles.createListBtnCreate,
+                            (!newListName.trim() || savingToList) && styles.createListBtnDisabled,
+                          ]}
+                          onPress={handleCreateAndAddToList}
+                          disabled={!newListName.trim() || savingToList}
+                        >
+                          {savingToList ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <Text style={styles.createListBtnCreateText}>Create & Add</Text>
+                          )}
+                        </Pressable>
+                      </View>
+                    </View>
+                  ) : (
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.createNewListButton,
+                        pressed && styles.createNewListButtonPressed,
+                      ]}
+                      onPress={() => setShowCreateListInput(true)}
+                    >
+                      <Feather name="plus-circle" size={20} color={Colors.dark.accent} />
+                      <Text style={styles.createNewListText}>Create New List</Text>
+                    </Pressable>
+                  )}
+                </>
+              )}
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -737,8 +951,8 @@ const styles = StyleSheet.create({
   },
   closePanelButton: {
     position: "absolute",
-    top: Spacing.sm,
-    right: Spacing.sm,
+    top: Spacing.md,
+    right: Spacing.md,
     width: 32,
     height: 32,
     justifyContent: "center",
@@ -746,34 +960,170 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   selectedTitle: {
+    ...Typography.headline,
     color: Colors.dark.text,
-    fontSize: 18,
-    fontWeight: "700",
     marginBottom: Spacing.sm,
-    paddingRight: 32,
+    paddingRight: Spacing['2xl'],
   },
   selectedDescription: {
+    ...Typography.body,
     color: Colors.dark.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: Spacing.md,
+    lineHeight: 22,
+    marginBottom: Spacing.lg,
   },
-  huntPanelButton: {
+  panelButtons: {
+    flexDirection: "row",
+    gap: Spacing.md,
+  },
+  saveListButton: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#8B7355",
+    backgroundColor: Colors.dark.backgroundTertiary,
     paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    gap: Spacing.xs,
+  },
+  saveListButtonPressed: {
+    opacity: 0.7,
+  },
+  saveListButtonText: {
+    color: Colors.dark.text,
+    ...Typography.headline,
+    fontSize: 14,
+  },
+  huntPanelButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.dark.accent,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    gap: Spacing.xs,
   },
   huntPanelButtonPressed: {
     opacity: 0.7,
   },
   huntPanelButtonText: {
     color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
+    ...Typography.headline,
+    fontSize: 14,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+  },
+  modalContent: {
+    width: "85%",
+    maxHeight: "70%",
+    borderRadius: BorderRadius.lg,
+    overflow: "hidden",
+  },
+  modalInner: {
+    padding: Spacing.xl,
+  },
+  modalTitle: {
+    ...Typography.title,
+    color: Colors.dark.text,
+    marginBottom: Spacing.lg,
+    textAlign: "center",
+  },
+  modalLoader: {
+    marginVertical: Spacing['2xl'],
+  },
+  listSelector: {
+    maxHeight: 250,
+  },
+  listOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.dark.backgroundSecondary,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.sm,
+    gap: Spacing.md,
+  },
+  listOptionPressed: {
+    opacity: 0.7,
+  },
+  listOptionInfo: {
+    flex: 1,
+  },
+  listOptionName: {
+    ...Typography.headline,
+    color: Colors.dark.text,
+  },
+  listOptionCount: {
+    ...Typography.caption,
+    color: Colors.dark.textSecondary,
+  },
+  noListsText: {
+    ...Typography.body,
+    color: Colors.dark.textSecondary,
+    textAlign: "center",
+    marginVertical: Spacing.xl,
+  },
+  createNewListButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.lg,
+    marginTop: Spacing.md,
+    gap: Spacing.sm,
+  },
+  createNewListButtonPressed: {
+    opacity: 0.7,
+  },
+  createNewListText: {
+    ...Typography.headline,
+    color: Colors.dark.accent,
+  },
+  createListContainer: {
+    marginTop: Spacing.md,
+  },
+  createListInput: {
+    backgroundColor: Colors.dark.backgroundTertiary,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    ...Typography.body,
+    color: Colors.dark.text,
+    marginBottom: Spacing.md,
+  },
+  createListButtons: {
+    flexDirection: "row",
+    gap: Spacing.md,
+  },
+  createListBtn: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    height: 44,
+  },
+  createListBtnCancel: {
+    backgroundColor: Colors.dark.backgroundTertiary,
+  },
+  createListBtnCancelText: {
+    ...Typography.headline,
+    color: Colors.dark.text,
+    fontSize: 14,
+  },
+  createListBtnCreate: {
+    backgroundColor: Colors.dark.accent,
+  },
+  createListBtnCreateText: {
+    ...Typography.headline,
+    color: "#FFFFFF",
+    fontSize: 14,
+  },
+  createListBtnDisabled: {
+    opacity: 0.5,
   },
 });

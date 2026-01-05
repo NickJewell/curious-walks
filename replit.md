@@ -35,6 +35,17 @@ Preferred communication style: Simple, everyday language.
 - Haptic feedback on arrival
 - Map shows gold target marker and greyed other markers during hunt
 
+**Curated Lists ("My Lists" Feature):**
+- Authenticated users can create custom lists to save places
+- ListsScreen shows all user lists with item counts
+- Swipe-to-delete gesture for list removal
+- ListDetailScreen shows saved places with drag-and-drop reordering
+- "Save to List" modal on MapScreen place panel
+- Guests see sign-in prompts when trying to access lists
+- Uses Supabase `lists` and `list_items` tables with RLS policies
+- Unique constraint prevents duplicate places in same list
+- Order persistence via `order_index` field with bulk updates
+
 **State Management:**
 - TanStack Query handles all server data fetching and caching
 - Local component state for UI interactions (search, filters, selections)

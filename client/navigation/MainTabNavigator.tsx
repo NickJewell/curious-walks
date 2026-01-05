@@ -5,10 +5,12 @@ import { BlurView } from "expo-blur";
 import { Platform, StyleSheet } from "react-native";
 import { Colors } from "@/constants/theme";
 import MapScreen from "@/screens/MapScreen";
+import ListsScreen from "@/screens/ListsScreen";
 import ProfileScreen from "@/screens/ProfileScreen";
 
 export type MainTabParamList = {
   MapTab: undefined;
+  ListsTab: undefined;
   ProfileTab: undefined;
 };
 
@@ -49,6 +51,16 @@ export default function MainTabNavigator() {
           title: "Explore",
           tabBarIcon: ({ color, size }) => (
             <Feather name="map" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="ListsTab"
+        component={ListsScreen}
+        options={{
+          title: "My Lists",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="list" size={size} color={color} />
           ),
         }}
       />
