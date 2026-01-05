@@ -1,16 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
-import { makeRedirectUri } from 'expo-auth-session';
-import { Platform } from 'react-native';
-
-WebBrowser.maybeCompleteAuthSession();
-
-const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
-const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
-const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || '';
 
 interface UserProfile {
   id: string;
@@ -25,7 +15,8 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   isGuest: boolean;
-  signInWithGoogle: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string, fullName?: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   continueAsGuest: () => void;
 }
@@ -39,66 +30,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isGuest, setIsGuest] = useState(false);
 
-  // For iOS, Google uses reversed client ID as scheme
-  const iosReversedClientId = GOOGLE_IOS_CLIENT_ID 
-    ? GOOGLE_IOS_CLIENT_ID.split('.').reverse().join('.')
-    : '';
-
-  const redirectUri = Platform.select({
-    web: typeof window !== 'undefined' ? `${window.location.origin}/auth/google/callback` : undefined,
-    ios: iosReversedClientId ? `${iosReversedClientId}:/` : undefined,
-    default: undefined,
-  });
-
-  console.log('OAuth redirect URI:', redirectUri || 'using default');
-  console.log('Platform:', Platform.OS);
-
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: GOOGLE_WEB_CLIENT_ID,
-    iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
-    androidClientId: GOOGLE_ANDROID_CLIENT_ID || undefined,
-    ...(redirectUri && { redirectUri }),
-  });
-
-  useEffect(() => {
-    const handleGoogleResponse = async () => {
-      console.log('Google OAuth response:', response?.type);
-      
-      if (response?.type === 'success') {
-        const { id_token } = response.params;
-        console.log('Got id_token:', id_token ? 'yes' : 'no');
-        
-        if (id_token) {
-          try {
-            const { data, error } = await supabase.auth.signInWithIdToken({
-              provider: 'google',
-              token: id_token,
-            });
-            
-            if (error) {
-              console.error('Supabase signInWithIdToken error:', error);
-            } else {
-              console.log('Supabase sign in successful');
-            }
-          } catch (error) {
-            console.error('Error exchanging Google token:', error);
-          }
-        }
-      } else if (response?.type === 'error') {
-        console.error('Google OAuth error:', response.error);
-      }
-    };
-
-    handleGoogleResponse();
-  }, [response]);
-
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
         setIsGuest(false);
-        fetchProfile(session.user.id);
+        fetchProfile(session.user.id, session.user.email);
       }
       setLoading(false);
     });
@@ -108,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
       if (session?.user) {
         setIsGuest(false);
-        fetchProfile(session.user.id);
+        fetchProfile(session.user.id, session.user.email);
       } else {
         setProfile(null);
         setIsGuest(false);
@@ -118,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId: string, email?: string | null) => {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -128,31 +66,73 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!error && data) {
       setProfile({
         id: data.id,
-        email: data.email,
+        email: data.email || email,
         avatar_url: data.avatar_url,
         full_name: data.full_name,
       });
     } else {
       setProfile({
         id: userId,
-        email: user?.email ?? null,
-        avatar_url: user?.user_metadata?.avatar_url ?? null,
-        full_name: user?.user_metadata?.full_name ?? null,
+        email: email ?? null,
+        avatar_url: null,
+        full_name: null,
       });
     }
   };
 
-  const signInWithGoogle = async () => {
-    if (!GOOGLE_WEB_CLIENT_ID) {
-      console.error('Google Web Client ID not configured. Please set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID');
-      throw new Error('Google authentication not configured');
-    }
-    
+  const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {
     try {
-      await promptAsync();
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return { error: null };
     } catch (error) {
-      console.error('Google sign-in error:', error);
-      throw error;
+      console.error('Sign in error:', error);
+      return { error: 'An unexpected error occurred' };
+    }
+  };
+
+  const signUp = async (email: string, password: string, fullName?: string): Promise<{ error: string | null }> => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+          },
+        },
+      });
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      if (data.user) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: data.user.id,
+            email: email,
+            full_name: fullName || null,
+            avatar_url: null,
+          });
+
+        if (profileError) {
+          console.error('Profile creation error:', profileError);
+        }
+      }
+
+      return { error: null };
+    } catch (error) {
+      console.error('Sign up error:', error);
+      return { error: 'An unexpected error occurred' };
     }
   };
 
@@ -174,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, loading, isGuest, signInWithGoogle, signOut, continueAsGuest }}>
+    <AuthContext.Provider value={{ session, user, profile, loading, isGuest, signIn, signUp, signOut, continueAsGuest }}>
       {children}
     </AuthContext.Provider>
   );
