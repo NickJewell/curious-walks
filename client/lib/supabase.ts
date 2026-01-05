@@ -77,7 +77,7 @@ export async function searchCurios(query: string, limit: number = 5): Promise<Cu
   return data.map(place => {
     const placeLat = place.latitude ?? place.lat ?? place.y;
     const placeLng = place.longitude ?? place.lng ?? place.lon ?? place.x;
-    const placeId = place.id ?? place.uuid ?? place.place_id ?? String(Math.random());
+    const placeId = place['curio-id'] ?? place.curio_id ?? place.id ?? place.uuid ?? place.place_id ?? String(Math.random());
     const placeName = place.name ?? place.title ?? 'Unknown';
     const placeDesc = place['detail-overview'] ?? place.description ?? place.desc ?? place.summary ?? '';
     
@@ -119,7 +119,7 @@ export async function getNearestCurios(lat: number, lng: number, limit: number =
   const placesWithDistance = placesWithCoords.map(place => {
     const placeLat = place.latitude ?? place.lat ?? place.y;
     const placeLng = place.longitude ?? place.lng ?? place.lon ?? place.x;
-    const placeId = place.id ?? place.uuid ?? place.place_id ?? String(Math.random());
+    const placeId = place['curio-id'] ?? place.curio_id ?? place.id ?? place.uuid ?? place.place_id ?? String(Math.random());
     const placeName = place.name ?? place.title ?? 'Unknown';
     const placeDesc = place['detail-overview'] ?? place.description ?? place.desc ?? place.summary ?? '';
     
