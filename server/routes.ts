@@ -50,22 +50,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const { 'detail-overview': detailOverview } = req.body;
 
-      const { data, error } = await supabase
+      console.log('Updating place:', id, 'with detail-overview:', detailOverview?.substring(0, 50));
+
+      // First verify the record exists
+      const { data: existing, error: fetchError } = await supabase
+        .from('places')
+        .select('places-id, name')
+        .eq('places-id', id)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching place:', fetchError);
+        return res.status(404).json({ error: 'Place not found: ' + fetchError.message });
+      }
+
+      console.log('Found existing place:', existing?.name);
+
+      // Use upsert-like approach - update with returning
+      const { error: updateError } = await supabase
         .from('places')
         .update({ 'detail-overview': detailOverview })
-        .eq('places-id', id)
-        .select();
+        .eq('places-id', id);
 
-      if (error) {
-        console.error('Error updating place:', error);
-        return res.status(500).json({ error: error.message });
+      if (updateError) {
+        console.error('Error updating place:', updateError);
+        return res.status(500).json({ error: updateError.message });
       }
 
-      if (!data || data.length === 0) {
-        return res.status(404).json({ error: 'Place not found' });
-      }
-
-      res.json({ success: true, place: data[0] });
+      res.json({ success: true, place: { ...existing, 'detail-overview': detailOverview } });
     } catch (err) {
       console.error('Error updating place:', err);
       res.status(500).json({ error: 'Internal server error' });
