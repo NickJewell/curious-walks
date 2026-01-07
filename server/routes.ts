@@ -2,9 +2,9 @@ import type { Express } from "express";
 import { createServer, type Server } from "node:http";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Admin API: Get places that need detail-overview (null), sorted by box-id
