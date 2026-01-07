@@ -93,7 +93,7 @@
       color: #aaa;
     }
     
-    .box-id {
+    .plus-code {
       font-family: monospace;
       font-size: 12px;
       color: #4fc3f7;
@@ -171,7 +171,7 @@
 </head>
 <body>
   <h1>Places Admin</h1>
-  <p class="subtitle">Edit places with missing detail-overview (sorted by box-id ascending)</p>
+  <p class="subtitle">Edit places with missing detail-overview (sorted by curio-id number ascending)</p>
   
   <div class="controls">
     <button id="refreshBtn" onclick="loadPlaces()">Refresh</button>
@@ -186,7 +186,7 @@
         <tr>
           <th>Curio ID</th>
           <th>Name</th>
-          <th>Box ID</th>
+          <th>Plus Code</th>
           <th class="overview-cell">Detail Overview</th>
           <th class="actions-cell">Actions</th>
         </tr>
@@ -247,7 +247,7 @@
         <tr id="row-${index}">
           <td class="curio-id">${escapeHtml(place['curio-id'] || '-')}</td>
           <td class="name-cell">${escapeHtml(place.name || '-')}</td>
-          <td class="box-id">${escapeHtml(place['box-id'] || '-')}</td>
+          <td class="plus-code">${escapeHtml(place['plus-code'] || '-')}</td>
           <td class="overview-cell">
             <textarea 
               id="overview-${index}" 

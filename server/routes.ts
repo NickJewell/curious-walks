@@ -16,20 +16,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .select('*', { count: 'exact', head: true })
         .is('detail-overview', null);
 
-      // Then get first 10 records sorted by box-id
+      // Get records with null detail-overview
       const { data, error } = await supabase
         .from('places')
-        .select('places-id, curio-id, name, box-id, detail-overview')
-        .is('detail-overview', null)
-        .order('box-id', { ascending: true, nullsFirst: false })
-        .limit(10);
+        .select('places-id, curio-id, name, plus-code, detail-overview')
+        .is('detail-overview', null);
 
       if (error) {
         console.error('Error fetching places:', error);
         return res.status(500).json({ error: error.message });
       }
 
-      res.json({ places: data || [], total: count || 0 });
+      // Sort by numeric part of curio-id (e.g., CURIO-190 → 190)
+      const sorted = (data || []).sort((a, b) => {
+        const numA = parseInt((a['curio-id'] || '').replace(/\D/g, '')) || 0;
+        const numB = parseInt((b['curio-id'] || '').replace(/\D/g, '')) || 0;
+        return numA - numB;
+      });
+
+      // Limit to first 10
+      const limited = sorted.slice(0, 10);
+
+      res.json({ places: limited, total: count || 0 });
     } catch (err) {
       console.error('Error in needs-overview:', err);
       res.status(500).json({ error: 'Internal server error' });
