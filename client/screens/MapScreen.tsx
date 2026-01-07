@@ -292,13 +292,29 @@ export default function MapScreen() {
     Keyboard.dismiss();
   };
 
-  const loadCurios = async (lat: number, lng: number) => {
+  const loadCurios = async (lat: number, lng: number, fitToBounds: boolean = true) => {
     setLoading(true);
     try {
       const data = await getNearestCurios(lat, lng, 20);
       setCurios(data);
       setLastSearchCenter({ latitude: lat, longitude: lng });
       setShowSearchButton(false);
+      
+      // Fit map to extent of loaded places
+      if (fitToBounds && data.length > 0 && mapRef.current) {
+        const coordinates = data.map(c => ({
+          latitude: c.latitude,
+          longitude: c.longitude,
+        }));
+        
+        // Add small delay to ensure map is ready
+        setTimeout(() => {
+          mapRef.current?.fitToCoordinates(coordinates, {
+            edgePadding: { top: 150, right: 50, bottom: 150, left: 50 },
+            animated: true,
+          });
+        }, 100);
+      }
     } catch (error) {
       console.error("Error loading curios:", error);
     } finally {
