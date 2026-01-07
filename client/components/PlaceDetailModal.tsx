@@ -119,35 +119,83 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
   };
 
   const handleVoteUp = async () => {
-    if (hasVotedUp || !place) return;
+    if (!place) return;
     
     thumbsUpScale.value = withSequence(
       withSpring(1.3, { damping: 10 }),
       withSpring(1, { damping: 10 })
     );
     
-    setHasVotedUp(true);
-    
-    try {
-      await apiRequest('POST', '/api/content/vote', {
-        curioId: place.id,
-        voteType: 'up',
-        userId: user?.id || null,
-      });
-    } catch (error) {
-      console.error('Error submitting vote:', error);
+    if (hasVotedUp) {
+      // Remove the vote
+      setHasVotedUp(false);
+      try {
+        await apiRequest('DELETE', '/api/content/vote', {
+          curioId: place.id,
+          voteType: 'up',
+          userId: user?.id || null,
+        });
+      } catch (error) {
+        console.error('Error removing vote:', error);
+        setHasVotedUp(true); // Revert on error
+      }
+    } else {
+      // Add the vote (and remove down vote if exists)
+      setHasVotedUp(true);
+      if (hasVotedDown) {
+        setHasVotedDown(false);
+      }
+      try {
+        // Remove any existing down vote first
+        if (hasVotedDown) {
+          await apiRequest('DELETE', '/api/content/vote', {
+            curioId: place.id,
+            voteType: 'down',
+            userId: user?.id || null,
+          });
+        }
+        await apiRequest('POST', '/api/content/vote', {
+          curioId: place.id,
+          voteType: 'up',
+          userId: user?.id || null,
+        });
+      } catch (error) {
+        console.error('Error submitting vote:', error);
+      }
     }
   };
 
   const handleVoteDown = () => {
-    if (hasVotedDown) return;
+    if (!place) return;
     
     thumbsDownScale.value = withSequence(
       withSpring(1.3, { damping: 10 }),
       withSpring(1, { damping: 10 })
     );
     
-    setShowReportModal(true);
+    if (hasVotedDown) {
+      // Remove the down vote
+      handleRemoveDownVote();
+    } else {
+      // Show report modal to add down vote
+      setShowReportModal(true);
+    }
+  };
+
+  const handleRemoveDownVote = async () => {
+    if (!place) return;
+    
+    setHasVotedDown(false);
+    try {
+      await apiRequest('DELETE', '/api/content/vote', {
+        curioId: place.id,
+        voteType: 'down',
+        userId: user?.id || null,
+      });
+    } catch (error) {
+      console.error('Error removing vote:', error);
+      setHasVotedDown(true); // Revert on error
+    }
   };
 
   const handleSubmitReport = async () => {
@@ -163,7 +211,17 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
         userId: user?.id || null,
       });
       
-      // Also submit a down vote
+      // Remove any existing up vote first
+      if (hasVotedUp) {
+        await apiRequest('DELETE', '/api/content/vote', {
+          curioId: place.id,
+          voteType: 'up',
+          userId: user?.id || null,
+        });
+        setHasVotedUp(false);
+      }
+      
+      // Submit a down vote
       await apiRequest('POST', '/api/content/vote', {
         curioId: place.id,
         voteType: 'down',
@@ -222,7 +280,7 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
             <Text style={styles.title}>{place.name}</Text>
             
             <View style={styles.voteButtons}>
-              <Pressable onPress={handleVoteUp} disabled={hasVotedUp}>
+              <Pressable onPress={handleVoteUp}>
                 <Animated.View style={[styles.voteButton, thumbsUpStyle]}>
                   <Feather
                     name="thumbs-up"
@@ -232,7 +290,7 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
                 </Animated.View>
               </Pressable>
               
-              <Pressable onPress={handleVoteDown} disabled={hasVotedDown}>
+              <Pressable onPress={handleVoteDown}>
                 <Animated.View style={[styles.voteButton, thumbsDownStyle]}>
                   <Feather
                     name="thumbs-down"

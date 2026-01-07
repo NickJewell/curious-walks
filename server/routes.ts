@@ -156,6 +156,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Remove content vote
+  app.delete('/api/content/vote', async (req, res) => {
+    try {
+      const { curioId, voteType, userId } = req.body;
+      
+      if (!curioId || !voteType) {
+        return res.status(400).json({ error: 'curioId and voteType are required' });
+      }
+
+      // Build query to find and delete the vote
+      let query = supabase
+        .from('content_votes')
+        .delete()
+        .eq('curio_id', curioId)
+        .eq('vote_type', voteType);
+      
+      // If userId provided, match it; otherwise match null
+      if (userId) {
+        query = query.eq('user_id', userId);
+      } else {
+        query = query.is('user_id', null);
+      }
+
+      const { error } = await query;
+
+      if (error) {
+        console.log('Vote delete error:', error.message);
+        return res.status(500).json({ error: 'Could not remove vote.' });
+      }
+
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Submit content report
   app.post('/api/content/report', async (req, res) => {
     try {
