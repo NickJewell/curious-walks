@@ -28,7 +28,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Sort by numeric part of curio-id (e.g., CURIO-190 → 190)
-      const sorted = (data || []).sort((a, b) => {
+      const sorted = (data || []).sort((a: any, b: any) => {
         const numA = parseInt((a['curio-id'] || '').replace(/\D/g, '')) || 0;
         const numB = parseInt((b['curio-id'] || '').replace(/\D/g, '')) || 0;
         return numA - numB;
@@ -64,7 +64,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: 'Place not found: ' + fetchError.message });
       }
 
-      console.log('Found existing place:', existing?.name);
+      console.log('Found existing place:', (existing as any)?.name);
 
       // Use upsert-like approach - update with returning
       const { error: updateError } = await supabase
@@ -77,7 +77,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ error: updateError.message });
       }
 
-      res.json({ success: true, place: { ...existing, 'detail-overview': detailOverview } });
+      res.json({ success: true, place: { ...(existing as any), 'detail-overview': detailOverview } });
     } catch (err) {
       console.error('Error updating place:', err);
       res.status(500).json({ error: 'Internal server error' });
@@ -100,6 +100,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json({ place: data });
+    } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Get random facts for a place
+  app.get('/api/places/:curioId/facts', async (req, res) => {
+    try {
+      const { curioId } = req.params;
+      
+      const { data, error } = await supabase
+        .from('facts')
+        .select('*')
+        .eq('curio-id', curioId);
+
+      if (error) {
+        console.log('Facts table may not exist:', error.message);
+        return res.json({ facts: [] });
+      }
+
+      res.json({ facts: data || [] });
+    } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Submit content vote (thumbs up/down)
+  app.post('/api/content/vote', async (req, res) => {
+    try {
+      const { curioId, voteType, userId } = req.body;
+      
+      if (!curioId || !voteType) {
+        return res.status(400).json({ error: 'curioId and voteType are required' });
+      }
+
+      const { data, error } = await supabase
+        .from('content_votes')
+        .insert({
+          curio_id: curioId,
+          vote_type: voteType,
+          user_id: userId || null,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.log('Vote error (table may not exist):', error.message);
+        return res.status(500).json({ error: 'Could not save vote. Table may not exist.' });
+      }
+
+      res.json({ success: true, vote: data });
+    } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Submit content report
+  app.post('/api/content/report', async (req, res) => {
+    try {
+      const { curioId, reason, comment, userId } = req.body;
+      
+      if (!curioId || !reason) {
+        return res.status(400).json({ error: 'curioId and reason are required' });
+      }
+
+      const { data, error } = await supabase
+        .from('content_reports')
+        .insert({
+          curio_id: curioId,
+          reason: reason,
+          comment: comment || null,
+          user_id: userId || null,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.log('Report error (table may not exist):', error.message);
+        return res.status(500).json({ error: 'Could not save report. Table may not exist.' });
+      }
+
+      res.json({ success: true, report: data });
     } catch (err) {
       res.status(500).json({ error: 'Internal server error' });
     }

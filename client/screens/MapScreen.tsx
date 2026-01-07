@@ -29,6 +29,7 @@ import { useHunt } from "@/contexts/HuntContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCheckins } from "@/contexts/CheckinContext";
 import { getUserLists, createList, addPlaceToList } from "@/lib/lists";
+import PlaceDetailModal from "@/components/PlaceDetailModal";
 import type { ListWithItemCount } from "../../shared/schema";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -104,6 +105,17 @@ export default function MapScreen() {
   const [showCreateListInput, setShowCreateListInput] = useState(false);
   const [newListName, setNewListName] = useState("");
   const [savingToList, setSavingToList] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [detailPlace, setDetailPlace] = useState<Curio | null>(null);
+
+  const handleReadMore = (curio: Curio) => {
+    setDetailPlace(curio);
+    setShowDetailModal(true);
+  };
+
+  const handleCloseDetailModal = () => {
+    setShowDetailModal(false);
+  };
 
   const handleHuntPlace = (curio: Curio) => {
     setSelectedCurio(null);
@@ -550,9 +562,12 @@ export default function MapScreen() {
               <Feather name="x" size={20} color="#888" />
             </Pressable>
             <Text style={styles.selectedTitle} numberOfLines={2}>{selectedCurio.name}</Text>
-            <Text style={styles.selectedDescription} numberOfLines={3}>
-              {selectedCurio.description}
-            </Text>
+            <Pressable onPress={() => handleReadMore(selectedCurio)}>
+              <Text style={styles.selectedDescription} numberOfLines={3}>
+                {selectedCurio.description}
+              </Text>
+              <Text style={styles.readMoreLink}>Read more...</Text>
+            </Pressable>
             <View style={styles.panelButtons}>
               <Pressable
                 style={({ pressed }) => [
@@ -562,7 +577,17 @@ export default function MapScreen() {
                 onPress={handleSaveToList}
               >
                 <Feather name="bookmark" size={16} color={Colors.dark.text} />
-                <Text style={styles.saveListButtonText}>Save to List</Text>
+                <Text style={styles.saveListButtonText}>Save</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.readMoreButton,
+                  pressed && styles.readMoreButtonPressed,
+                ]}
+                onPress={() => handleReadMore(selectedCurio)}
+              >
+                <Feather name="book-open" size={16} color={Colors.dark.text} />
+                <Text style={styles.readMoreButtonText}>Read</Text>
               </Pressable>
               <Pressable
                 style={({ pressed }) => [
@@ -697,6 +722,12 @@ export default function MapScreen() {
           </Animated.View>
         </View>
       </Modal>
+
+      <PlaceDetailModal
+        visible={showDetailModal}
+        place={detailPlace}
+        onClose={handleCloseDetailModal}
+      />
     </View>
   );
 }
@@ -1031,6 +1062,33 @@ const styles = StyleSheet.create({
   },
   huntPanelButtonText: {
     color: "#FFFFFF",
+    ...Typography.headline,
+    fontSize: 14,
+  },
+  readMoreLink: {
+    color: Colors.dark.accent,
+    fontSize: 14,
+    fontWeight: "500",
+    marginTop: -Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  readMoreButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.dark.backgroundSecondary,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    gap: Spacing.xs,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  readMoreButtonPressed: {
+    opacity: 0.7,
+  },
+  readMoreButtonText: {
+    color: Colors.dark.text,
     ...Typography.headline,
     fontSize: 14,
   },
