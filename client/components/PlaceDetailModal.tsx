@@ -155,10 +155,18 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
     
     setSubmittingReport(true);
     try {
+      // Submit report
       await apiRequest('POST', '/api/content/report', {
         curioId: place.id,
         reason: reportReason,
         comment: reportComment,
+        userId: user?.id || null,
+      });
+      
+      // Also submit a down vote
+      await apiRequest('POST', '/api/content/vote', {
+        curioId: place.id,
+        voteType: 'down',
         userId: user?.id || null,
       });
       
