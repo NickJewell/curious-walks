@@ -352,13 +352,35 @@ export default function MapScreen() {
     loadCurios(mapCenter.latitude, mapCenter.longitude);
   };
 
-  const centerOnUser = () => {
-    if (userLocation) {
+  const centerOnUser = async () => {
+    try {
+      // Fetch fresh location instead of using cached userLocation
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      const freshCoords = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
+      
+      // Update the stored user location
+      setUserLocation(freshCoords);
+      
+      // Animate to the fresh location with a close zoom
       mapRef.current?.animateToRegion({
-        ...userLocation,
-        latitudeDelta: 0.02,
-        longitudeDelta: 0.02,
+        ...freshCoords,
+        latitudeDelta: 0.008,
+        longitudeDelta: 0.008,
       }, 300);
+    } catch (error) {
+      // Fall back to cached location if fresh fetch fails
+      if (userLocation) {
+        mapRef.current?.animateToRegion({
+          ...userLocation,
+          latitudeDelta: 0.008,
+          longitudeDelta: 0.008,
+        }, 300);
+      }
     }
   };
 
@@ -379,7 +401,7 @@ export default function MapScreen() {
         ref={mapRef}
         style={styles.map}
         provider={PROVIDER_GOOGLE}
-        initialRegion={userLocation ? { ...userLocation, latitudeDelta: 0.05, longitudeDelta: 0.05 } : LONDON_CENTER}
+        initialRegion={userLocation ? { ...userLocation, latitudeDelta: 0.01, longitudeDelta: 0.01 } : LONDON_CENTER}
         showsUserLocation
         showsMyLocationButton={false}
         userInterfaceStyle="dark"
