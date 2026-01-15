@@ -52,7 +52,7 @@ function circularMean(current: number, target: number, factor: number): number {
   return normalizeAngle(result);
 }
 
-const CHECKIN_THRESHOLD = 20;
+const CHECKIN_THRESHOLD = 40;
 
 export default function CompassScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
