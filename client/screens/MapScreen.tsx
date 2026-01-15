@@ -384,16 +384,7 @@ export default function MapScreen() {
     }
   };
 
-  if (loading && curios.length === 0) {
-    return (
-      <View style={[styles.loadingContainer, { backgroundColor: Colors.dark.backgroundRoot }]}>
-        <ActivityIndicator size="large" color={Colors.dark.accent} />
-        <Text style={[styles.loadingText, { color: Colors.dark.textSecondary }]}>
-          Finding nearby curiosities...
-        </Text>
-      </View>
-    );
-  }
+  const isInitialLoading = loading && curios.length === 0;
 
   return (
     <View style={styles.container}>
@@ -440,6 +431,20 @@ export default function MapScreen() {
           );
         }) : null}
       </SafeMapView>
+
+      {/* Loading overlay - shown on top of map while loading */}
+      {isInitialLoading ? (
+        <Animated.View 
+          entering={FadeIn.duration(200)} 
+          exiting={FadeOut.duration(200)} 
+          style={styles.loadingOverlay}
+        >
+          <View style={styles.loadingPill}>
+            <ActivityIndicator size="small" color={Colors.dark.accent} />
+            <Text style={styles.loadingPillText}>Finding nearby curiosities...</Text>
+          </View>
+        </Animated.View>
+      ) : null}
 
       <View style={[styles.searchContainer, { top: insets.top + Spacing.md }]}>
         <View style={styles.searchBar}>
@@ -550,14 +555,6 @@ export default function MapScreen() {
             <Feather name="search" size={16} color={Colors.dark.text} style={styles.searchIcon} />
             <Text style={styles.searchButtonText}>Search This Area</Text>
           </Pressable>
-        </View>
-      ) : null}
-
-      {loading ? (
-        <View style={[styles.loadingOverlay, { bottom: tabBarHeight + Spacing.lg }]}>
-          <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
-          <ActivityIndicator size="small" color={Colors.dark.accent} />
-          <Text style={styles.loadingOverlayText}>Searching...</Text>
         </View>
       ) : null}
 
@@ -759,13 +756,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.dark.backgroundRoot,
   },
-  loadingContainer: {
-    flex: 1,
+  loadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: "center",
     alignItems: "center",
+    pointerEvents: "none",
   },
-  loadingText: {
-    marginTop: Spacing.lg,
+  loadingPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.full,
+    gap: Spacing.sm,
+  },
+  loadingPillText: {
+    color: Colors.dark.text,
     ...Typography.body,
   },
   map: {
@@ -959,24 +970,6 @@ const styles = StyleSheet.create({
     color: Colors.dark.text,
     ...Typography.body,
     fontWeight: "600",
-  },
-  loadingOverlay: {
-    position: "absolute",
-    left: Spacing.lg,
-    right: Spacing.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.md,
-    overflow: "hidden",
-    backgroundColor: "rgba(21, 26, 35, 0.9)",
-  },
-  loadingOverlayText: {
-    color: Colors.dark.textSecondary,
-    ...Typography.caption,
-    marginLeft: Spacing.sm,
   },
   huntButton: {
     flexDirection: "row",
