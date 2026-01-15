@@ -215,6 +215,14 @@ export default function MapScreen() {
         setUserLocation(coords);
         setMapCenter(coords);
         setLastSearchCenter(coords);
+        
+        // Animate map to user's location once we have it
+        mapRef.current?.animateToRegion({
+          ...coords,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        }, 500);
+        
         loadCurios(coords.latitude, coords.longitude);
       } else {
         loadCurios(LONDON_CENTER.latitude, LONDON_CENTER.longitude);
