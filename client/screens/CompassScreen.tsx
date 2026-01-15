@@ -456,9 +456,16 @@ export default function CompassScreen({ navigation }: Props) {
           <View style={styles.compassRing}>
             {/* Rotating arrow */}
             <Animated.View style={[styles.arrowContainer, { transform: [{ rotate: spin }] }]}>
-              {/* Arrow pointing up (north indicator becomes direction) */}
-              <View style={styles.arrowUp} />
-              <View style={styles.arrowDown} />
+              {/* Main pointer - red arrow pointing to destination */}
+              <View style={styles.arrowPointer}>
+                <View style={styles.arrowHead} />
+                <View style={styles.arrowShaft} />
+              </View>
+              {/* Tail - darker red on opposite side */}
+              <View style={styles.arrowTail}>
+                <View style={styles.arrowTailShaft} />
+                <View style={styles.arrowTailEnd} />
+              </View>
             </Animated.View>
             
             {/* Center white circle */}
@@ -638,29 +645,47 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  arrowUp: {
+  arrowPointer: {
     position: "absolute",
-    top: 20,
+    top: 18,
+    alignItems: "center",
+  },
+  arrowHead: {
     width: 0,
     height: 0,
-    borderLeftWidth: 20,
-    borderRightWidth: 20,
-    borderBottomWidth: 95,
+    borderLeftWidth: 16,
+    borderRightWidth: 16,
+    borderBottomWidth: 28,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
     borderBottomColor: "#E53935",
   },
-  arrowDown: {
+  arrowShaft: {
+    width: 10,
+    height: 70,
+    backgroundColor: "#E53935",
+    marginTop: -2,
+  },
+  arrowTail: {
     position: "absolute",
-    bottom: 35,
+    bottom: 18,
+    alignItems: "center",
+  },
+  arrowTailShaft: {
+    width: 10,
+    height: 70,
+    backgroundColor: "#E53935",
+    marginBottom: -2,
+  },
+  arrowTailEnd: {
     width: 0,
     height: 0,
-    borderLeftWidth: 10,
-    borderRightWidth: 10,
-    borderTopWidth: 70,
+    borderLeftWidth: 16,
+    borderRightWidth: 16,
+    borderTopWidth: 28,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderTopColor: "#B71C1C",
+    borderTopColor: "#E53935",
   },
   compassCenter: {
     position: "absolute",
