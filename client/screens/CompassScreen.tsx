@@ -437,33 +437,10 @@ export default function CompassScreen({ navigation }: Props) {
       </View>
 
       <View style={styles.compassContainer}>
-        <View style={styles.compassOuter}>
-          {/* Cardinal direction markers - fixed position */}
-          <View style={[styles.cardinalMarker, styles.cardinalN]}>
-            <Text style={styles.cardinalTextRed}>N</Text>
-          </View>
-          <View style={[styles.cardinalMarker, styles.cardinalS]}>
-            <Text style={styles.cardinalTextRed}>S</Text>
-          </View>
-          <View style={[styles.cardinalMarker, styles.cardinalE]}>
-            <Text style={styles.cardinalTextBlue}>E</Text>
-          </View>
-          <View style={[styles.cardinalMarker, styles.cardinalW]}>
-            <Text style={styles.cardinalTextBlue}>W</Text>
-          </View>
-          
-          {/* Gray ring */}
-          <View style={styles.compassRing}>
-            {/* Rotating arrow */}
-            <Animated.View style={[styles.arrowContainer, { transform: [{ rotate: spin }] }]}>
-              {/* Complete arrow needle */}
-              <View style={styles.needleTop} />
-              <View style={styles.needleBottom} />
-            </Animated.View>
-            
-            {/* Center white circle */}
-            <View style={styles.compassCenter} />
-          </View>
+        <View style={styles.compassRing}>
+          <Animated.View style={[styles.arrowContainer, { transform: [{ rotate: spin }] }]}>
+            <Feather name="navigation" size={140} color="#E53935" />
+          </Animated.View>
         </View>
         
         <View style={styles.distanceContainer}>
@@ -614,97 +591,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  compassOuter: {
-    width: 300,
-    height: 300,
-    justifyContent: "center",
-    alignItems: "center",
-    position: "relative",
-  },
   compassRing: {
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    borderWidth: 12,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    borderWidth: 8,
     borderColor: "#5A5A5A",
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "transparent",
+    backgroundColor: "rgba(90, 90, 90, 0.1)",
   },
   arrowContainer: {
-    position: "absolute",
-    width: 240,
-    height: 240,
     justifyContent: "center",
     alignItems: "center",
-  },
-  needleTop: {
-    position: "absolute",
-    top: 25,
-    width: 0,
-    height: 0,
-    borderLeftWidth: 12,
-    borderRightWidth: 12,
-    borderBottomWidth: 90,
-    borderStyle: "solid",
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    borderBottomColor: "#E53935",
-  },
-  needleBottom: {
-    position: "absolute",
-    bottom: 25,
-    width: 0,
-    height: 0,
-    borderLeftWidth: 12,
-    borderRightWidth: 12,
-    borderTopWidth: 90,
-    borderStyle: "solid",
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    borderTopColor: "#C62828",
-  },
-  compassCenter: {
-    position: "absolute",
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 3,
-    borderColor: "#E53935",
-  },
-  cardinalMarker: {
-    position: "absolute",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    zIndex: 10,
-  },
-  cardinalN: {
-    top: 0,
-    backgroundColor: "#E53935",
-  },
-  cardinalS: {
-    bottom: 0,
-    backgroundColor: "#E53935",
-  },
-  cardinalE: {
-    right: 0,
-    backgroundColor: "#1E88E5",
-  },
-  cardinalW: {
-    left: 0,
-    backgroundColor: "#1E88E5",
-  },
-  cardinalTextRed: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  cardinalTextBlue: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "700",
   },
   distanceContainer: {
     marginTop: Spacing["3xl"],
