@@ -456,16 +456,9 @@ export default function CompassScreen({ navigation }: Props) {
           <View style={styles.compassRing}>
             {/* Rotating arrow */}
             <Animated.View style={[styles.arrowContainer, { transform: [{ rotate: spin }] }]}>
-              {/* Main pointer - red arrow pointing to destination */}
-              <View style={styles.arrowPointer}>
-                <View style={styles.arrowHead} />
-                <View style={styles.arrowShaft} />
-              </View>
-              {/* Tail - darker red on opposite side */}
-              <View style={styles.arrowTail}>
-                <View style={styles.arrowTailShaft} />
-                <View style={styles.arrowTailEnd} />
-              </View>
+              {/* Complete arrow needle */}
+              <View style={styles.needleTop} />
+              <View style={styles.needleBottom} />
             </Animated.View>
             
             {/* Center white circle */}
@@ -645,47 +638,31 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  arrowPointer: {
+  needleTop: {
     position: "absolute",
-    top: 18,
-    alignItems: "center",
-  },
-  arrowHead: {
+    top: 25,
     width: 0,
     height: 0,
-    borderLeftWidth: 16,
-    borderRightWidth: 16,
-    borderBottomWidth: 28,
+    borderLeftWidth: 12,
+    borderRightWidth: 12,
+    borderBottomWidth: 90,
+    borderStyle: "solid",
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
     borderBottomColor: "#E53935",
   },
-  arrowShaft: {
-    width: 10,
-    height: 70,
-    backgroundColor: "#E53935",
-    marginTop: -2,
-  },
-  arrowTail: {
+  needleBottom: {
     position: "absolute",
-    bottom: 18,
-    alignItems: "center",
-  },
-  arrowTailShaft: {
-    width: 10,
-    height: 70,
-    backgroundColor: "#E53935",
-    marginBottom: -2,
-  },
-  arrowTailEnd: {
+    bottom: 25,
     width: 0,
     height: 0,
-    borderLeftWidth: 16,
-    borderRightWidth: 16,
-    borderTopWidth: 28,
+    borderLeftWidth: 12,
+    borderRightWidth: 12,
+    borderTopWidth: 90,
+    borderStyle: "solid",
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderTopColor: "#E53935",
+    borderTopColor: "#C62828",
   },
   compassCenter: {
     position: "absolute",
