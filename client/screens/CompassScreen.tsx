@@ -30,7 +30,7 @@ interface Props {
 }
 
 const ARRIVAL_THRESHOLD = 10;
-const LOW_PASS_FACTOR = 0.15;
+const LOW_PASS_FACTOR = 0.35; // Increased for faster response
 
 function normalizeAngle(angle: number): number {
   return ((angle % 360) + 360) % 360;
@@ -187,8 +187,8 @@ export default function CompassScreen({ navigation }: Props) {
     Animated.spring(arrowRotation, {
       toValue: newValue,
       useNativeDriver: true,
-      tension: 40,
-      friction: 7,
+      tension: 120,
+      friction: 12,
     }).start();
   }, [userLocation, activeTarget, heading]);
 
@@ -437,10 +437,33 @@ export default function CompassScreen({ navigation }: Props) {
       </View>
 
       <View style={styles.compassContainer}>
-        <View style={styles.compassRing}>
-          <Animated.View style={[styles.arrowContainer, { transform: [{ rotate: spin }] }]}>
-            <Feather name="navigation" size={120} color="#D4AF7A" />
-          </Animated.View>
+        <View style={styles.compassOuter}>
+          {/* Cardinal direction markers - fixed position */}
+          <View style={[styles.cardinalMarker, styles.cardinalN]}>
+            <Text style={styles.cardinalTextRed}>N</Text>
+          </View>
+          <View style={[styles.cardinalMarker, styles.cardinalS]}>
+            <Text style={styles.cardinalTextRed}>S</Text>
+          </View>
+          <View style={[styles.cardinalMarker, styles.cardinalE]}>
+            <Text style={styles.cardinalTextBlue}>E</Text>
+          </View>
+          <View style={[styles.cardinalMarker, styles.cardinalW]}>
+            <Text style={styles.cardinalTextBlue}>W</Text>
+          </View>
+          
+          {/* Gray ring */}
+          <View style={styles.compassRing}>
+            {/* Rotating arrow */}
+            <Animated.View style={[styles.arrowContainer, { transform: [{ rotate: spin }] }]}>
+              {/* Arrow pointing up (north indicator becomes direction) */}
+              <View style={styles.arrowUp} />
+              <View style={styles.arrowDown} />
+            </Animated.View>
+            
+            {/* Center white circle */}
+            <View style={styles.compassCenter} />
+          </View>
         </View>
         
         <View style={styles.distanceContainer}>
@@ -591,19 +614,95 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  compassRing: {
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    borderWidth: 3,
-    borderColor: Colors.dark.border,
+  compassOuter: {
+    width: 300,
+    height: 300,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: Colors.dark.backgroundSecondary,
+    position: "relative",
+  },
+  compassRing: {
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    borderWidth: 12,
+    borderColor: "#5A5A5A",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "transparent",
   },
   arrowContainer: {
+    position: "absolute",
+    width: 240,
+    height: 240,
     justifyContent: "center",
     alignItems: "center",
+  },
+  arrowUp: {
+    position: "absolute",
+    top: 30,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 14,
+    borderRightWidth: 14,
+    borderBottomWidth: 85,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderBottomColor: "#E53935",
+  },
+  arrowDown: {
+    position: "absolute",
+    bottom: 30,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 14,
+    borderRightWidth: 14,
+    borderTopWidth: 85,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderTopColor: "#E53935",
+  },
+  compassCenter: {
+    position: "absolute",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 3,
+    borderColor: "#E53935",
+  },
+  cardinalMarker: {
+    position: "absolute",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    zIndex: 10,
+  },
+  cardinalN: {
+    top: 0,
+    backgroundColor: "#E53935",
+  },
+  cardinalS: {
+    bottom: 0,
+    backgroundColor: "#E53935",
+  },
+  cardinalE: {
+    right: 0,
+    backgroundColor: "#1E88E5",
+  },
+  cardinalW: {
+    left: 0,
+    backgroundColor: "#1E88E5",
+  },
+  cardinalTextRed: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  cardinalTextBlue: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "700",
   },
   distanceContainer: {
     marginTop: Spacing["3xl"],
