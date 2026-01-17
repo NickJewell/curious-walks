@@ -700,6 +700,8 @@
       btn.textContent = 'Importing...';
       
       const results = [];
+      const timestamp = new Date().toLocaleString();
+      results.push(`[${timestamp}]`);
       results.push(`Starting import for ${curioId}...`);
       results.push('');
       
@@ -749,8 +751,8 @@
             let factText = jsonData['FACTS'][i];
             if (!factText || typeof factText !== 'string') continue;
             
-            // Strip "FACT-XX:" prefix if present
-            factText = factText.replace(/^FACT-\d+:\s*/i, '');
+            // Strip "FACT-XX:" prefix if present (handles FACT-01, FACT-1, etc.)
+            factText = factText.replace(/^FACT-\d+:\s*/i, '').trim();
             
             const response = await fetch('/api/admin/facts', {
               method: 'POST',
