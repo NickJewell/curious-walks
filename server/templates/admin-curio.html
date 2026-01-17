@@ -432,6 +432,11 @@
       
       const curioId = `CURIO-${curioNumber}`;
       
+      // Sync with bulk import section
+      document.getElementById('importCurioIdInput').value = curioNumber;
+      document.getElementById('jsonImportData').value = '';
+      document.getElementById('importResults').style.display = 'none';
+      
       hideMessages();
       document.getElementById('loading').style.display = 'block';
       document.getElementById('initialState').style.display = 'none';
