@@ -284,15 +284,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/admin/facts/:id', async (req, res) => {
     try {
       const { id } = req.params;
-      const { fact } = req.body;
+      const { fact: factText } = req.body;
       
-      if (!fact) {
+      if (!factText) {
         return res.status(400).json({ error: 'fact is required' });
       }
 
+      // First get the current fact to check the column structure
+      const { data: existingFact, error: fetchError } = await supabase
+        .from('facts')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching fact:', fetchError);
+        return res.status(404).json({ error: 'Fact not found' });
+      }
+
+      // Log the column names to debug
+      console.log('Existing fact columns:', Object.keys(existingFact || {}));
+
+      // Try to determine the correct column name
+      const columnName = Object.keys(existingFact || {}).find(k => 
+        k === 'fact' || k === 'content' || k === 'text' || k === 'fact-text'
+      ) || 'fact';
+
+      console.log('Using column name:', columnName);
+
+      const updateData: Record<string, string> = {};
+      updateData[columnName] = factText;
+
       const { error } = await supabase
         .from('facts')
-        .update({ fact })
+        .update(updateData)
         .eq('id', id);
 
       if (error) {
