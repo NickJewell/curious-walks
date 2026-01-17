@@ -273,6 +273,53 @@
       padding: 40px;
       text-align: center;
     }
+    
+    .import-section {
+      background: #16213e;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      border: 1px solid #0f3460;
+    }
+    
+    .import-section h2 {
+      margin-top: 0;
+    }
+    
+    .json-textarea {
+      min-height: 200px;
+      font-family: monospace;
+      font-size: 13px;
+      white-space: pre;
+    }
+    
+    .import-btn {
+      background: #9c27b0;
+    }
+    
+    .import-btn:hover {
+      background: #ab47bc;
+    }
+    
+    .import-results {
+      margin-top: 15px;
+      padding: 15px;
+      background: rgba(76, 175, 80, 0.1);
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+    }
+    
+    .import-results.error {
+      background: rgba(239, 83, 80, 0.1);
+    }
+    
+    .divider {
+      border: none;
+      border-top: 1px solid #333;
+      margin: 30px 0;
+    }
   </style>
 </head>
 <body>
@@ -290,6 +337,40 @@
   <div id="error" class="error" style="display: none;"></div>
   <div id="success" class="success" style="display: none;"></div>
   <div id="loading" class="loading" style="display: none;">Loading curio...</div>
+  
+  <!-- JSON Bulk Import Section -->
+  <div class="import-section">
+    <h2>JSON Bulk Import</h2>
+    <p class="subtitle">Paste a JSON object to bulk update detail-overview and facts for a curio</p>
+    
+    <div class="search-container">
+      <span class="search-prefix">CURIO-</span>
+      <input type="text" id="importCurioIdInput" placeholder="12345" />
+    </div>
+    
+    <div class="field-group">
+      <label class="field-label">JSON Data</label>
+      <textarea id="jsonImportData" class="json-textarea" placeholder='{
+  "DETAIL-OVERVIEW": "Your overview text...",
+  "FACTS": [
+    "FACT-01: First fact...",
+    "FACT-02: Second fact...",
+    ...
+  ]
+}'></textarea>
+    </div>
+    
+    <div class="actions-row">
+      <button class="import-btn" id="importBtn" onclick="bulkImport()">Import JSON</button>
+    </div>
+    
+    <div id="importResults" class="import-results" style="display: none;"></div>
+  </div>
+  
+  <hr class="divider" />
+  
+  <h2>Manual Editor</h2>
+  <p class="subtitle">Search for a curio by ID to manually edit its detail-overview and facts</p>
   
   <div id="initialState">
     Enter a curio ID number above to search and edit
@@ -578,6 +659,131 @@
     function hideMessages() {
       document.getElementById('error').style.display = 'none';
       document.getElementById('success').style.display = 'none';
+    }
+    
+    // Bulk Import Function
+    async function bulkImport() {
+      const curioNumber = document.getElementById('importCurioIdInput').value.trim();
+      const jsonText = document.getElementById('jsonImportData').value.trim();
+      const resultsDiv = document.getElementById('importResults');
+      const btn = document.getElementById('importBtn');
+      
+      resultsDiv.style.display = 'none';
+      resultsDiv.className = 'import-results';
+      
+      if (!curioNumber) {
+        resultsDiv.textContent = 'Error: Please enter a CURIO ID number';
+        resultsDiv.className = 'import-results error';
+        resultsDiv.style.display = 'block';
+        return;
+      }
+      
+      if (!jsonText) {
+        resultsDiv.textContent = 'Error: Please paste JSON data';
+        resultsDiv.className = 'import-results error';
+        resultsDiv.style.display = 'block';
+        return;
+      }
+      
+      let jsonData;
+      try {
+        jsonData = JSON.parse(jsonText);
+      } catch (e) {
+        resultsDiv.textContent = 'Error: Invalid JSON format - ' + e.message;
+        resultsDiv.className = 'import-results error';
+        resultsDiv.style.display = 'block';
+        return;
+      }
+      
+      const curioId = `CURIO-${curioNumber}`;
+      btn.disabled = true;
+      btn.textContent = 'Importing...';
+      
+      const results = [];
+      results.push(`Starting import for ${curioId}...`);
+      results.push('');
+      
+      try {
+        // First, verify the curio exists
+        const checkResponse = await fetch(`/api/admin/curio/${encodeURIComponent(curioId)}`);
+        if (!checkResponse.ok) {
+          throw new Error(`Curio "${curioId}" not found in database`);
+        }
+        const curioData = await checkResponse.json();
+        results.push(`Found: ${curioData.place.name}`);
+        results.push('');
+        
+        // Update detail-overview if provided
+        if (jsonData['DETAIL-OVERVIEW']) {
+          results.push('Updating detail-overview...');
+          const overviewResponse = await fetch(`/api/admin/places/${curioData.place['places-id']}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 'detail-overview': jsonData['DETAIL-OVERVIEW'] })
+          });
+          
+          if (overviewResponse.ok) {
+            results.push('  [OK] Detail-overview updated');
+          } else {
+            results.push('  [FAILED] Could not update detail-overview');
+          }
+          results.push('');
+        }
+        
+        // Process facts if provided
+        if (jsonData['FACTS'] && Array.isArray(jsonData['FACTS'])) {
+          results.push(`Processing ${jsonData['FACTS'].length} facts...`);
+          
+          // Delete existing facts for this curio first
+          const existingFacts = curioData.facts || [];
+          for (const fact of existingFacts) {
+            if (fact.id) {
+              await fetch(`/api/admin/facts/${fact.id}`, { method: 'DELETE' });
+            }
+          }
+          results.push(`  Cleared ${existingFacts.length} existing facts`);
+          
+          // Insert new facts
+          let successCount = 0;
+          for (let i = 0; i < Math.min(jsonData['FACTS'].length, 10); i++) {
+            const factText = jsonData['FACTS'][i];
+            if (!factText || typeof factText !== 'string') continue;
+            
+            const response = await fetch('/api/admin/facts', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                'curio-id': curioId,
+                fact: factText
+              })
+            });
+            
+            if (response.ok) {
+              successCount++;
+              results.push(`  [OK] Fact ${i + 1} inserted`);
+            } else {
+              results.push(`  [FAILED] Fact ${i + 1}`);
+            }
+          }
+          
+          results.push('');
+          results.push(`Inserted ${successCount}/${Math.min(jsonData['FACTS'].length, 10)} facts`);
+        }
+        
+        results.push('');
+        results.push('Import complete!');
+        resultsDiv.className = 'import-results';
+        
+      } catch (err) {
+        results.push('');
+        results.push('ERROR: ' + err.message);
+        resultsDiv.className = 'import-results error';
+      }
+      
+      resultsDiv.textContent = results.join('\n');
+      resultsDiv.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Import JSON';
     }
   </script>
 </body>
