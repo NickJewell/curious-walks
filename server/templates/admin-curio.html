@@ -403,7 +403,7 @@
             class="fact-textarea" 
             id="fact-text-${index}"
             placeholder="Enter fact..."
-          >${escapeHtml(fact.fact || '')}</textarea>
+          >${escapeHtml(fact['fact-info'] || '')}</textarea>
           <div class="actions-row">
             <button class="save-btn" onclick="saveFact(${index})">Save Fact</button>
           </div>
@@ -452,7 +452,7 @@
       currentFacts.push({
         id: null,
         'curio-id': currentPlace['curio-id'],
-        fact: ''
+        'fact-info': ''
       });
       renderFacts();
       
@@ -501,7 +501,7 @@
           currentFacts[index] = data.fact;
         }
         
-        currentFacts[index].fact = factText;
+        currentFacts[index]['fact-info'] = factText;
         showSuccess('Fact saved successfully!');
         renderFacts();
       } catch (err) {

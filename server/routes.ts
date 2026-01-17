@@ -265,7 +265,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { data, error } = await supabase
         .from('facts')
-        .insert({ 'curio-id': curioId, fact })
+        .insert({ 'curio-id': curioId, 'fact-info': fact })
         .select()
         .single();
 
@@ -307,8 +307,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Try to determine the correct column name
       const columnName = Object.keys(existingFact || {}).find(k => 
-        k === 'fact' || k === 'content' || k === 'text' || k === 'fact-text'
-      ) || 'fact';
+        k === 'fact' || k === 'content' || k === 'text' || k === 'fact-text' || k === 'fact-info'
+      ) || 'fact-info';
 
       console.log('Using column name:', columnName);
 
