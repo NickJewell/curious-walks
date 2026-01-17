@@ -179,6 +179,17 @@ function configureExpoAndLanding(app: express.Application) {
     res.sendFile(adminPlacesPath);
   });
 
+  // Serve admin curio editor page
+  const adminCurioPath = path.resolve(
+    process.cwd(),
+    "server",
+    "templates",
+    "admin-curio.html",
+  );
+  app.get("/admin/curio", (_req: Request, res: Response) => {
+    res.sendFile(adminCurioPath);
+  });
+
   log("Serving static Expo files with dynamic manifest routing");
 
   app.use((req: Request, res: Response, next: NextFunction) => {

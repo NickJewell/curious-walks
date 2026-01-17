@@ -223,5 +223,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin API: Get curio with place and facts by curio-id
+  app.get('/api/admin/curio/:curioId', async (req, res) => {
+    try {
+      const { curioId } = req.params;
+      
+      // Get the place
+      const { data: place, error: placeError } = await supabase
+        .from('places')
+        .select('*')
+        .eq('curio-id', curioId)
+        .single();
+
+      if (placeError) {
+        return res.status(404).json({ error: 'Place not found' });
+      }
+
+      // Get the facts
+      const { data: facts, error: factsError } = await supabase
+        .from('facts')
+        .select('*')
+        .eq('curio-id', curioId);
+
+      res.json({ 
+        place, 
+        facts: factsError ? [] : (facts || []) 
+      });
+    } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Admin API: Create a new fact
+  app.post('/api/admin/facts', async (req, res) => {
+    try {
+      const { 'curio-id': curioId, fact } = req.body;
+      
+      if (!curioId || !fact) {
+        return res.status(400).json({ error: 'curio-id and fact are required' });
+      }
+
+      const { data, error } = await supabase
+        .from('facts')
+        .insert({ 'curio-id': curioId, fact })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating fact:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      res.json({ success: true, fact: data });
+    } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Admin API: Update a fact
+  app.patch('/api/admin/facts/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { fact } = req.body;
+      
+      if (!fact) {
+        return res.status(400).json({ error: 'fact is required' });
+      }
+
+      const { error } = await supabase
+        .from('facts')
+        .update({ fact })
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error updating fact:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Admin API: Delete a fact
+  app.delete('/api/admin/facts/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const { error } = await supabase
+        .from('facts')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting fact:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   return createServer(app);
 }
