@@ -746,8 +746,11 @@
           // Insert new facts
           let successCount = 0;
           for (let i = 0; i < Math.min(jsonData['FACTS'].length, 10); i++) {
-            const factText = jsonData['FACTS'][i];
+            let factText = jsonData['FACTS'][i];
             if (!factText || typeof factText !== 'string') continue;
+            
+            // Strip "FACT-XX:" prefix if present
+            factText = factText.replace(/^FACT-\d+:\s*/i, '');
             
             const response = await fetch('/api/admin/facts', {
               method: 'POST',
