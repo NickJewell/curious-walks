@@ -1,7 +1,7 @@
 To do: 
 
-1. Get all sanitized loader scripts into github (no keys)
-2. Table refactor on places and facts to turn '-' into '_'
+1. Get all sanitized loader scripts into github (no keys) - DONE
+2. Table refactor on places and facts to turn '-' into '_' - DONE 
 3. Supabase SSO for Google
 4. Vector extension for detail-overview and fact-info
 5. Document tours by neighbourhood
