@@ -1,0 +1,677 @@
+import os
+import json
+import time
+from typing import Any, Dict, List, Tuple, Set, Optional
+from datetime import datetime
+
+import requests
+from supabase import create_client
+
+# -----------------------------
+# CONFIG (Supabase)
+# -----------------------------
+SUPABASE_TABLE = "places"
+SUPABASE_PAGE_SIZE = 1000
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise RuntimeError("Missing SUPABASE_URL or SUPABASE_KEY environment variables")
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# -----------------------------
+# CONFIG (OpenRouter)
+# -----------------------------
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", OPENROUTER_API_KEY)
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", OPENROUTER_MODEL)
+
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_WEB_MAX_RESULTS = int(os.getenv("OPENROUTER_WEB_MAX_RESULTS", "6"))
+OPENROUTER_TEMPERATURE = float(os.getenv("OPENROUTER_TEMPERATURE", "0.5"))
+OPENROUTER_TIMEOUT_S = int(os.getenv("OPENROUTER_TIMEOUT_S", "180"))
+
+WANTED_FIELDS = [
+    "curio-id", "osm-id", "lat", "long", "plus-code", "inscription", "name", "note",
+    "wikidata", "wikipedia", "openplaques-id", "he-ref", "heritage", "historic-civilization",
+    "historic-period", "ref-gb-nhle", "other-info"
+]
+
+# -----------------------------
+# SIMPLE LOGGER
+# -----------------------------
+def log(msg: str):
+    ts = datetime.utcnow().strftime("%H:%M:%S")
+    print(f"[{ts}Z] {msg}", flush=True)
+
+# -----------------------------
+# SUPABASE FIELD FETCH (replaces Notion)
+# -----------------------------
+def fetch_supabase_fields_for_curio(curio_id: str) -> dict:
+    """
+    Fetches a single places row from Supabase by curio-id and returns a dict limited to WANTED_FIELDS.
+    Uses select("*") to avoid failures if columns differ slightly from WANTED_FIELDS.
+    """
+    if not isinstance(curio_id, str) or not curio_id.strip():
+        raise ValueError("curio_id must be a non-empty string")
+
+    curio_id = curio_id.strip()
+    log(f"Supabase: fetching fields for {curio_id}")
+
+    resp = (
+        supabase.table(SUPABASE_TABLE)
+        .select("*")
+        .eq("curio-id", curio_id)
+        .limit(1)
+        .execute()
+    )
+
+    rows = resp.data or []
+    if not rows:
+        raise RuntimeError(f"No match in Supabase places for {curio_id}")
+
+    row = rows[0]
+    out = {k: row.get(k) for k in WANTED_FIELDS if k in row}
+    out["curio-id"] = curio_id
+
+    log("Supabase: row retrieved and fields extracted")
+    return out
+
+# -----------------------------
+# OPENROUTER HELPERS (unchanged)
+# -----------------------------
+def post_with_retries(url: str, headers: dict, payload: dict, timeout_s: int = 180, max_retries: int = 6):
+    backoff = 1.0
+    last = None
+    for attempt in range(1, max_retries + 1):
+        log(f"OpenRouter: request attempt {attempt}/{max_retries} (timeout={timeout_s}s)")
+        r = requests.post(url, headers=headers, json=payload, timeout=timeout_s)
+        if 200 <= r.status_code < 300:
+            log("OpenRouter: response received")
+            return r.json()
+
+        if r.status_code in (429, 500, 502, 503, 504):
+            last = f"{r.status_code}: {r.text}"
+            log(f"OpenRouter: transient error {r.status_code}, backing off {backoff:.1f}s")
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 20.0)
+            continue
+
+        raise RuntimeError(f"OpenRouter error {r.status_code}: {r.text}")
+
+    raise RuntimeError(f"OpenRouter failed after retries. Last error: {last}")
+
+def _content_to_text(content) -> str:
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, dict):
+        return json.dumps(content, ensure_ascii=False)
+    if isinstance(content, list):
+        parts = []
+        for p in content:
+            if isinstance(p, str):
+                parts.append(p)
+            elif isinstance(p, dict):
+                if isinstance(p.get("text"), str):
+                    parts.append(p["text"])
+                elif isinstance(p.get("content"), str):
+                    parts.append(p["content"])
+        return "".join(parts)
+    return str(content)
+
+def _safe_extract_text_from_openrouter(data) -> Tuple[str, dict]:
+    if not isinstance(data, dict):
+        return _content_to_text(data), {"model": OPENROUTER_MODEL, "provider": None, "usage": {}, "total_cost": None}
+
+    prov = data.get("provider")
+    provider_name = None
+    if isinstance(prov, dict):
+        provider_name = prov.get("name")
+    elif isinstance(prov, str):
+        provider_name = prov
+
+    usage = data.get("usage")
+    if not isinstance(usage, dict):
+        usage = {}
+
+    meta = {
+        "id": data.get("id"),
+        "model": data.get("model", OPENROUTER_MODEL),
+        "provider": provider_name,
+        "usage": usage,
+        "total_cost": data.get("total_cost") or data.get("cost") or (data.get("metadata") or {}).get("cost"),
+    }
+
+    choices = data.get("choices")
+
+    if isinstance(choices, list) and choices:
+        c0 = choices[0]
+        if isinstance(c0, dict):
+            msg = c0.get("message") or c0.get("delta") or {}
+            if isinstance(msg, dict):
+                return _content_to_text(msg.get("content")), meta
+            return _content_to_text(msg), meta
+        return _content_to_text(c0), meta
+
+    if isinstance(choices, dict):
+        msg = choices.get("message") or choices
+        if isinstance(msg, dict):
+            return _content_to_text(msg.get("content")), meta
+        return _content_to_text(msg), meta
+
+    for k in ("output_text", "text", "content"):
+        if isinstance(data.get(k), str):
+            return data[k], meta
+
+    return json.dumps(data, ensure_ascii=False), meta
+
+def openrouter_generate_details(curio_fields: dict) -> Tuple[dict, dict]:
+    log("OpenRouter: building prompt + JSON schema")
+
+    instruction = {
+        "task": "Research the location described by these fields using web search and return JSON matching the schema.",
+        "input_fields": curio_fields,
+        "requirements": [
+            "Use web research to identify and verify the location from the supplied fields.",
+            "Do not invent details. If verification fails, return 'No information available' for detail-overview and [] for facts.",
+            "detail-overview must be 2–3 immersive paragraphs written by an expert, charismatic London Blue Badge Guide. Use a sophisticated yet accessible tone.",
+            "PROSE VARIETY: Avoid travel clichés. NEVER start with 'Tucked away', 'Rising', Nestled in', 'Hidden gem', 'Imagine' or 'A stone's throw'.",
+            "NARRATIVE HOOK: Start each description differently. One might start with a specific date, another with a sensory detail (the smell of the Thames, the sound of the Tube), and another with a provocative question about a local personality.",
+            "STRUCTURE: Use rich, evocative language. Focus on the 'why' and 'who' rather than just the 'what'. Make the reader feel like they are standing right there.",
+            "facts must be 10 independent, 'deep-cut' nuggets of information. Avoid surface-level data (e.g., 'it was built in 1850'). Instead, find weird legal quirks, architectural secrets, or obscure links to famous figures.",
+            "Ensure facts do not overlap with the detail-overview text. They should feel like 'bonus' insights shared over a pint after the tour. Do not use facts that simply mention coordinates or rehash the location codes/IDs.",
+            "Each fact must include at least one FULL source URL in parentheses at the end of the string (e.g., https://www.british-history.ac.uk/survey-london/vol40/pp1-10).",
+        ],
+    }
+
+    response_schema = {
+        "name": "curio_details",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "detail-overview": {"type": "string"},
+                "facts": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["detail-overview", "facts"],
+        },
+    }
+
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "model": OPENROUTER_MODEL,
+        "temperature": OPENROUTER_TEMPERATURE,
+        "transforms": ["middle-out"],
+        "messages": [{"role": "user", "content": json.dumps(instruction, ensure_ascii=False)}],
+        "plugins": [
+            {"id": "web", "max_results": OPENROUTER_WEB_MAX_RESULTS},
+            {"id": "response-healing"},
+        ],
+        "response_format": {"type": "json_schema", "json_schema": response_schema},
+    }
+
+    log("OpenRouter: sending request")
+    data = post_with_retries(OPENROUTER_URL, headers, payload, timeout_s=OPENROUTER_TIMEOUT_S)
+    log("OpenRouter: response received")
+
+    text, meta = _safe_extract_text_from_openrouter(data)
+
+    if isinstance(text, str):
+        s = text.strip()
+        try:
+            obj = json.loads(s)
+            if isinstance(obj, dict) and "detail-overview" in obj and "facts" in obj:
+                log("OpenRouter: parsed JSON successfully")
+                return obj, meta
+        except Exception:
+            pass
+
+        preview = s[:500].replace("\n", "\\n")
+        log(f"OpenRouter: JSON parse failed, preview={preview}")
+        try:
+            with open("openrouter_last_response_debug.json", "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            log("OpenRouter: wrote openrouter_last_response_debug.json")
+        except Exception:
+            pass
+
+    return {"detail-overview": "No information available", "facts": []}, meta
+
+def number_facts(facts):
+    out = []
+    if not isinstance(facts, list):
+        return out
+    i = 1
+    for f in facts:
+        if not isinstance(f, str):
+            continue
+        out.append({f"fact_{i:02d}": f})
+        i += 1
+        if i > 10:
+            break
+    return out
+
+def _print_cost_meta(meta: dict):
+    usage = meta.get("usage") or {}
+    log("OpenRouter: usage metadata")
+    log(f"  model: {meta.get('model')}")
+    if meta.get("provider"):
+        log(f"  provider: {meta.get('provider')}")
+    log(f"  prompt_tokens: {usage.get('prompt_tokens')}")
+    log(f"  completion_tokens: {usage.get('completion_tokens')}")
+    log(f"  total_tokens: {usage.get('total_tokens')}")
+    if meta.get("total_cost") is not None:
+        log(f"  reported_cost: {meta.get('total_cost')}")
+    else:
+        log("  reported_cost: (not provided by provider)")
+
+# -----------------------------
+# SUPABASE HELPERS
+# -----------------------------
+def supabase_list_curio_ids_for_box(box_id: Any) -> List[str]:
+    log(f"Supabase: fetching curio-ids for box-id={box_id}")
+
+    curio_ids: List[str] = []
+    offset = 0
+
+    while True:
+        resp = (
+            supabase.table(SUPABASE_TABLE)
+            .select("curio-id")
+            .eq("box-id", box_id)
+            .range(offset, offset + SUPABASE_PAGE_SIZE - 1)
+            .execute()
+        )
+        batch = resp.data or []
+        for row in batch:
+            cid = row.get("curio-id")
+            if isinstance(cid, str) and cid.strip():
+                curio_ids.append(cid.strip())
+
+        if len(batch) < SUPABASE_PAGE_SIZE:
+            break
+        offset += SUPABASE_PAGE_SIZE
+
+    seen: Set[str] = set()
+    ordered: List[str] = []
+    for cid in curio_ids:
+        if cid not in seen:
+            seen.add(cid)
+            ordered.append(cid)
+
+    log(f"Supabase: box-id={box_id} -> {len(ordered)} curio-ids")
+    return ordered
+
+# -----------------------------
+# BOX-ID DRIVEN RUNNERS (Supabase-only fields)
+# -----------------------------
+def run_for_box_range(
+    box_start: int,
+    box_end: int,
+    outdir: str = ".",
+    *,
+    continue_on_error: bool = True,
+) -> Dict[str, Any]:
+    if box_start <= 0 or box_end <= 0:
+        raise ValueError("box_start and box_end must be positive integers")
+    if box_end < box_start:
+        raise ValueError("box_end must be >= box_start")
+
+    os.makedirs(outdir, exist_ok=True)
+
+    combined: Dict[str, Any] = {
+        "range": {"start": box_start, "end": box_end},
+        "results": [],
+        "failed": [],
+    }
+
+    total_boxes = box_end - box_start + 1
+    t0 = time.time()
+
+    for i, box_id in enumerate(range(box_start, box_end + 1), start=1):
+        log(f"Batch(Box): {i}/{total_boxes} -> box-id={box_id}")
+
+        try:
+            curio_ids = supabase_list_curio_ids_for_box(box_id)
+        except Exception as e:
+            err = str(e)
+            log(f"Batch(Box): FAILED listing curio-ids for box-id={box_id}: {err}")
+            combined["failed"].append({"box-id": box_id, "curio-id": None, "error": f"supabase_list_curio_ids_for_box: {err}"})
+            if not continue_on_error:
+                break
+            continue
+
+        for j, curio_id in enumerate(curio_ids, start=1):
+            log(f"Batch(Box): box-id={box_id} curio {j}/{len(curio_ids)} -> {curio_id}")
+            try:
+                curio_fields = fetch_supabase_fields_for_curio(curio_id)
+                llm_out, meta = openrouter_generate_details(curio_fields)
+                if not isinstance(llm_out, dict):
+                    llm_out = {"detail-overview": "No information available", "facts": []}
+
+                detail = llm_out.get("detail-overview", "No information available")
+                facts_raw = llm_out.get("facts", [])
+                facts_numbered = [] if detail == "No information available" else number_facts(facts_raw)
+
+                combined["results"].append(
+                    {"box-id": box_id, "curio-id": curio_id, "detail-overview": detail, "facts": facts_numbered}
+                )
+
+                _print_cost_meta(meta)
+
+            except Exception as e:
+                err = str(e)
+                log(f"Batch(Box): FAILED box-id={box_id} curio-id={curio_id}: {err}")
+                combined["failed"].append({"box-id": box_id, "curio-id": curio_id, "error": err})
+                if not continue_on_error:
+                    break
+
+        if not continue_on_error and combined["failed"]:
+            break
+
+    out_path = os.path.join(outdir, f"curio-detail-box-{box_start}-{box_end}.json")
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(combined, f, ensure_ascii=False, indent=2)
+
+    elapsed = time.time() - t0
+    log(f"Batch(Box): wrote combined file {out_path} (elapsed {elapsed:.1f}s)")
+    log(f"Batch(Box): done. ok={len(combined['results'])} failed={len(combined['failed'])}")
+    return combined
+
+
+# Code to load the detail-overview from this JSON into Supabase places table
+
+import os
+import json
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from supabase import create_client
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+def log(msg: str):
+    ts = datetime.utcnow().strftime("%H:%M:%S")
+    print(f"[{ts}Z] {msg}", flush=True)
+
+def _chunks(lst: List[Dict[str, Any]], size: int):
+    for i in range(0, len(lst), size):
+        yield lst[i:i + size]
+
+def upsert_detail_overviews_from_combined(
+    combined: Dict[str, Any],
+    *,
+    chunk_size: int = 200,
+    skip_no_info: bool = True,
+    on_conflict: str = "curio-id",
+) -> Dict[str, Any]:
+    """
+    Upserts `detail-overview` into places table keyed by `curio-id`.
+
+    Requirements:
+      - places table has columns: "curio-id" and "detail-overview"
+      - places has a UNIQUE constraint or PK on "curio-id" (recommended)
+    """
+    results = combined.get("results") or []
+    payload: List[Dict[str, Any]] = []
+
+    for r in results:
+        curio_id = r.get("curio-id")
+        detail = r.get("detail-overview")
+
+        if not isinstance(curio_id, str) or not curio_id.strip():
+            continue
+        if not isinstance(detail, str):
+            continue
+        if skip_no_info and detail.strip() == "No information available":
+            continue
+
+        payload.append({"curio-id": curio_id.strip(), "detail-overview": detail})
+
+    log(f"Supabase upsert prep: {len(payload)} rows")
+
+    out = {"attempted": len(payload), "ok": 0, "failed": []}
+
+    for batch in _chunks(payload, chunk_size):
+        try:
+            resp = (
+                supabase.table(SUPABASE_TABLE)
+                .upsert(batch, on_conflict=on_conflict)
+                .execute()
+            )
+            inserted = len(resp.data or [])
+            out["ok"] += inserted
+            log(f"Supabase upsert: batch ok ({inserted} returned rows)")
+        except Exception as e:
+            err = str(e)
+            log(f"Supabase upsert: batch FAILED: {err}")
+            out["failed"].append({"error": err, "batch_size": len(batch)})
+
+    log(f"Supabase upsert done: ok={out['ok']} failed_batches={len(out['failed'])}")
+    return out
+
+def upsert_detail_overviews_from_file(
+    json_path: str,
+    *,
+    chunk_size: int = 200,
+    skip_no_info: bool = True,
+    on_conflict: str = "curio-id",
+) -> Dict[str, Any]:
+    with open(json_path, "r", encoding="utf-8") as f:
+        combined = json.load(f)
+    return upsert_detail_overviews_from_combined(
+        combined,
+        chunk_size=chunk_size,
+        skip_no_info=skip_no_info,
+        on_conflict=on_conflict,
+    )
+
+# code to load facts into the Supabase facts table
+
+import os
+import json
+from datetime import datetime
+from typing import Any, Dict, List, Iterable, Optional
+
+from supabase import create_client
+
+PLACES_TABLE = "places"
+FACTS_TABLE = "facts"
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+def log(msg: str):
+    ts = datetime.utcnow().strftime("%H:%M:%S")
+    print(f"[{ts}Z] {msg}", flush=True)
+
+def _chunks(lst: List[Dict[str, Any]], size: int) -> Iterable[List[Dict[str, Any]]]:
+    for i in range(0, len(lst), size):
+        yield lst[i:i + size]
+
+def _extract_fact_strings(facts_field: Any) -> List[str]:
+    """
+    Accepts the JSON 'facts' field:
+      - list of {"fact_01": "..."} dicts (your current format), or
+      - list of strings
+    Returns a flat list of fact strings.
+    """
+    out: List[str] = []
+    if not isinstance(facts_field, list):
+        return out
+
+    for item in facts_field:
+        if isinstance(item, str):
+            s = item.strip()
+            if s:
+                out.append(s)
+            continue
+        if isinstance(item, dict):
+            for _, v in item.items():
+                if isinstance(v, str):
+                    s = v.strip()
+                    if s:
+                        out.append(s)
+    return out
+
+def upsert_detail_overviews_from_combined(
+    combined: Dict[str, Any],
+    *,
+    chunk_size: int = 200,
+    skip_no_info: bool = True,
+    on_conflict: str = "curio-id",
+) -> Dict[str, Any]:
+    results = combined.get("results") or []
+    payload: List[Dict[str, Any]] = []
+
+    for r in results:
+        curio_id = r.get("curio-id")
+        detail = r.get("detail-overview")
+        if not isinstance(curio_id, str) or not curio_id.strip():
+            continue
+        if not isinstance(detail, str):
+            continue
+        if skip_no_info and detail.strip() == "No information available":
+            continue
+        payload.append({"curio-id": curio_id.strip(), "detail-overview": detail})
+
+    log(f"Places upsert prep: {len(payload)} rows")
+    out = {"attempted": len(payload), "ok": 0, "failed": []}
+
+    for batch in _chunks(payload, chunk_size):
+        try:
+            resp = supabase.table(PLACES_TABLE).upsert(batch, on_conflict=on_conflict).execute()
+            out["ok"] += len(resp.data or [])
+            log(f"Places upsert: batch ok ({len(resp.data or [])} returned rows)")
+        except Exception as e:
+            err = str(e)
+            log(f"Places upsert: batch FAILED: {err}")
+            out["failed"].append({"error": err, "batch_size": len(batch)})
+
+    log(f"Places upsert done: ok={out['ok']} failed_batches={len(out['failed'])}")
+    return out
+
+def insert_facts_from_combined(
+    combined: Dict[str, Any],
+    *,
+    language_code: str = "EN",
+    chunk_size: int = 500,
+    replace_existing: bool = True,
+) -> Dict[str, Any]:
+    """
+    Inserts facts into FACTS_TABLE with columns:
+      - curio-id
+      - fact-info
+      - language-code
+    Strategy:
+      - replace_existing=True: delete existing facts for those curio-ids (and language) first, then insert.
+        This is idempotent without requiring any unique constraints.
+      - replace_existing=False: pure insert (may create duplicates if rerun).
+    """
+    results = combined.get("results") or []
+
+    curio_ids: List[str] = []
+    rows: List[Dict[str, Any]] = []
+
+    for r in results:
+        curio_id = r.get("curio-id")
+        if not isinstance(curio_id, str) or not curio_id.strip():
+            continue
+        curio_id = curio_id.strip()
+        curio_ids.append(curio_id)
+
+        fact_strings = _extract_fact_strings(r.get("facts"))
+        for f in fact_strings[:10]:
+            rows.append(
+                {
+                    "curio-id": curio_id,
+                    "fact-info": f,
+                    "language-code": language_code,
+                }
+            )
+
+    # de-dupe curio_ids
+    curio_ids = list(dict.fromkeys(curio_ids))
+
+    out = {"attempted": len(rows), "deleted": 0, "ok": 0, "failed": []}
+    log(f"Facts insert prep: {len(rows)} rows across {len(curio_ids)} curio-ids (lang={language_code})")
+
+    if replace_existing and curio_ids:
+        # delete in chunks to avoid URL length limits
+        for ids_batch in [curio_ids[i:i + 200] for i in range(0, len(curio_ids), 200)]:
+            try:
+                resp = (
+                    supabase.table(FACTS_TABLE)
+                    .delete()
+                    .in_("curio-id", ids_batch)
+                    .eq("language-code", language_code)
+                    .execute()
+                )
+                out["deleted"] += len(resp.data or [])
+                log(f"Facts delete: batch ok ({len(resp.data or [])} deleted rows)")
+            except Exception as e:
+                err = str(e)
+                log(f"Facts delete: batch FAILED: {err}")
+                out["failed"].append({"stage": "delete", "error": err, "batch_size": len(ids_batch)})
+                # continue; insert still attempted
+
+    for batch in _chunks(rows, chunk_size):
+        try:
+            resp = supabase.table(FACTS_TABLE).insert(batch).execute()
+            out["ok"] += len(resp.data or [])
+            log(f"Facts insert: batch ok ({len(resp.data or [])} returned rows)")
+        except Exception as e:
+            err = str(e)
+            log(f"Facts insert: batch FAILED: {err}")
+            out["failed"].append({"stage": "insert", "error": err, "batch_size": len(batch)})
+
+    log(f"Facts insert done: ok={out['ok']} deleted={out['deleted']} failed_batches={len(out['failed'])}")
+    return out
+
+def upsert_places_and_insert_facts_from_file(
+    json_path: str,
+    *,
+    places_chunk_size: int = 200,
+    facts_chunk_size: int = 500,
+    language_code: str = "EN",
+    replace_existing_facts: bool = True,
+) -> Dict[str, Any]:
+    with open(json_path, "r", encoding="utf-8") as f:
+        combined = json.load(f)
+
+    places_report = upsert_detail_overviews_from_combined(
+        combined,
+        chunk_size=places_chunk_size,
+        skip_no_info=True,
+        on_conflict="curio-id",
+    )
+    facts_report = insert_facts_from_combined(
+        combined,
+        language_code=language_code,
+        chunk_size=facts_chunk_size,
+        replace_existing=replace_existing_facts,
+    )
+
+    return {"places": places_report, "facts": facts_report}
+
+
+# Config for loop
+
+start_box = 4001
+end_box = 4038
+
+file_name = f"./curio-details/curio-detail-box-{start_box}-{end_box}.json"
+
+run_for_box_range(start_box, end_box, outdir="./curio-details", continue_on_error=True)
+
+places_report = upsert_detail_overviews_from_file(file_name)
+print(places_report)
+
+facts_report = upsert_places_and_insert_facts_from_file(file_name)
+print(facts_report)
+
+

@@ -1,0 +1,97 @@
+PRD 8: The Content Experience & Quality Assurance (Expo Version)
+1. Goal
+Deliver rich, scrollable historical context (the "Reward") upon arrival and provide a mechanism for users to validate the accuracy of that content to keep the database pristine.
+
+2. User Story
+As a user who has just "Checked In" at "The Golden Boy of Pye Corner," I want to read the full story of why it’s there and learn random trivia facts. If I notice a typo or error, I want to report it immediately.
+
+3. Technical Dependencies
+Framework: Expo (React Native).
+
+Database: Supabase (facts, content_reports, content_votes).
+
+UI Components:
+
+Modal/Sheet: Native iOS Page Sheet (<Modal presentationStyle="pageSheet">) or a Custom Bottom Drawer.
+
+Audio: expo-av (for the Audio Player placeholder).
+
+Icons: lucide-react-native (Thumbs Up/Down).
+
+4. Functional Requirements
+4.1 The "Reward" Overlay (UI)
+Trigger: Opens automatically upon a successful Check-In (PRD 7) OR when a user taps "Read More" on a map pin.
+
+Component: A Full-Screen Modal (on Android) or "Page Sheet" (on iOS) that slides up from the bottom.
+
+Content Layout:
+
+Hero: Large Header Image of the place.
+
+Title: Large Typography.
+
+Audio Control: A standardized "Play Audio" bar (Play/Pause icon, progress bar). Note: For this MVP, this can be visual-only or play a dummy file.
+
+The Narrative: The detail-overview text from the DB. Must be inside a <ScrollView>.
+
+Typography: Seriffed font (e.g., Georgia or generic Serif) for the body text to distinguish it as "Book/History" content vs. "App" UI.
+
+4.2 The Random Facts Engine
+Location: Below the main narrative text.
+
+Interaction: A button styled as a Card: "Did you know? (Tap for Fact)".
+
+Logic:
+
+On Tap: Query the facts table where curio-id matches.
+
+Randomization: Pick one random record from the result set.
+
+Transition: The card flips or expands to reveal the fact-info text.
+
+State: Keep track of "Viewed Facts" in local state so the user doesn't see the same one twice in a session.
+
+4.3 User Feedback Loop (QA)
+UI: Next to the Narrative Title and inside the Fact Card, place two small icon buttons: Thumbs Up (Green outline) and Thumbs Down (Red outline).
+
+Action - Thumbs Up:
+
+Animate the icon (scale up/down).
+
+Send INSERT to content_votes (type: 'up').
+
+Action - Thumbs Down:
+
+Trigger a secondary Report Modal.
+
+Form:
+
+Reason: Segmented Control (Inaccurate | Typo | Offensive | Other).
+
+Comment: TextInput (Optional).
+
+Submit: Sends INSERT to content_reports.
+
+Feedback: Toast message: "Thanks! We'll look into it."
+
+5. Acceptance Criteria
+Readability: Text is scrollable and readable (high contrast) on small screens.
+
+Audio State: The Audio player UI renders but is disabled if the audio_url column is null.
+
+Fact Fetching: Tapping "Show Fact" retrieves data without refreshing the entire screen.
+
+QA Submission: Reporting an error successfully writes a row to the Supabase content_reports table.
+
+Native Feel: The overlay can be dismissed by swiping down (iOS default behavior for Page Sheets).
+
+Implementation Note for Replit Agent
+The interface for reading long text needs to feel different from the map.
+
+Technical Tip for Content View:
+
+Modal Style: Use the native <Modal animationType="slide" presentationStyle="pageSheet">. This gives you the swipe-to-dismiss behavior on iOS for free, which feels very high-quality.
+
+Typography: Explicitly set the fontFamily for the detail-overview text to System (San Francisco on iOS) but with serif as a fallback, or import a Google Font like "Merriweather" to give it that "History Book" vibe.
+
+Z-Index: Ensure the Report Modal (Thumbs Down) appears on top of the Content Modal. You may need to nest the modals or use a specific visibility state logic to prevent them from fighting for focus.
