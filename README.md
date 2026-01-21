@@ -7,4 +7,4 @@ To do:
 5. Document tours by neighbourhood
 6. YT Transcripts to NotebookLM prototype - identify places and walk details
 7. Priority Neighbourhoods: Notting Hill, Kensington, Chelsea, Bayswater, Regents Park, Marylebone, Mayfair, Westminster, Bloomsbury, Soho/Trafalgar Square, Covent Garden, Highgate, Lambeth/South Bank, Inns of Court, Islington, Clerkenwell, West City, East City, Wapping, Syon Park, Richmond, Kew, Greenwich
-8. Add curios for all TFL rail/underground stations
+8. Add curios for all TFL rail/underground stations - DONE
