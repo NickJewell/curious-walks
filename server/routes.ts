@@ -7,30 +7,30 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Admin API: Get places that need detail-overview (null), sorted by box-id
+  // Admin API: Get places that need detail_overview (null), sorted by box_id
   app.get('/api/admin/places/needs-overview', async (req, res) => {
     try {
       // First get total count
       const { count } = await supabase
         .from('places')
         .select('*', { count: 'exact', head: true })
-        .is('detail-overview', null);
+        .is('detail_overview', null);
 
-      // Get records with null detail-overview
+      // Get records with null detail_overview
       const { data, error } = await supabase
         .from('places')
-        .select('places-id, curio-id, name, plus-code, detail-overview')
-        .is('detail-overview', null);
+        .select('places_id, curio_id, name, plus_code, detail_overview')
+        .is('detail_overview', null);
 
       if (error) {
         console.error('Error fetching places:', error);
         return res.status(500).json({ error: error.message });
       }
 
-      // Sort by numeric part of curio-id (e.g., CURIO-190 → 190)
+      // Sort by numeric part of curio_id (e.g., CURIO-190 → 190)
       const sorted = (data || []).sort((a: any, b: any) => {
-        const numA = parseInt((a['curio-id'] || '').replace(/\D/g, '')) || 0;
-        const numB = parseInt((b['curio-id'] || '').replace(/\D/g, '')) || 0;
+        const numA = parseInt((a['curio_id'] || '').replace(/\D/g, '')) || 0;
+        const numB = parseInt((b['curio_id'] || '').replace(/\D/g, '')) || 0;
         return numA - numB;
       });
 
@@ -44,19 +44,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin API: Update a place's detail-overview
+  // Admin API: Update a place's detail_overview
   app.patch('/api/admin/places/:id', async (req, res) => {
     try {
       const { id } = req.params;
-      const { 'detail-overview': detailOverview } = req.body;
+      const { 'detail_overview': detailOverview } = req.body;
 
-      console.log('Updating place:', id, 'with detail-overview:', detailOverview?.substring(0, 50));
+      console.log('Updating place:', id, 'with detail_overview:', detailOverview?.substring(0, 50));
 
       // First verify the record exists
       const { data: existing, error: fetchError } = await supabase
         .from('places')
-        .select('places-id, name')
-        .eq('places-id', id)
+        .select('places_id, name')
+        .eq('places_id', id)
         .single();
 
       if (fetchError) {
@@ -69,30 +69,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Use upsert-like approach - update with returning
       const { error: updateError } = await supabase
         .from('places')
-        .update({ 'detail-overview': detailOverview })
-        .eq('places-id', id);
+        .update({ 'detail_overview': detailOverview })
+        .eq('places_id', id);
 
       if (updateError) {
         console.error('Error updating place:', updateError);
         return res.status(500).json({ error: updateError.message });
       }
 
-      res.json({ success: true, place: { ...(existing as any), 'detail-overview': detailOverview } });
+      res.json({ success: true, place: { ...(existing as any), 'detail_overview': detailOverview } });
     } catch (err) {
       console.error('Error updating place:', err);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
 
-  // Admin API: Lookup a place by curio-id
+  // Admin API: Lookup a place by curio_id
   app.get('/api/admin/places/lookup/:curioId', async (req, res) => {
     try {
       const { curioId } = req.params;
       
       const { data, error } = await supabase
         .from('places')
-        .select('places-id, curio-id, name, detail-overview')
-        .eq('curio-id', curioId)
+        .select('places_id, curio_id, name, detail_overview')
+        .eq('curio_id', curioId)
         .single();
 
       if (error) {
@@ -113,7 +113,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { data, error } = await supabase
         .from('facts')
         .select('*')
-        .eq('curio-id', curioId);
+        .eq('curio_id', curioId);
 
       if (error) {
         console.log('Facts table may not exist:', error.message);
@@ -223,7 +223,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin API: Get curio with place and facts by curio-id
+  // Admin API: Get curio with place and facts by curio_id
   app.get('/api/admin/curio/:curioId', async (req, res) => {
     try {
       const { curioId } = req.params;
@@ -232,7 +232,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { data: place, error: placeError } = await supabase
         .from('places')
         .select('*')
-        .eq('curio-id', curioId)
+        .eq('curio_id', curioId)
         .single();
 
       if (placeError) {
@@ -243,7 +243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { data: facts, error: factsError } = await supabase
         .from('facts')
         .select('*')
-        .eq('curio-id', curioId);
+        .eq('curio_id', curioId);
 
       res.json({ 
         place, 
@@ -257,15 +257,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin API: Create a new fact
   app.post('/api/admin/facts', async (req, res) => {
     try {
-      const { 'curio-id': curioId, fact } = req.body;
+      const { 'curio_id': curioId, fact } = req.body;
       
       if (!curioId || !fact) {
-        return res.status(400).json({ error: 'curio-id and fact are required' });
+        return res.status(400).json({ error: 'curio_id and fact are required' });
       }
 
       const { data, error } = await supabase
         .from('facts')
-        .insert({ 'curio-id': curioId, 'fact-info': fact })
+        .insert({ 'curio_id': curioId, 'fact_info': fact })
         .select()
         .single();
 
@@ -307,8 +307,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Try to determine the correct column name
       const columnName = Object.keys(existingFact || {}).find(k => 
-        k === 'fact' || k === 'content' || k === 'text' || k === 'fact-text' || k === 'fact-info'
-      ) || 'fact-info';
+        k === 'fact' || k === 'content' || k === 'text' || k === 'fact_text' || k === 'fact_info'
+      ) || 'fact_info';
 
       console.log('Using column name:', columnName);
 

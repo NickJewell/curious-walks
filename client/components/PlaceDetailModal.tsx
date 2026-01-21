@@ -32,8 +32,8 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface Fact {
   id: string;
-  'curio-id': string;
-  'fact-info': string;
+  curio_id: string;
+  fact_info: string;
 }
 
 interface PlaceDetailModalProps {
@@ -341,7 +341,7 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
                       </Pressable>
                     </View>
                   </View>
-                  <Text style={styles.factText}>{currentFact['fact-info']}</Text>
+                  <Text style={styles.factText}>{currentFact.fact_info}</Text>
                   <Text style={styles.tapAgainText}>Tap for another fact</Text>
                 </Animated.View>
               ) : (

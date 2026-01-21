@@ -471,9 +471,9 @@
     
     function renderPlace() {
       document.getElementById('placeName').textContent = currentPlace.name || 'Unnamed Place';
-      document.getElementById('curioIdDisplay').textContent = currentPlace['curio-id'] || '-';
-      document.getElementById('plusCodeDisplay').textContent = currentPlace['plus-code'] || '';
-      document.getElementById('detailOverview').value = currentPlace['detail-overview'] || '';
+      document.getElementById('curioIdDisplay').textContent = currentPlace['curio_id'] || '-';
+      document.getElementById('plusCodeDisplay').textContent = currentPlace['plus_code'] || '';
+      document.getElementById('detailOverview').value = currentPlace['detail_overview'] || '';
     }
     
     function renderFacts() {
@@ -495,7 +495,7 @@
             id="fact-text-${index}"
             placeholder="Enter fact..."
             oninput="hideSavedIndicator(${index})"
-          >${escapeHtml(fact['fact-info'] || '')}</textarea>
+          >${escapeHtml(fact['fact_info'] || '')}</textarea>
           <div class="actions-row">
             <button class="save-btn" id="save-btn-${index}" onclick="saveFact(${index})">Save Fact</button>
           </div>
@@ -529,7 +529,7 @@
         const response = await fetch(`/api/admin/places/${placesId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 'detail-overview': overview || null })
+          body: JSON.stringify({ 'detail_overview': overview || null })
         });
         
         if (!response.ok) {
@@ -537,7 +537,7 @@
           throw new Error(data.error || 'Failed to save');
         }
         
-        currentPlace['detail-overview'] = overview;
+        currentPlace['detail_overview'] = overview;
         showSuccess('Overview saved successfully!');
       } catch (err) {
         showError(err.message);
@@ -550,8 +550,8 @@
     function addNewFact() {
       currentFacts.push({
         id: null,
-        'curio-id': currentPlace['curio-id'],
-        'fact-info': ''
+        'curio_id': currentPlace['curio_id'],
+        'fact_info': ''
       });
       renderFacts();
       
@@ -587,7 +587,7 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              'curio-id': currentPlace['curio-id'],
+              'curio_id': currentPlace['curio_id'],
               fact: factText
             })
           });
@@ -600,7 +600,7 @@
           currentFacts[index] = data.fact;
         }
         
-        currentFacts[index]['fact-info'] = factText;
+        currentFacts[index]['fact_info'] = factText;
         
         // Show saved indicator inline
         const indicator = document.getElementById(`saved-indicator-${index}`);
@@ -720,19 +720,19 @@
         results.push(`Found: ${curioData.place.name}`);
         results.push('');
         
-        // Update detail-overview if provided
+        // Update detail_overview if provided
         if (jsonData['DETAIL-OVERVIEW']) {
-          results.push('Updating detail-overview...');
-          const overviewResponse = await fetch(`/api/admin/places/${curioData.place['places-id']}`, {
+          results.push('Updating detail_overview...');
+          const overviewResponse = await fetch(`/api/admin/places/${curioData.place['places_id']}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 'detail-overview': jsonData['DETAIL-OVERVIEW'] })
+            body: JSON.stringify({ 'detail_overview': jsonData['DETAIL-OVERVIEW'] })
           });
           
           if (overviewResponse.ok) {
-            results.push('  [OK] Detail-overview updated');
+            results.push('  [OK] Detail overview updated');
           } else {
-            results.push('  [FAILED] Could not update detail-overview');
+            results.push('  [FAILED] Could not update detail overview');
           }
           results.push('');
         }
@@ -763,7 +763,7 @@
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                'curio-id': curioId,
+                'curio_id': curioId,
                 fact: factText
               })
             });
