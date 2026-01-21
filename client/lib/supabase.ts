@@ -132,6 +132,12 @@ export async function getNearestCurios(lat: number, lng: number, limit: number =
 
   console.log('Found', data.length, 'places, sorting by distance from center');
   
+  // Debug: Check first place's keys
+  if (data.length > 0) {
+    console.log('DEBUG First place keys:', Object.keys(data[0]));
+    console.log('DEBUG First place curio-id value:', data[0]['curio-id']);
+  }
+  
   // Debug: Check if FAKE-1 exists in the fetched data
   const fakeRecord = data.find(p => p['curio-id'] === 'FAKE-1' || p.uuid === 'a4ce69dc-ecc1-4225-a6a8-fb78775bdee7');
   if (fakeRecord) {

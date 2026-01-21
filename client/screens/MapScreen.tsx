@@ -426,11 +426,16 @@ export default function MapScreen() {
         userInterfaceStyle="dark"
         onRegionChangeComplete={onRegionChangeComplete}
       >
-        {isMapAvailable && Marker ? curios.map((curio) => {
+        {isMapAvailable && Marker ? curios.map((curio, index) => {
           const isTarget = isHunting && activeTarget?.id === curio.id;
           const isGreyed = isHunting && activeTarget?.id !== curio.id;
           const isCheckedIn = checkedInPlaceIds.has(curio.id);
           const typeStyle = getCurioTypeStyle(curio.curioType);
+          
+          if (index === 0) {
+            console.log('DEBUG: First curio ID:', curio.id, 'checkedInPlaceIds size:', checkedInPlaceIds.size, 'isCheckedIn:', isCheckedIn);
+            console.log('DEBUG: checkedInPlaceIds contents:', Array.from(checkedInPlaceIds));
+          }
           
           return (
             <Marker
