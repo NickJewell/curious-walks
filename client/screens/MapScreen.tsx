@@ -51,6 +51,26 @@ const LONDON_CENTER = {
   longitudeDelta: 0.1,
 };
 
+type CurioTypeStyle = {
+  color: string;
+  icon: keyof typeof Feather.glyphMap;
+};
+
+const getCurioTypeStyle = (curioType?: string): CurioTypeStyle => {
+  switch (curioType) {
+    case 'Green Space':
+      return { color: '#4CAF50', icon: 'sun' };
+    case 'Public Transport':
+      return { color: '#424242', icon: 'navigation' };
+    case 'Memorial & Statue':
+      return { color: '#E53935', icon: 'award' };
+    case 'Public Art':
+      return { color: '#E91E63', icon: 'edit-3' };
+    default:
+      return { color: Colors.dark.accent, icon: 'map-pin' };
+  }
+};
+
 function getDistanceFromLatLon(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -410,6 +430,7 @@ export default function MapScreen() {
           const isTarget = isHunting && activeTarget?.id === curio.id;
           const isGreyed = isHunting && activeTarget?.id !== curio.id;
           const isCheckedIn = checkedInPlaceIds.has(curio.id);
+          const typeStyle = getCurioTypeStyle(curio.curioType);
           
           return (
             <Marker
@@ -425,12 +446,13 @@ export default function MapScreen() {
             >
               <View style={[
                 styles.marker,
+                { backgroundColor: typeStyle.color },
                 isTarget && styles.markerTarget,
                 isGreyed && styles.markerGreyed,
                 isCheckedIn && styles.markerCheckedIn,
               ]}>
                 <Feather 
-                  name={isCheckedIn ? "check" : "map-pin"}
+                  name={isCheckedIn ? "check" : typeStyle.icon}
                   size={isTarget ? 20 : 16} 
                   color={isGreyed ? "#888" : "#FFFFFF"} 
                 />

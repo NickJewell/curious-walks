@@ -40,6 +40,7 @@ export interface Curio {
   description: string;
   latitude: number;
   longitude: number;
+  curioType?: string;
 }
 
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -80,6 +81,7 @@ export async function searchCurios(query: string, limit: number = 5): Promise<Cu
     const placeId = place['curio-id'] ?? place.uuid ?? place.id ?? place.place_id ?? String(Math.random());
     const placeName = place.name ?? place.title ?? 'Unknown';
     const placeDesc = place['detail-overview'] ?? place.description ?? place.desc ?? place.summary ?? '';
+    const placeType = place['curio-type'] ?? place.curio_type ?? '';
     
     return {
       id: placeId,
@@ -87,6 +89,7 @@ export async function searchCurios(query: string, limit: number = 5): Promise<Cu
       description: placeDesc,
       latitude: placeLat,
       longitude: placeLng,
+      curioType: placeType,
     };
   }).filter(p => p.latitude != null && p.longitude != null);
 }
@@ -149,6 +152,7 @@ export async function getNearestCurios(lat: number, lng: number, limit: number =
     const placeId = place['curio-id'] ?? place.uuid ?? place.id ?? place.place_id ?? String(Math.random());
     const placeName = place.name ?? place.title ?? 'Unknown';
     const placeDesc = place['detail-overview'] ?? place.description ?? place.desc ?? place.summary ?? '';
+    const placeType = place['curio-type'] ?? place.curio_type ?? '';
     
     return {
       id: placeId,
@@ -156,6 +160,7 @@ export async function getNearestCurios(lat: number, lng: number, limit: number =
       description: placeDesc,
       latitude: placeLat,
       longitude: placeLng,
+      curioType: placeType,
       distance: calculateDistance(lat, lng, placeLat, placeLng)
     };
   });
