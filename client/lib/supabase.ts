@@ -78,10 +78,10 @@ export async function searchCurios(query: string, limit: number = 5): Promise<Cu
   return data.map(place => {
     const placeLat = place.latitude ?? place.lat ?? place.y;
     const placeLng = place.longitude ?? place.lng ?? place.lon ?? place.x;
-    const placeId = place['curio-id'] ?? place.uuid ?? place.id ?? place.place_id ?? String(Math.random());
+    const placeId = place.curio_id ?? place['curio-id'] ?? place.uuid ?? place.id ?? place.place_id ?? String(Math.random());
     const placeName = place.name ?? place.title ?? 'Unknown';
-    const placeDesc = place['detail-overview'] ?? place.description ?? place.desc ?? place.summary ?? '';
-    const placeType = place['curio-type'] ?? place.curio_type ?? '';
+    const placeDesc = place.detail_overview ?? place['detail-overview'] ?? place.description ?? place.desc ?? place.summary ?? '';
+    const placeType = place.curio_type ?? place['curio-type'] ?? '';
     
     return {
       id: placeId,
@@ -132,19 +132,6 @@ export async function getNearestCurios(lat: number, lng: number, limit: number =
 
   console.log('Found', data.length, 'places, sorting by distance from center');
   
-  // Debug: Check first place's keys
-  if (data.length > 0) {
-    console.log('DEBUG First place keys:', Object.keys(data[0]));
-    console.log('DEBUG First place curio-id value:', data[0]['curio-id']);
-  }
-  
-  // Debug: Check if FAKE-1 exists in the fetched data
-  const fakeRecord = data.find(p => p['curio-id'] === 'FAKE-1' || p.uuid === 'a4ce69dc-ecc1-4225-a6a8-fb78775bdee7');
-  if (fakeRecord) {
-    console.log('DEBUG: FAKE-1 found in data:', JSON.stringify(fakeRecord, null, 2));
-  } else {
-    console.log('DEBUG: FAKE-1 NOT found in fetched data');
-  }
   
   const placesWithCoords = data.filter(place => {
     const latField = place.latitude ?? place.lat ?? place.y;
@@ -155,10 +142,10 @@ export async function getNearestCurios(lat: number, lng: number, limit: number =
   const placesWithDistance = placesWithCoords.map(place => {
     const placeLat = place.latitude ?? place.lat ?? place.y;
     const placeLng = place.longitude ?? place.lng ?? place.lon ?? place.x;
-    const placeId = place['curio-id'] ?? place.uuid ?? place.id ?? place.place_id ?? String(Math.random());
+    const placeId = place.curio_id ?? place['curio-id'] ?? place.uuid ?? place.id ?? place.place_id ?? String(Math.random());
     const placeName = place.name ?? place.title ?? 'Unknown';
-    const placeDesc = place['detail-overview'] ?? place.description ?? place.desc ?? place.summary ?? '';
-    const placeType = place['curio-type'] ?? place.curio_type ?? '';
+    const placeDesc = place.detail_overview ?? place['detail-overview'] ?? place.description ?? place.desc ?? place.summary ?? '';
+    const placeType = place.curio_type ?? place['curio-type'] ?? '';
     
     return {
       id: placeId,
