@@ -446,7 +446,7 @@ export default function MapScreen() {
             >
               <View style={[
                 styles.marker,
-                { backgroundColor: typeStyle.color },
+                !isCheckedIn && { backgroundColor: typeStyle.color },
                 isTarget && styles.markerTarget,
                 isGreyed && styles.markerGreyed,
                 isCheckedIn && styles.markerCheckedIn,
@@ -857,7 +857,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   markerCheckedIn: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#D4AF37",
   },
   calloutContainer: {
     width: 280,
