@@ -8,6 +8,7 @@ import {
   Animated,
   Modal,
   ActivityIndicator,
+  Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
@@ -30,7 +31,11 @@ interface Props {
 }
 
 const ARRIVAL_THRESHOLD = 10;
-const LOW_PASS_FACTOR = 0.35; // Increased for faster response
+const LOW_PASS_FACTOR = 0.35;
+const CHECKIN_THRESHOLD = 40;
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const COMPASS_SIZE = Math.min(SCREEN_WIDTH - 80, 300);
 
 function normalizeAngle(angle: number): number {
   return ((angle % 360) + 360) % 360;
@@ -52,7 +57,15 @@ function circularMean(current: number, target: number, factor: number): number {
   return normalizeAngle(result);
 }
 
-const CHECKIN_THRESHOLD = 40;
+function formatCoordinate(value: number, isLatitude: boolean): string {
+  const direction = isLatitude 
+    ? (value >= 0 ? 'N' : 'S')
+    : (value >= 0 ? 'E' : 'W');
+  const absValue = Math.abs(value);
+  const degrees = Math.floor(absValue);
+  const minutes = ((absValue - degrees) * 60).toFixed(3);
+  return `${direction} ${degrees}\u00B0 ${minutes}'`;
+}
 
 export default function CompassScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
@@ -61,6 +74,7 @@ export default function CompassScreen({ navigation }: Props) {
   const { addCheckin, removeCheckin } = useCheckins();
 
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
   const [distance, setDistance] = useState<number | null>(null);
   const [hasArrived, setHasArrived] = useState(false);
   const [magnetometerAvailable, setMagnetometerAvailable] = useState(true);
@@ -75,8 +89,10 @@ export default function CompassScreen({ navigation }: Props) {
   const [checkingOut, setCheckingOut] = useState(false);
 
   const arrowRotation = useRef(new Animated.Value(0)).current;
+  const compassRotation = useRef(new Animated.Value(0)).current;
   const filteredHeading = useRef(0);
   const lastHeadingRef = useRef(0);
+  const lastCompassRef = useRef(0);
   const confettiRef = useRef<ConfettiCannon>(null);
 
   useEffect(() => {
@@ -87,8 +103,10 @@ export default function CompassScreen({ navigation }: Props) {
     setAlreadyCheckedIn(false);
     setShowConfetti(false);
     arrowRotation.setValue(0);
+    compassRotation.setValue(0);
     filteredHeading.current = 0;
     lastHeadingRef.current = 0;
+    lastCompassRef.current = 0;
     
     if (activeTarget && user && !isGuest) {
       hasCheckedIn(user.id, activeTarget.id).then(setAlreadyCheckedIn);
@@ -115,22 +133,18 @@ export default function CompassScreen({ navigation }: Props) {
             longitude: loc.coords.longitude,
           };
           setUserLocation(coords);
+          setLocationAccuracy(loc.coords.accuracy ?? null);
 
           if (activeTarget) {
-            console.log('DEBUG Compass: User at', coords.latitude, coords.longitude);
-            console.log('DEBUG Compass: Target at', activeTarget.latitude, activeTarget.longitude);
-            
             const dist = getDistance(
               { latitude: coords.latitude, longitude: coords.longitude },
               { latitude: activeTarget.latitude, longitude: activeTarget.longitude }
             );
-            console.log('DEBUG Compass: Distance =', dist, 'm, hasArrived =', hasArrived, 'canCheckIn =', dist < CHECKIN_THRESHOLD);
             
             setDistance(dist);
             setCanCheckIn(dist < CHECKIN_THRESHOLD);
 
             if (dist < ARRIVAL_THRESHOLD && !hasArrived) {
-              console.log('DEBUG Compass: TRIGGERING ARRIVAL!');
               setHasArrived(true);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             }
@@ -190,6 +204,20 @@ export default function CompassScreen({ navigation }: Props) {
       tension: 120,
       friction: 12,
     }).start();
+
+    let compassDiff = -heading - lastCompassRef.current;
+    if (compassDiff > 180) compassDiff -= 360;
+    if (compassDiff < -180) compassDiff += 360;
+    
+    const newCompassValue = lastCompassRef.current + compassDiff;
+    lastCompassRef.current = newCompassValue;
+
+    Animated.spring(compassRotation, {
+      toValue: newCompassValue,
+      useNativeDriver: true,
+      tension: 120,
+      friction: 12,
+    }).start();
   }, [userLocation, activeTarget, heading]);
 
   const handleViewOnMap = () => {
@@ -206,14 +234,6 @@ export default function CompassScreen({ navigation }: Props) {
     
     setCheckingIn(true);
     
-    console.log('DEBUG: Attempting check-in with:', {
-      userId: user.id,
-      placeId: activeTarget.id,
-      placeName: activeTarget.name,
-      lat: activeTarget.latitude,
-      lon: activeTarget.longitude
-    });
-    
     try {
       const result = await checkIn(
         user.id,
@@ -222,8 +242,6 @@ export default function CompassScreen({ navigation }: Props) {
         activeTarget.latitude,
         activeTarget.longitude
       );
-      
-      console.log('DEBUG: Check-in result:', result);
       
       if (result.success && result.isNewCheckin) {
         setShowConfetti(true);
@@ -264,18 +282,74 @@ export default function CompassScreen({ navigation }: Props) {
     }
   };
 
-  const formatDistance = (meters: number): string => {
-    if (meters >= 1000) {
-      return `${(meters / 1000).toFixed(1)}km`;
+  const cardinalDirections = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  
+  const renderCompassDial = () => {
+    const tickMarks = [];
+    const dialRadius = COMPASS_SIZE / 2;
+    const tickOuterRadius = dialRadius - 8;
+    const tickInnerRadiusMajor = dialRadius - 24;
+    const tickInnerRadiusMinor = dialRadius - 16;
+    const labelRadius = dialRadius - 40;
+    
+    for (let i = 0; i < 360; i += 5) {
+      const isMajor = i % 45 === 0;
+      const isCardinal = i % 45 === 0;
+      const angle = (i - 90) * (Math.PI / 180);
+      
+      const x1 = dialRadius + Math.cos(angle) * tickOuterRadius;
+      const y1 = dialRadius + Math.sin(angle) * tickOuterRadius;
+      const innerRadius = isMajor ? tickInnerRadiusMajor : tickInnerRadiusMinor;
+      const x2 = dialRadius + Math.cos(angle) * innerRadius;
+      const y2 = dialRadius + Math.sin(angle) * innerRadius;
+      
+      tickMarks.push(
+        <View
+          key={`tick-${i}`}
+          style={[
+            styles.tickMark,
+            {
+              left: Math.min(x1, x2),
+              top: Math.min(y1, y2),
+              width: isMajor ? 2 : 1,
+              height: Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2)),
+              transform: [{ rotate: `${i}deg` }],
+            },
+          ]}
+        />
+      );
+      
+      if (isCardinal) {
+        const directionIndex = i / 45;
+        const labelX = dialRadius + Math.cos(angle) * labelRadius;
+        const labelY = dialRadius + Math.sin(angle) * labelRadius;
+        
+        tickMarks.push(
+          <Text
+            key={`label-${i}`}
+            style={[
+              styles.cardinalLabel,
+              {
+                left: labelX - 12,
+                top: labelY - 10,
+                width: 24,
+              },
+            ]}
+          >
+            {cardinalDirections[directionIndex]}
+          </Text>
+        );
+      }
     }
-    return `${Math.round(meters)}m`;
+    
+    return tickMarks;
   };
 
   if (!activeTarget) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.noTargetContainer}>
-          <Feather name="compass" size={64} color={Colors.dark.textSecondary} />
+          <Feather name="compass" size={64} color="#666" />
           <Text style={styles.noTargetText}>No active hunt</Text>
           <Pressable style={styles.backButton} onPress={() => navigation.navigate("Main")}>
             <Text style={styles.backButtonText}>Return to Map</Text>
@@ -289,7 +363,7 @@ export default function CompassScreen({ navigation }: Props) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.noTargetContainer}>
-          <Feather name="alert-circle" size={64} color={Colors.dark.textSecondary} />
+          <Feather name="alert-circle" size={64} color="#666" />
           <Text style={styles.noTargetText}>Compass not supported on this device</Text>
           <Pressable style={styles.backButton} onPress={() => navigation.navigate("Main")}>
             <Text style={styles.backButtonText}>Return to Map</Text>
@@ -345,7 +419,7 @@ export default function CompassScreen({ navigation }: Props) {
             </Pressable>
           ) : !isGuest && !alreadyCheckedIn && !canCheckIn ? (
             <View style={[styles.actionButton, styles.disabledCheckInButton]}>
-              <Feather name="map-pin" size={20} color={Colors.dark.textSecondary} />
+              <Feather name="map-pin" size={20} color="#666" />
               <Text style={styles.disabledCheckInText}>Get closer to check in ({CHECKIN_THRESHOLD}m)</Text>
             </View>
           ) : null}
@@ -422,36 +496,75 @@ export default function CompassScreen({ navigation }: Props) {
     outputRange: ["-360deg", "0deg", "360deg"],
   });
 
-  return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.targetInfo}>
-        <View style={styles.targetIcon}>
-          <Feather name="map-pin" size={24} color={Colors.dark.text} />
-        </View>
-        <View style={styles.targetTextContainer}>
-          <Text style={styles.targetName}>{activeTarget.name}</Text>
-          <Text style={styles.targetDescription} numberOfLines={2}>
-            {activeTarget.description}
-          </Text>
-        </View>
-      </View>
+  const compassSpin = compassRotation.interpolate({
+    inputRange: [-360, 0, 360],
+    outputRange: ["-360deg", "0deg", "360deg"],
+  });
 
-      <View style={styles.compassContainer}>
-        <View style={styles.compassRing}>
-          <Animated.View style={[styles.arrowContainer, { transform: [{ rotate: spin }] }]}>
-            <Feather name="navigation" size={140} color="#E53935" />
+  return (
+    <View style={[styles.container, { paddingTop: insets.top + Spacing.lg }]}>
+      <View style={styles.compassWrapper}>
+        <View style={styles.compassOuter}>
+          <Animated.View 
+            style={[
+              styles.compassDial,
+              { transform: [{ rotate: compassSpin }] }
+            ]}
+          >
+            {renderCompassDial()}
+          </Animated.View>
+          
+          <View style={styles.compassInner}>
+            <Text style={styles.distanceValue}>
+              {distance !== null ? Math.round(distance) : "---"}
+            </Text>
+            <Text style={styles.distanceLabel}>METERS</Text>
+            {locationAccuracy !== null ? (
+              <Text style={styles.accuracyLabel}>[+/- {Math.round(locationAccuracy)} m]</Text>
+            ) : null}
+          </View>
+          
+          <Animated.View 
+            style={[
+              styles.pointerContainer,
+              { transform: [{ rotate: spin }] }
+            ]}
+          >
+            <View style={styles.pointer}>
+              <View style={styles.pointerTriangle} />
+            </View>
           </Animated.View>
         </View>
+      </View>
+
+      <View style={styles.coordinatesContainer}>
+        <View style={styles.coordinateBlock}>
+          <Text style={styles.coordinateLabel}>MY LOCATION</Text>
+          {userLocation ? (
+            <>
+              <Text style={styles.coordinateValue}>
+                {formatCoordinate(userLocation.latitude, true)}
+              </Text>
+              <Text style={styles.coordinateValue}>
+                {formatCoordinate(userLocation.longitude, false)}
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.coordinateValue}>Locating...</Text>
+          )}
+        </View>
         
-        <View style={styles.distanceContainer}>
-          <Text style={styles.distanceValue}>
-            {distance !== null ? formatDistance(distance) : "..."}
+        <View style={styles.coordinateBlock}>
+          <Text style={styles.coordinateLabel}>MY DESTINATION</Text>
+          <Text style={styles.coordinateValue}>
+            {formatCoordinate(activeTarget.latitude, true)}
           </Text>
-          <Text style={styles.distanceLabel}>to destination</Text>
+          <Text style={styles.coordinateValue}>
+            {formatCoordinate(activeTarget.longitude, false)}
+          </Text>
         </View>
       </View>
 
-      {/* Check-in button when within 20m */}
       {!isGuest && canCheckIn && !alreadyCheckedIn ? (
         <View style={styles.checkInContainer}>
           <Pressable
@@ -469,10 +582,10 @@ export default function CompassScreen({ navigation }: Props) {
             )}
           </Pressable>
         </View>
-      ) : !isGuest && !canCheckIn && distance !== null && distance < 50 ? (
+      ) : !isGuest && !canCheckIn && distance !== null && distance < 60 ? (
         <View style={styles.checkInContainer}>
           <View style={[styles.actionButton, styles.disabledCheckInButton]}>
-            <Feather name="map-pin" size={20} color={Colors.dark.textSecondary} />
+            <Feather name="map-pin" size={20} color="#666" />
             <Text style={styles.disabledCheckInText}>Get within {CHECKIN_THRESHOLD}m to check in</Text>
           </View>
         </View>
@@ -507,8 +620,7 @@ export default function CompassScreen({ navigation }: Props) {
           ]}
           onPress={handleViewOnMap}
         >
-          <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
-          <Feather name="map" size={20} color={Colors.dark.text} />
+          <Feather name="map" size={20} color="#FFFFFF" />
           <Text style={styles.controlButtonText}>View on Map</Text>
         </Pressable>
 
@@ -531,7 +643,7 @@ export default function CompassScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.backgroundRoot,
+    backgroundColor: "#000000",
   },
   noTargetContainer: {
     flex: 1,
@@ -540,85 +652,175 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
   },
   noTargetText: {
-    color: Colors.dark.textSecondary,
-    ...Typography.headline,
+    color: "#AAAAAA",
+    fontSize: 20,
+    fontWeight: "600",
     marginTop: Spacing.lg,
     marginBottom: Spacing.xl,
   },
   backButton: {
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: "#333333",
     borderRadius: BorderRadius.md,
   },
   backButtonText: {
-    color: Colors.dark.text,
-    ...Typography.body,
+    color: "#FFFFFF",
+    fontSize: 16,
     fontWeight: "600",
   },
-  targetInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: Spacing.lg,
-    marginHorizontal: Spacing.lg,
-    marginTop: Spacing.lg,
-    backgroundColor: Colors.dark.backgroundSecondary,
-    borderRadius: BorderRadius.md,
-  },
-  targetIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.dark.accent,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: Spacing.md,
-  },
-  targetTextContainer: {
-    flex: 1,
-  },
-  targetName: {
-    color: Colors.dark.text,
-    ...Typography.headline,
-    marginBottom: Spacing.xs,
-  },
-  targetDescription: {
-    color: Colors.dark.textSecondary,
-    ...Typography.small,
-  },
-  compassContainer: {
+  compassWrapper: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
-  compassRing: {
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    borderWidth: 8,
-    borderColor: "#5A5A5A",
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(90, 90, 90, 0.1)",
-  },
-  arrowContainer: {
+  compassOuter: {
+    width: COMPASS_SIZE,
+    height: COMPASS_SIZE,
     justifyContent: "center",
     alignItems: "center",
   },
-  distanceContainer: {
-    marginTop: Spacing["3xl"],
+  compassDial: {
+    position: "absolute",
+    width: COMPASS_SIZE,
+    height: COMPASS_SIZE,
+  },
+  tickMark: {
+    position: "absolute",
+    backgroundColor: "#FFFFFF",
+    transformOrigin: "center top",
+  },
+  cardinalLabel: {
+    position: "absolute",
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  compassInner: {
+    width: COMPASS_SIZE * 0.55,
+    height: COMPASS_SIZE * 0.55,
+    borderRadius: COMPASS_SIZE * 0.275,
+    backgroundColor: "#1A1A1A",
+    justifyContent: "center",
     alignItems: "center",
+    zIndex: 10,
   },
   distanceValue: {
-    color: Colors.dark.textAccent,
-    fontSize: 64,
-    fontWeight: "700",
+    color: "#FFFFFF",
+    fontSize: 56,
+    fontWeight: "300",
     letterSpacing: -2,
   },
   distanceLabel: {
-    color: Colors.dark.textSecondary,
-    ...Typography.body,
-    marginTop: Spacing.xs,
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "500",
+    letterSpacing: 2,
+    marginTop: 4,
+  },
+  accuracyLabel: {
+    color: "#888888",
+    fontSize: 12,
+    marginTop: 8,
+  },
+  pointerContainer: {
+    position: "absolute",
+    width: COMPASS_SIZE,
+    height: COMPASS_SIZE,
+    justifyContent: "flex-start",
+    alignItems: "center",
+  },
+  pointer: {
+    marginTop: -4,
+    alignItems: "center",
+  },
+  pointerTriangle: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 12,
+    borderRightWidth: 12,
+    borderBottomWidth: 24,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderBottomColor: "#E53935",
+  },
+  coordinatesContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing.lg,
+  },
+  coordinateBlock: {
+    flex: 1,
+  },
+  coordinateLabel: {
+    color: "#888888",
+    fontSize: 11,
+    fontWeight: "500",
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  coordinateValue: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "300",
+    lineHeight: 24,
+  },
+  checkInContainer: {
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.md,
+  },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+  },
+  checkInButton: {
+    backgroundColor: "#4CAF50",
+  },
+  checkInButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  disabledCheckInButton: {
+    backgroundColor: "#222222",
+  },
+  disabledCheckInText: {
+    color: "#666666",
+    fontSize: 14,
+  },
+  checkedInButton: {
+    backgroundColor: "#1A3A1A",
+  },
+  checkedInText: {
+    color: "#4CAF50",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  checkOutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.md,
+  },
+  checkOutText: {
+    color: "#E74C3C",
+    fontSize: 14,
+  },
+  primaryButton: {
+    backgroundColor: "#333333",
+  },
+  actionButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
   controls: {
     flexDirection: "row",
@@ -633,16 +835,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: Spacing.lg,
     borderRadius: BorderRadius.md,
-    overflow: "hidden",
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: "#222222",
     gap: Spacing.sm,
   },
   controlButtonPressed: {
     opacity: 0.7,
   },
   controlButtonText: {
-    color: Colors.dark.text,
-    ...Typography.body,
+    color: "#FFFFFF",
+    fontSize: 14,
     fontWeight: "600",
   },
   stopButton: {
@@ -667,133 +868,70 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   arrivedSubtitle: {
-    color: Colors.dark.text,
-    ...Typography.headline,
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "600",
     marginBottom: Spacing.md,
     textAlign: "center",
   },
   arrivedDescription: {
-    color: Colors.dark.textSecondary,
-    ...Typography.body,
+    color: "#AAAAAA",
+    fontSize: 14,
     textAlign: "center",
     marginBottom: Spacing["3xl"],
     paddingHorizontal: Spacing.lg,
-  },
-  actionButton: {
-    paddingHorizontal: Spacing["3xl"],
-    paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.md,
-  },
-  primaryButton: {
-    backgroundColor: Colors.dark.accent,
-  },
-  checkInButton: {
-    backgroundColor: "#4CAF50",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-  },
-  checkInButtonText: {
-    color: "#FFFFFF",
-    ...Typography.headline,
-    fontWeight: "600",
-  },
-  disabledCheckInButton: {
-    backgroundColor: Colors.dark.backgroundSecondary,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-  },
-  disabledCheckInText: {
-    color: Colors.dark.textSecondary,
-    ...Typography.body,
-  },
-  checkInContainer: {
-    paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.md,
-  },
-  checkedInButton: {
-    backgroundColor: "rgba(76, 175, 80, 0.15)",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-  },
-  checkedInText: {
-    color: "#4CAF50",
-    ...Typography.body,
-    fontWeight: "600",
-  },
-  checkOutButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.xs,
-    paddingVertical: Spacing.md,
-    marginTop: Spacing.sm,
-  },
-  checkOutText: {
-    color: "#E74C3C",
-    ...Typography.caption,
-    fontWeight: "500",
-  },
-  actionButtonText: {
-    color: Colors.dark.text,
-    ...Typography.headline,
-    fontWeight: "600",
   },
   badgeModalOverlay: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
   },
   badgeModalContent: {
-    width: "80%",
+    width: "85%",
     borderRadius: BorderRadius.lg,
     overflow: "hidden",
   },
   badgeModalInner: {
-    padding: Spacing["3xl"],
+    padding: Spacing.xl,
     alignItems: "center",
   },
   badgeIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: "rgba(212, 175, 122, 0.2)",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.lg,
   },
   badgeModalTitle: {
     color: "#D4AF7A",
-    ...Typography.title,
+    fontSize: 24,
+    fontWeight: "700",
     marginBottom: Spacing.sm,
   },
   badgeModalName: {
-    color: Colors.dark.text,
-    fontSize: 24,
-    fontWeight: "700",
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "600",
     marginBottom: Spacing.md,
-    textAlign: "center",
   },
   badgeModalDescription: {
-    color: Colors.dark.textSecondary,
-    ...Typography.body,
+    color: "#AAAAAA",
+    fontSize: 14,
     textAlign: "center",
     marginBottom: Spacing.xl,
   },
   badgeModalButton: {
-    backgroundColor: "#D4AF7A",
     paddingHorizontal: Spacing["3xl"],
     paddingVertical: Spacing.md,
+    backgroundColor: "#D4AF7A",
     borderRadius: BorderRadius.md,
   },
   badgeModalButtonText: {
-    color: "#1A1A1A",
-    ...Typography.headline,
+    color: "#000000",
+    fontSize: 16,
     fontWeight: "600",
   },
 });
