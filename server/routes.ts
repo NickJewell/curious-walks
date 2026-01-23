@@ -419,40 +419,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin API: Get next curio_id
   app.get('/api/admin/places/next-curio-id', async (req, res) => {
     try {
-      // Use SQL query to get the next curio_id number
-      const { data, error } = await supabase.rpc('get_next_curio_id');
+      // Fetch ALL curio_ids by paginating through all records
+      let allCurioIds: string[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (error) {
-        // Fallback to manual calculation if RPC doesn't exist
-        console.log('RPC not available, using fallback:', error.message);
-        
-        const { data: places, error: fetchError } = await supabase
+      while (hasMore) {
+        const { data: page, error: fetchError } = await supabase
           .from('places')
           .select('curio_id')
-          .not('curio_id', 'is', null);
+          .not('curio_id', 'is', null)
+          .range(from, from + pageSize - 1);
 
         if (fetchError) {
           console.error('Error fetching curio_ids:', fetchError);
           return res.status(500).json({ error: fetchError.message });
         }
 
-        // Extract numeric part from curio_id matching pattern CURIO-[0-9]+
-        let maxNum = 0;
-        (places || []).forEach((place: any) => {
-          const match = (place.curio_id || '').match(/^CURIO-(\d+)$/);
-          if (match) {
-            const num = parseInt(match[1], 10);
-            if (num > maxNum) maxNum = num;
-          }
-        });
-
-        const nextCurioId = `CURIO-${maxNum + 1}`;
-        return res.json({ nextCurioId, maxNum });
+        if (page && page.length > 0) {
+          allCurioIds = allCurioIds.concat(page.map((p: any) => p.curio_id));
+          from += pageSize;
+          hasMore = page.length === pageSize;
+        } else {
+          hasMore = false;
+        }
       }
 
-      const nextNum = data || 1;
-      const nextCurioId = `CURIO-${nextNum}`;
-      res.json({ nextCurioId, maxNum: nextNum - 1 });
+      // Extract numeric part from curio_id matching pattern CURIO-[0-9]+
+      let maxNum = 0;
+      allCurioIds.forEach((curioId: string) => {
+        const match = (curioId || '').match(/^CURIO-(\d+)$/);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      });
+
+      const nextCurioId = `CURIO-${maxNum + 1}`;
+      console.log(`Found ${allCurioIds.length} curio_ids, max is ${maxNum}, next is ${nextCurioId}`);
+      res.json({ nextCurioId, maxNum });
     } catch (err) {
       console.error('Error getting next curio_id:', err);
       res.status(500).json({ error: 'Internal server error' });
