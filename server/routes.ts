@@ -376,10 +376,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'lat and lon are required' });
       }
 
-      // Fetch all places with coordinates
+      // Fetch all places - use select('*') to handle different column names
       const { data, error } = await supabase
         .from('places')
-        .select('places_id, curio_id, name, latitude, longitude, plus_code');
+        .select('*');
 
       if (error) {
         console.error('Error fetching places:', error);
@@ -387,14 +387,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Calculate distance and filter by radius
+      // Handle different possible column names for coordinates
       const nearbyPlaces = (data || [])
-        .filter(place => place.latitude != null && place.longitude != null)
-        .map(place => {
+        .map((place: any) => {
+          const placeLat = place.latitude ?? place.lat ?? place.y;
+          const placeLon = place.longitude ?? place.lng ?? place.lon ?? place.x;
+          return {
+            places_id: place.places_id,
+            curio_id: place.curio_id,
+            name: place.name,
+            latitude: placeLat,
+            longitude: placeLon,
+            plus_code: place.plus_code,
+          };
+        })
+        .filter((place: any) => place.latitude != null && place.longitude != null)
+        .map((place: any) => {
           const distance = calculateDistance(lat, lon, place.latitude, place.longitude);
           return { ...place, distance };
         })
-        .filter(place => place.distance <= radius)
-        .sort((a, b) => a.distance - b.distance);
+        .filter((place: any) => place.distance <= radius)
+        .sort((a: any, b: any) => a.distance - b.distance);
 
       res.json({ places: nearbyPlaces });
     } catch (err) {
@@ -467,14 +480,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: `curio_id ${curio_id} already exists` });
       }
 
+      // Use 'lat' and 'lon' as column names based on existing schema
       const { data, error } = await supabase
         .from('places')
         .insert({
           curio_id,
           name,
           detail_overview: detail_overview || null,
-          latitude,
-          longitude,
+          lat: latitude,
+          lon: longitude,
           plus_code: plus_code || null
         })
         .select()
