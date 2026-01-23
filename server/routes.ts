@@ -385,7 +385,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       while (hasMore) {
         const { data: page, error: fetchError } = await supabase
           .from('places')
-          .select('places_id, curio_id, name, lat, lon, latitude, longitude, plus_code')
+          .select('places_id, curio_id, name, lat, lon, plus_code')
           .range(from, from + pageSize - 1);
 
         if (fetchError) {
@@ -403,20 +403,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Calculate distance and filter by radius
-      // Handle different possible column names for coordinates
       const nearbyPlaces = allPlaces
-        .map((place: any) => {
-          const placeLat = place.latitude ?? place.lat ?? place.y;
-          const placeLon = place.longitude ?? place.lng ?? place.lon ?? place.x;
-          return {
-            places_id: place.places_id,
-            curio_id: place.curio_id,
-            name: place.name,
-            latitude: placeLat,
-            longitude: placeLon,
-            plus_code: place.plus_code,
-          };
-        })
+        .map((place: any) => ({
+          places_id: place.places_id,
+          curio_id: place.curio_id,
+          name: place.name,
+          latitude: place.lat,
+          longitude: place.lon,
+          plus_code: place.plus_code,
+        }))
         .filter((place: any) => place.latitude != null && place.longitude != null)
         .map((place: any) => {
           const distance = calculateDistance(lat, lon, place.latitude, place.longitude);
