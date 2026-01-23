@@ -376,19 +376,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'lat and lon are required' });
       }
 
-      // Fetch all places - use select('*') to handle different column names
-      const { data, error } = await supabase
-        .from('places')
-        .select('*');
+      // Fetch ALL places by paginating through all records
+      let allPlaces: any[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (error) {
-        console.error('Error fetching places:', error);
-        return res.status(500).json({ error: error.message });
+      while (hasMore) {
+        const { data: page, error: fetchError } = await supabase
+          .from('places')
+          .select('places_id, curio_id, name, lat, lon, latitude, longitude, plus_code')
+          .range(from, from + pageSize - 1);
+
+        if (fetchError) {
+          console.error('Error fetching places:', fetchError);
+          return res.status(500).json({ error: fetchError.message });
+        }
+
+        if (page && page.length > 0) {
+          allPlaces = allPlaces.concat(page);
+          from += pageSize;
+          hasMore = page.length === pageSize;
+        } else {
+          hasMore = false;
+        }
       }
 
       // Calculate distance and filter by radius
       // Handle different possible column names for coordinates
-      const nearbyPlaces = (data || [])
+      const nearbyPlaces = allPlaces
         .map((place: any) => {
           const placeLat = place.latitude ?? place.lat ?? place.y;
           const placeLon = place.longitude ?? place.lng ?? place.lon ?? place.x;
