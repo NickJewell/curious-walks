@@ -419,28 +419,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin API: Get next curio_id
   app.get('/api/admin/places/next-curio-id', async (req, res) => {
     try {
-      const { data, error } = await supabase
-        .from('places')
-        .select('curio_id')
-        .not('curio_id', 'is', null);
+      // Use SQL query to get the next curio_id number
+      const { data, error } = await supabase.rpc('get_next_curio_id');
 
       if (error) {
-        console.error('Error fetching curio_ids:', error);
-        return res.status(500).json({ error: error.message });
+        // Fallback to manual calculation if RPC doesn't exist
+        console.log('RPC not available, using fallback:', error.message);
+        
+        const { data: places, error: fetchError } = await supabase
+          .from('places')
+          .select('curio_id')
+          .not('curio_id', 'is', null);
+
+        if (fetchError) {
+          console.error('Error fetching curio_ids:', fetchError);
+          return res.status(500).json({ error: fetchError.message });
+        }
+
+        // Extract numeric part from curio_id matching pattern CURIO-[0-9]+
+        let maxNum = 0;
+        (places || []).forEach((place: any) => {
+          const match = (place.curio_id || '').match(/^CURIO-(\d+)$/);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxNum) maxNum = num;
+          }
+        });
+
+        const nextCurioId = `CURIO-${maxNum + 1}`;
+        return res.json({ nextCurioId, maxNum });
       }
 
-      // Extract numeric part from curio_id (e.g., CURIO-123 -> 123)
-      let maxNum = 0;
-      (data || []).forEach((place: any) => {
-        const match = (place.curio_id || '').match(/CURIO-(\d+)/);
-        if (match) {
-          const num = parseInt(match[1], 10);
-          if (num > maxNum) maxNum = num;
-        }
-      });
-
-      const nextCurioId = `CURIO-${maxNum + 1}`;
-      res.json({ nextCurioId, maxNum });
+      const nextNum = data || 1;
+      const nextCurioId = `CURIO-${nextNum}`;
+      res.json({ nextCurioId, maxNum: nextNum - 1 });
     } catch (err) {
       console.error('Error getting next curio_id:', err);
       res.status(500).json({ error: 'Internal server error' });
