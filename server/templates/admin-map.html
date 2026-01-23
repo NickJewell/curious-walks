@@ -291,7 +291,7 @@
         <strong>How to use:</strong><br>
         1. Zoom into the area where you want to add a place<br>
         2. Click on the exact location<br>
-        3. Review nearby places (within 100m)<br>
+        3. Review nearby places (within 250m)<br>
         4. If the place is new, fill in the details and save
       </div>
       
@@ -308,7 +308,7 @@
       
       <div id="nearby-section" style="display: none;">
         <div class="nearby-places">
-          <h3>Nearby Places (within 100m)</h3>
+          <h3>Nearby Places (within 250m)</h3>
           <div id="nearby-list"></div>
         </div>
         
@@ -416,7 +416,7 @@
       document.getElementById('form-section').classList.remove('active');
       
       try {
-        const response = await fetch(`/api/admin/places/nearby?lat=${selectedLat}&lon=${selectedLon}&radius=100`);
+        const response = await fetch(`/api/admin/places/nearby?lat=${selectedLat}&lon=${selectedLon}&radius=250`);
         if (!response.ok) {
           throw new Error('Failed to fetch nearby places');
         }
@@ -445,7 +445,7 @@
       const container = document.getElementById('nearby-list');
       
       if (places.length === 0) {
-        container.innerHTML = '<p class="no-nearby">No existing places within 100m. This appears to be a new location!</p>';
+        container.innerHTML = '<p class="no-nearby">No existing places within 250m. This appears to be a new location!</p>';
         document.getElementById('form-section').classList.add('active');
       } else {
         container.innerHTML = places.map(place => `

@@ -370,7 +370,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const lat = parseFloat(req.query.lat as string);
       const lon = parseFloat(req.query.lon as string);
-      const radius = parseFloat(req.query.radius as string) || 100;
+      const radius = parseFloat(req.query.radius as string) || 250;
 
       if (isNaN(lat) || isNaN(lon)) {
         return res.status(400).json({ error: 'lat and lon are required' });
