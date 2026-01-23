@@ -6,6 +6,19 @@ const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// Calculate distance between two points in meters using Haversine formula
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000; // Earth's radius in meters
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Admin API: Get places that need detail_overview (null), sorted by box_id
   app.get('/api/admin/places/needs-overview', async (req, res) => {
@@ -348,6 +361,133 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ success: true });
     } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Admin API: Get places near a point (within specified radius in meters)
+  app.get('/api/admin/places/nearby', async (req, res) => {
+    try {
+      const lat = parseFloat(req.query.lat as string);
+      const lon = parseFloat(req.query.lon as string);
+      const radius = parseFloat(req.query.radius as string) || 100;
+
+      if (isNaN(lat) || isNaN(lon)) {
+        return res.status(400).json({ error: 'lat and lon are required' });
+      }
+
+      // Fetch all places with coordinates
+      const { data, error } = await supabase
+        .from('places')
+        .select('places_id, curio_id, name, latitude, longitude, plus_code');
+
+      if (error) {
+        console.error('Error fetching places:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      // Calculate distance and filter by radius
+      const nearbyPlaces = (data || [])
+        .filter(place => place.latitude != null && place.longitude != null)
+        .map(place => {
+          const distance = calculateDistance(lat, lon, place.latitude, place.longitude);
+          return { ...place, distance };
+        })
+        .filter(place => place.distance <= radius)
+        .sort((a, b) => a.distance - b.distance);
+
+      res.json({ places: nearbyPlaces });
+    } catch (err) {
+      console.error('Error in nearby places:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Admin API: Get next curio_id
+  app.get('/api/admin/places/next-curio-id', async (req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from('places')
+        .select('curio_id')
+        .not('curio_id', 'is', null);
+
+      if (error) {
+        console.error('Error fetching curio_ids:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      // Extract numeric part from curio_id (e.g., CURIO-123 -> 123)
+      let maxNum = 0;
+      (data || []).forEach((place: any) => {
+        const match = (place.curio_id || '').match(/CURIO-(\d+)/);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      });
+
+      const nextCurioId = `CURIO-${maxNum + 1}`;
+      res.json({ nextCurioId, maxNum });
+    } catch (err) {
+      console.error('Error getting next curio_id:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Admin API: Create a new place
+  app.post('/api/admin/places', async (req, res) => {
+    try {
+      const { curio_id, name, detail_overview, latitude, longitude, plus_code } = req.body;
+
+      if (!name) {
+        return res.status(400).json({ error: 'name is required' });
+      }
+
+      if (!curio_id) {
+        return res.status(400).json({ error: 'curio_id is required' });
+      }
+
+      if (latitude == null || longitude == null) {
+        return res.status(400).json({ error: 'latitude and longitude are required' });
+      }
+
+      // Check if curio_id already exists
+      const { data: existing, error: checkError } = await supabase
+        .from('places')
+        .select('curio_id')
+        .eq('curio_id', curio_id)
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('Error checking existing curio_id:', checkError);
+        return res.status(500).json({ error: checkError.message });
+      }
+
+      if (existing) {
+        return res.status(400).json({ error: `curio_id ${curio_id} already exists` });
+      }
+
+      const { data, error } = await supabase
+        .from('places')
+        .insert({
+          curio_id,
+          name,
+          detail_overview: detail_overview || null,
+          latitude,
+          longitude,
+          plus_code: plus_code || null
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating place:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      res.json({ success: true, place: data });
+    } catch (err) {
+      console.error('Error creating place:', err);
       res.status(500).json({ error: 'Internal server error' });
     }
   });

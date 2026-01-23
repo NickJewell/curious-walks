@@ -190,6 +190,17 @@ function configureExpoAndLanding(app: express.Application) {
     res.sendFile(adminCurioPath);
   });
 
+  // Serve admin map page for creating new places
+  const adminMapPath = path.resolve(
+    process.cwd(),
+    "server",
+    "templates",
+    "admin-map.html",
+  );
+  app.get("/admin/map", (_req: Request, res: Response) => {
+    res.sendFile(adminMapPath);
+  });
+
   log("Serving static Expo files with dynamic manifest routing");
 
   app.use((req: Request, res: Response, next: NextFunction) => {
