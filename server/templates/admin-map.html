@@ -244,6 +244,18 @@
       font-size: 14px;
     }
     
+    .search-box {
+      background: #1a1a2e;
+      border-radius: 6px;
+      padding: 15px;
+      margin-bottom: 20px;
+      border: 1px solid #2a2a4a;
+    }
+    
+    .search-box label {
+      margin-bottom: 8px;
+    }
+    
     .click-marker {
       background: #f9a825;
       border: 3px solid #1a1a2e;
@@ -281,6 +293,14 @@
         2. Click on the exact location<br>
         3. Review nearby places (within 100m)<br>
         4. If the place is new, fill in the details and save
+      </div>
+      
+      <div class="search-box">
+        <label>Go to coordinates (lat lon)</label>
+        <div style="display: flex; gap: 10px;">
+          <input type="text" id="coord-input" placeholder="51.5087  -0.1348" style="flex: 1;" />
+          <button type="button" class="btn-secondary" onclick="goToCoords()">Go</button>
+        </div>
       </div>
       
       <div id="error" class="error" style="display: none;"></div>
@@ -352,6 +372,28 @@
       }).addTo(map);
       
       map.on('click', onMapClick);
+      
+      document.getElementById('coord-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') goToCoords();
+      });
+    }
+    
+    function goToCoords() {
+      const input = document.getElementById('coord-input').value.trim();
+      if (!input) return;
+      
+      const parts = input.split(/[\s,\t]+/).filter(p => p);
+      if (parts.length >= 2) {
+        const lat = parseFloat(parts[0]);
+        const lon = parseFloat(parts[1]);
+        
+        if (!isNaN(lat) && !isNaN(lon)) {
+          map.setView([lat, lon], 18);
+          return;
+        }
+      }
+      
+      showError('Invalid coordinates. Use format: 51.5087 -0.1348');
     }
     
     async function onMapClick(e) {
