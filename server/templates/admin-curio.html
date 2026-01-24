@@ -753,8 +753,21 @@
           // Insert new facts
           let successCount = 0;
           for (let i = 0; i < Math.min(jsonData['FACTS'].length, 10); i++) {
-            let factText = jsonData['FACTS'][i];
-            if (!factText || typeof factText !== 'string') continue;
+            let factItem = jsonData['FACTS'][i];
+            let factText = '';
+            
+            // Handle both string and object formats
+            if (typeof factItem === 'string') {
+              factText = factItem;
+            } else if (factItem && typeof factItem === 'object') {
+              // Try common property names: fact, fact_info, text, content
+              factText = factItem.fact || factItem.fact_info || factItem.text || factItem.content || '';
+            }
+            
+            if (!factText) {
+              results.push(`  [SKIP] Fact ${i + 1} - empty or invalid format`);
+              continue;
+            }
             
             // Strip "FACT-XX:" prefix if present (handles FACT-01, FACT-1, etc.)
             factText = factText.replace(/^FACT-\d+:\s*/i, '').trim();
