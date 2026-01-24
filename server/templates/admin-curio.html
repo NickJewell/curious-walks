@@ -723,16 +723,22 @@
         // Update detail_overview if provided
         if (jsonData['DETAIL-OVERVIEW']) {
           results.push('Updating detail_overview...');
-          const overviewResponse = await fetch(`/api/admin/places/${curioData.place['places_id']}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 'detail_overview': jsonData['DETAIL-OVERVIEW'] })
-          });
-          
-          if (overviewResponse.ok) {
-            results.push('  [OK] Detail overview updated');
+          // Try multiple possible primary key column names
+          const placeId = curioData.place.places_id || curioData.place.id || curioData.place.place_id;
+          if (!placeId) {
+            results.push('  [ERROR] Could not find place ID. Keys found: ' + Object.keys(curioData.place).join(', '));
           } else {
-            results.push('  [FAILED] Could not update detail overview');
+            const overviewResponse = await fetch(`/api/admin/places/${placeId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 'detail_overview': jsonData['DETAIL-OVERVIEW'] })
+            });
+          
+            if (overviewResponse.ok) {
+              results.push('  [OK] Detail overview updated');
+            } else {
+              results.push('  [FAILED] Could not update detail overview');
+            }
           }
           results.push('');
         }
