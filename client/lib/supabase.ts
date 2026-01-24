@@ -94,87 +94,114 @@ export async function searchCurios(query: string, limit: number = 5): Promise<Cu
   }).filter(p => p.latitude != null && p.longitude != null);
 }
 
+// Cache for nearby curios to prevent redundant requests
+let nearbyCache: { lat: number; lng: number; data: Curio[]; timestamp: number } | null = null;
+let fetchInProgress: Promise<Curio[]> | null = null;
+
 export async function getNearestCurios(lat: number, lng: number, limit: number = 20): Promise<Curio[]> {
+  // Check if we have a recent cached result for nearby coordinates (within 100m)
+  if (nearbyCache) {
+    const cacheAge = Date.now() - nearbyCache.timestamp;
+    const cacheDistance = calculateDistance(lat, lng, nearbyCache.lat, nearbyCache.lng);
+    // Use cache if it's less than 30 seconds old and within 100 meters
+    if (cacheAge < 30000 && cacheDistance < 100) {
+      console.log('Using cached places data');
+      return nearbyCache.data.slice(0, limit);
+    }
+  }
+  
+  // If a fetch is already in progress, wait for it
+  if (fetchInProgress) {
+    console.log('Waiting for existing fetch to complete');
+    return fetchInProgress;
+  }
+  
   console.log('Fetching places near:', lat, lng);
   
-  // Supabase has a default limit of 1000 rows - fetch all by using range
-  let allData: any[] = [];
-  let from = 0;
-  const pageSize = 1000;
-  let hasMore = true;
-  
-  while (hasMore) {
-    const { data: pageData, error: pageError } = await supabase
-      .from('places')
-      .select('*')
-      .range(from, from + pageSize - 1);
-    
-    if (pageError) {
-      console.error('Error fetching places:', pageError.message);
+  fetchInProgress = (async () => {
+    try {
+      // Supabase has a default limit of 1000 rows - fetch all by using range
+      let allData: any[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data: pageData, error: pageError } = await supabase
+          .from('places')
+          .select('*')
+          .range(from, from + pageSize - 1);
+        
+        if (pageError) {
+          console.error('Error fetching places:', pageError.message);
+          return [];
+        }
+        
+        if (pageData && pageData.length > 0) {
+          allData = allData.concat(pageData);
+          from += pageSize;
+          hasMore = pageData.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      const data = allData;
+
+      if (!data || data.length === 0) {
+        console.log('No places found in database');
+        return [];
+      }
+
+      console.log('Found', data.length, 'places, sorting by distance from center');
+      
+      const placesWithCoords = data.filter(place => {
+        const latField = place.latitude ?? place.lat ?? place.y;
+        const lngField = place.longitude ?? place.lng ?? place.lon ?? place.x;
+        return latField != null && lngField != null;
+      });
+      
+      const placesWithDistance = placesWithCoords.map(place => {
+        const placeLat = place.latitude ?? place.lat ?? place.y;
+        const placeLng = place.longitude ?? place.lng ?? place.lon ?? place.x;
+        const placeId = place.curio_id ?? place['curio-id'] ?? place.uuid ?? place.id ?? place.place_id ?? String(Math.random());
+        const placeName = place.name ?? place.title ?? 'Unknown';
+        const placeDesc = place.detail_overview ?? place['detail-overview'] ?? place.description ?? place.desc ?? place.summary ?? '';
+        const placeType = place.curio_type ?? place['curio-type'] ?? '';
+        
+        return {
+          id: placeId,
+          name: placeName,
+          description: placeDesc,
+          latitude: placeLat,
+          longitude: placeLng,
+          curioType: placeType,
+          distance: calculateDistance(lat, lng, placeLat, placeLng)
+        };
+      });
+      
+      placesWithDistance.sort((a, b) => a.distance - b.distance);
+      
+      const allSortedPlaces = placesWithDistance.map(({ distance, ...place }) => place);
+      
+      // Cache all fetched places for reuse
+      nearbyCache = {
+        lat,
+        lng,
+        data: allSortedPlaces,
+        timestamp: Date.now()
+      };
+      
+      console.log('Returning', Math.min(limit, allSortedPlaces.length), 'nearest places');
+      
+      return allSortedPlaces.slice(0, limit);
+    } catch (error) {
+      console.error('Error fetching places:', error);
       return [];
+    } finally {
+      fetchInProgress = null;
     }
-    
-    if (pageData && pageData.length > 0) {
-      allData = allData.concat(pageData);
-      from += pageSize;
-      hasMore = pageData.length === pageSize;
-    } else {
-      hasMore = false;
-    }
-  }
+  })();
   
-  const data = allData;
-
-  if (!data || data.length === 0) {
-    console.log('No places found in database');
-    return [];
-  }
-
-  console.log('Found', data.length, 'places, sorting by distance from center');
-  
-  
-  const placesWithCoords = data.filter(place => {
-    const latField = place.latitude ?? place.lat ?? place.y;
-    const lngField = place.longitude ?? place.lng ?? place.lon ?? place.x;
-    return latField != null && lngField != null;
-  });
-  
-  const placesWithDistance = placesWithCoords.map(place => {
-    const placeLat = place.latitude ?? place.lat ?? place.y;
-    const placeLng = place.longitude ?? place.lng ?? place.lon ?? place.x;
-    const placeId = place.curio_id ?? place['curio-id'] ?? place.uuid ?? place.id ?? place.place_id ?? String(Math.random());
-    const placeName = place.name ?? place.title ?? 'Unknown';
-    const placeDesc = place.detail_overview ?? place['detail-overview'] ?? place.description ?? place.desc ?? place.summary ?? '';
-    const placeType = place.curio_type ?? place['curio-type'] ?? '';
-    
-    return {
-      id: placeId,
-      name: placeName,
-      description: placeDesc,
-      latitude: placeLat,
-      longitude: placeLng,
-      curioType: placeType,
-      distance: calculateDistance(lat, lng, placeLat, placeLng)
-    };
-  });
-  
-  placesWithDistance.sort((a, b) => a.distance - b.distance);
-  
-  const nearest = placesWithDistance.slice(0, limit);
-  
-  // Debug: Check if FAKE-1 is in the nearest places
-  const fakeInNearest = nearest.find(p => p.id === 'FAKE-1');
-  if (fakeInNearest) {
-    console.log('DEBUG: FAKE-1 IS in nearest places, distance:', fakeInNearest.distance, 'm');
-  } else {
-    // Check its actual distance
-    const fakePlace = placesWithDistance.find(p => p.id === 'FAKE-1');
-    if (fakePlace) {
-      console.log('DEBUG: FAKE-1 NOT in nearest. Distance:', fakePlace.distance, 'm. Cutoff distance:', nearest[nearest.length - 1]?.distance, 'm');
-    }
-  }
-  
-  console.log('Returning', nearest.length, 'nearest places');
-  
-  return nearest.map(({ distance, ...place }) => place);
+  return fetchInProgress;
 }
