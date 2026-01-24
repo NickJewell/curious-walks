@@ -455,7 +455,7 @@
         const data = await response.json();
         currentPlace = data.place;
         currentFacts = data.facts || [];
-        placesId = data.place['places-id'];
+        placesId = data.place.places_id || data.place.id || data.place['places-id'];
         
         renderPlace();
         renderFacts();
