@@ -2,7 +2,8 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { Session, User } from '@supabase/supabase-js';
 import { supabase, getRedirectUrl } from '@/lib/supabase';
 import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
+
+WebBrowser.maybeCompleteAuthSession();
 
 interface UserProfile {
   id: string;

@@ -1,12 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { makeRedirectUri } from 'expo-auth-session';
 import * as Linking from 'expo-linking';
+import { Platform } from 'react-native';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
 export const getRedirectUrl = () => {
-  return Linking.createURL('auth/callback');
+  const redirectUri = makeRedirectUri({
+    scheme: 'lantern',
+    path: 'auth/callback',
+  });
+  console.log('OAuth redirect URL:', redirectUri);
+  return redirectUri;
 };
 
 function isServiceRoleKey(key: string): boolean {
