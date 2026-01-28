@@ -84,6 +84,21 @@ export default function LoginScreen() {
     continueAsGuest();
   };
 
+  const handleGoogleSignIn = async () => {
+    try {
+      setIsGoogleLoading(true);
+      const { error } = await signInWithGoogle();
+      if (error) {
+        Alert.alert('Sign In Failed', error);
+      }
+    } catch (error) {
+      console.error('Google auth error:', error);
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Image
@@ -111,83 +126,25 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.formContainer}>
-          {mode === 'signUp' && (
-            <View style={styles.inputContainer}>
-              <Feather name="user" size={20} color={Colors.dark.textSecondary} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Full Name (optional)"
-                placeholderTextColor={Colors.dark.textSecondary}
-                value={fullName}
-                onChangeText={setFullName}
-                autoCapitalize="words"
-                autoCorrect={false}
-              />
-            </View>
-          )}
-
-          <View style={styles.inputContainer}>
-            <Feather name="mail" size={20} color={Colors.dark.textSecondary} style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              placeholderTextColor={Colors.dark.textSecondary}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Feather name="lock" size={20} color={Colors.dark.textSecondary} style={styles.inputIcon} />
-            <TextInput
-              style={[styles.input, styles.passwordInput]}
-              placeholder="Password"
-              placeholderTextColor={Colors.dark.textSecondary}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
-              <Feather 
-                name={showPassword ? "eye-off" : "eye"} 
-                size={20} 
-                color={Colors.dark.textSecondary} 
-              />
-            </Pressable>
-          </View>
-
           <Pressable
             style={({ pressed }) => [
-              styles.submitButton,
-              pressed && styles.submitButtonPressed,
-              isLoading && styles.submitButtonDisabled,
+              styles.googleButton,
+              pressed && styles.googleButtonPressed,
+              isGoogleLoading && styles.submitButtonDisabled,
             ]}
-            onPress={handleSubmit}
-            disabled={isLoading}
+            onPress={handleGoogleSignIn}
+            disabled={isGoogleLoading}
           >
-            {isLoading ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+            {isGoogleLoading ? (
+              <ActivityIndicator size="small" color={Colors.dark.text} />
             ) : (
-              <Text style={styles.submitButtonText}>
-                {mode === 'signIn' ? 'Sign In' : 'Create Account'}
-              </Text>
+              <>
+                <View style={styles.googleIconContainer}>
+                  <Text style={styles.googleIconG}>G</Text>
+                </View>
+                <Text style={styles.googleButtonText}>Continue with Google</Text>
+              </>
             )}
-          </Pressable>
-
-          <Pressable style={styles.toggleLink} onPress={toggleMode}>
-            <Text style={styles.toggleText}>
-              {mode === 'signIn' 
-                ? "Don't have an account? " 
-                : "Already have an account? "}
-              <Text style={styles.toggleTextBold}>
-                {mode === 'signIn' ? 'Sign Up' : 'Sign In'}
-              </Text>
-            </Text>
           </Pressable>
 
           <View style={styles.divider}>
@@ -195,6 +152,97 @@ export default function LoginScreen() {
             <Text style={styles.dividerText}>or</Text>
             <View style={styles.dividerLine} />
           </View>
+
+          {!showEmailAuth ? (
+            <Pressable 
+              style={styles.emailToggleButton} 
+              onPress={() => setShowEmailAuth(true)}
+            >
+              <Feather name="mail" size={18} color={Colors.dark.textSecondary} />
+              <Text style={styles.emailToggleText}>Continue with Email</Text>
+            </Pressable>
+          ) : (
+            <>
+              {mode === 'signUp' && (
+                <View style={styles.inputContainer}>
+                  <Feather name="user" size={20} color={Colors.dark.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Full Name (optional)"
+                    placeholderTextColor={Colors.dark.textSecondary}
+                    value={fullName}
+                    onChangeText={setFullName}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                  />
+                </View>
+              )}
+
+              <View style={styles.inputContainer}>
+                <Feather name="mail" size={20} color={Colors.dark.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email"
+                  placeholderTextColor={Colors.dark.textSecondary}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Feather name="lock" size={20} color={Colors.dark.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={[styles.input, styles.passwordInput]}
+                  placeholder="Password"
+                  placeholderTextColor={Colors.dark.textSecondary}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
+                  <Feather 
+                    name={showPassword ? "eye-off" : "eye"} 
+                    size={20} 
+                    color={Colors.dark.textSecondary} 
+                  />
+                </Pressable>
+              </View>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.submitButton,
+                  pressed && styles.submitButtonPressed,
+                  isLoading && styles.submitButtonDisabled,
+                ]}
+                onPress={handleSubmit}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.submitButtonText}>
+                    {mode === 'signIn' ? 'Sign In' : 'Create Account'}
+                  </Text>
+                )}
+              </Pressable>
+
+              <Pressable style={styles.toggleLink} onPress={toggleMode}>
+                <Text style={styles.toggleText}>
+                  {mode === 'signIn' 
+                    ? "Don't have an account? " 
+                    : "Already have an account? "}
+                  <Text style={styles.toggleTextBold}>
+                    {mode === 'signIn' ? 'Sign Up' : 'Sign In'}
+                  </Text>
+                </Text>
+              </Pressable>
+            </>
+          )}
 
           <Pressable style={styles.guestLink} onPress={handleGuestAccess}>
             <Text style={styles.guestText}>Continue as Guest</Text>
@@ -285,6 +333,51 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: Spacing.md,
     padding: Spacing.xs,
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+  },
+  googleButtonPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.98 }],
+  },
+  googleIconContainer: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  googleIconG: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#4285F4',
+  },
+  googleButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F1F1F',
+  },
+  emailToggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    gap: Spacing.sm,
+  },
+  emailToggleText: {
+    fontSize: 14,
+    color: Colors.dark.textSecondary,
   },
   submitButton: {
     alignItems: 'center',
