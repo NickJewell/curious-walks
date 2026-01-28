@@ -61,8 +61,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchProfile = async (userId: string, email?: string | null, userMetadata?: Record<string, any>) => {
+    console.log('User metadata from Google:', JSON.stringify(userMetadata, null, 2));
     const googleAvatarUrl = userMetadata?.avatar_url || userMetadata?.picture || null;
     const googleFullName = userMetadata?.full_name || userMetadata?.name || null;
+    console.log('Extracted avatar URL:', googleAvatarUrl);
+    console.log('Extracted full name:', googleFullName);
 
     const { data, error } = await supabase
       .from('profiles')
