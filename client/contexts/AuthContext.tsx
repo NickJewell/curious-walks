@@ -61,6 +61,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchProfile = async (userId: string, email?: string | null, userMetadata?: Record<string, any>) => {
+    const googleAvatarUrl = userMetadata?.avatar_url || userMetadata?.picture || null;
+    const googleFullName = userMetadata?.full_name || userMetadata?.name || null;
+
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -68,23 +71,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .single();
 
     if (!error && data) {
+      const needsUpdate = (!data.avatar_url && googleAvatarUrl) || 
+                          (!data.full_name && googleFullName) ||
+                          (googleAvatarUrl && data.avatar_url !== googleAvatarUrl);
+      
+      if (needsUpdate) {
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({
+            avatar_url: googleAvatarUrl || data.avatar_url,
+            full_name: data.full_name || googleFullName,
+          })
+          .eq('id', userId);
+
+        if (updateError) {
+          console.error('Error updating profile:', updateError);
+        }
+      }
+
       setProfile({
         id: data.id,
         email: data.email || email,
-        avatar_url: data.avatar_url,
-        full_name: data.full_name,
+        avatar_url: googleAvatarUrl || data.avatar_url,
+        full_name: data.full_name || googleFullName,
       });
     } else {
-      const fullName = userMetadata?.full_name || userMetadata?.name || null;
-      const avatarUrl = userMetadata?.avatar_url || userMetadata?.picture || null;
-      
       const { error: insertError } = await supabase
         .from('profiles')
         .upsert({
           id: userId,
           email: email || null,
-          full_name: fullName,
-          avatar_url: avatarUrl,
+          full_name: googleFullName,
+          avatar_url: googleAvatarUrl,
         });
 
       if (insertError) {
@@ -94,8 +112,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile({
         id: userId,
         email: email ?? null,
-        avatar_url: avatarUrl,
-        full_name: fullName,
+        avatar_url: googleAvatarUrl,
+        full_name: googleFullName,
       });
     }
   };
