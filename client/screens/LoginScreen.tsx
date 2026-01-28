@@ -19,13 +19,15 @@ type AuthMode = 'signIn' | 'signUp';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { signIn, signUp, continueAsGuest } = useAuth();
+  const { signIn, signUp, signInWithGoogle, continueAsGuest } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [mode, setMode] = useState<AuthMode>('signIn');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showEmailAuth, setShowEmailAuth] = useState(false);
 
   const handleSubmit = async () => {
     if (!email.trim() || !password.trim()) {

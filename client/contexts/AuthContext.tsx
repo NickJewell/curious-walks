@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { supabase, getRedirectUrl } from '@/lib/supabase';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 
 interface UserProfile {
   id: string;
@@ -17,6 +19,7 @@ interface AuthContextType {
   isGuest: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, fullName?: string) => Promise<{ error: string | null; needsEmailConfirmation?: boolean }>;
+  signInWithGoogle: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   continueAsGuest: () => void;
 }
@@ -156,8 +159,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsGuest(true);
   };
 
+  const signInWithGoogle = async (): Promise<{ error: string | null }> => {
+    try {
+      const redirectUrl = getRedirectUrl();
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          skipBrowserRedirect: true,
+        },
+      });
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      if (data?.url) {
+        const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+
+        if (result.type === 'success' && result.url) {
+          const url = new URL(result.url);
+          const params = new URLSearchParams(url.hash.substring(1));
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+
+          if (accessToken && refreshToken) {
+            const { error: sessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+
+            if (sessionError) {
+              return { error: sessionError.message };
+            }
+          }
+        } else if (result.type === 'cancel') {
+          return { error: null };
+        }
+      }
+
+      return { error: null };
+    } catch (error) {
+      console.error('Google sign in error:', error);
+      return { error: 'An unexpected error occurred' };
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ session, user, profile, loading, isGuest, signIn, signUp, signOut, continueAsGuest }}>
+    <AuthContext.Provider value={{ session, user, profile, loading, isGuest, signIn, signUp, signInWithGoogle, signOut, continueAsGuest }}>
       {children}
     </AuthContext.Provider>
   );
