@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
       if (session?.user) {
         setIsGuest(false);
-        fetchProfile(session.user.id, session.user.email);
+        fetchProfile(session.user.id, session.user.email, session.user.user_metadata);
       }
       setLoading(false);
     });
@@ -50,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
       if (session?.user) {
         setIsGuest(false);
-        fetchProfile(session.user.id, session.user.email);
+        fetchProfile(session.user.id, session.user.email, session.user.user_metadata);
       } else {
         setProfile(null);
         setIsGuest(false);
@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchProfile = async (userId: string, email?: string | null) => {
+  const fetchProfile = async (userId: string, email?: string | null, userMetadata?: Record<string, any>) => {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -75,11 +75,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         full_name: data.full_name,
       });
     } else {
+      const fullName = userMetadata?.full_name || userMetadata?.name || null;
+      const avatarUrl = userMetadata?.avatar_url || userMetadata?.picture || null;
+      
+      const { error: insertError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: userId,
+          email: email || null,
+          full_name: fullName,
+          avatar_url: avatarUrl,
+        });
+
+      if (insertError) {
+        console.error('Error creating profile:', insertError);
+      }
+
       setProfile({
         id: userId,
         email: email ?? null,
-        avatar_url: null,
-        full_name: null,
+        avatar_url: avatarUrl,
+        full_name: fullName,
       });
     }
   };
