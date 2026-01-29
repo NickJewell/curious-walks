@@ -132,6 +132,9 @@ export async function getNearestCurios(lat: number, lng: number, limit: number =
   
   fetchInProgress = (async () => {
     try {
+      console.log('Starting Supabase places query...');
+      const startTime = Date.now();
+      
       // Supabase has a default limit of 1000 rows - fetch all by using range
       let allData: any[] = [];
       let from = 0;
@@ -139,15 +142,18 @@ export async function getNearestCurios(lat: number, lng: number, limit: number =
       let hasMore = true;
       
       while (hasMore) {
+        console.log(`Fetching page starting at ${from}...`);
         const { data: pageData, error: pageError } = await supabase
           .from('places')
           .select('*')
           .range(from, from + pageSize - 1);
         
         if (pageError) {
-          console.error('Error fetching places:', pageError.message);
+          console.error('Error fetching places:', pageError.message, pageError);
           return [];
         }
+        
+        console.log(`Page fetched: ${pageData?.length || 0} records in ${Date.now() - startTime}ms`);
         
         if (pageData && pageData.length > 0) {
           allData = allData.concat(pageData);
