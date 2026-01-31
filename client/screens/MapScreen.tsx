@@ -224,30 +224,77 @@ export default function MapScreen() {
   };
 
   useEffect(() => {
-    (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === "granted") {
-        const location = await Location.getCurrentPositionAsync({});
-        const coords = {
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-        };
-        setUserLocation(coords);
-        setMapCenter(coords);
-        setLastSearchCenter(coords);
+    let didLoad = false;
+    
+    const loadWithLocation = async () => {
+      console.log('[MapScreen] Starting location request...');
+      try {
+        const permissionResult = await Promise.race([
+          Location.requestForegroundPermissionsAsync(),
+          new Promise<{ status: string }>((_, reject) => 
+            setTimeout(() => reject(new Error('Permission timeout')), 5000)
+          ),
+        ]);
         
-        // Animate map to user's location once we have it
-        mapRef.current?.animateToRegion({
-          ...coords,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        }, 500);
+        const { status } = permissionResult;
+        console.log('[MapScreen] Location permission status:', status);
         
-        loadCurios(coords.latitude, coords.longitude);
-      } else {
+        if (status === "granted" && !didLoad) {
+          console.log('[MapScreen] Getting current position...');
+          const location = await Promise.race([
+            Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+            }),
+            new Promise<Location.LocationObject>((_, reject) => 
+              setTimeout(() => reject(new Error('Position timeout')), 10000)
+            ),
+          ]);
+          console.log('[MapScreen] Got position:', location.coords.latitude, location.coords.longitude);
+          
+          const coords = {
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+          };
+          setUserLocation(coords);
+          setMapCenter(coords);
+          setLastSearchCenter(coords);
+          
+          mapRef.current?.animateToRegion({
+            ...coords,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          }, 500);
+          
+          console.log('[MapScreen] Calling loadCurios...');
+          didLoad = true;
+          loadCurios(coords.latitude, coords.longitude);
+        } else if (!didLoad) {
+          console.log('[MapScreen] Permission denied, using London center');
+          didLoad = true;
+          loadCurios(LONDON_CENTER.latitude, LONDON_CENTER.longitude);
+        }
+      } catch (error) {
+        console.error('[MapScreen] Location error:', error);
+        if (!didLoad) {
+          console.log('[MapScreen] Falling back to London center');
+          didLoad = true;
+          loadCurios(LONDON_CENTER.latitude, LONDON_CENTER.longitude);
+        }
+      }
+    };
+
+    loadWithLocation();
+    
+    // Fallback: if nothing loads in 8 seconds, load London
+    const fallbackTimer = setTimeout(() => {
+      if (!didLoad) {
+        console.log('[MapScreen] Fallback timer triggered, loading London center');
+        didLoad = true;
         loadCurios(LONDON_CENTER.latitude, LONDON_CENTER.longitude);
       }
-    })();
+    }, 8000);
+    
+    return () => clearTimeout(fallbackTimer);
   }, []);
 
   useEffect(() => {
