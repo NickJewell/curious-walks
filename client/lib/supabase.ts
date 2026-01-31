@@ -110,6 +110,37 @@ export async function searchCurios(query: string, limit: number = 5): Promise<Cu
 let nearbyCache: { lat: number; lng: number; data: Curio[]; timestamp: number } | null = null;
 let fetchInProgress: Promise<Curio[]> | null = null;
 
+function processPlaces(data: any[], lat: number, lng: number, limit: number): Curio[] {
+  const placesWithCoords = data.filter(place => {
+    const latField = place.latitude ?? place.lat ?? place.y;
+    const lngField = place.longitude ?? place.lng ?? place.lon ?? place.x;
+    return latField != null && lngField != null;
+  });
+  
+  const placesWithDistance = placesWithCoords.map(place => {
+    const placeLat = place.latitude ?? place.lat ?? place.y;
+    const placeLng = place.longitude ?? place.lng ?? place.lon ?? place.x;
+    const placeId = place.curio_id ?? place['curio-id'] ?? place.uuid ?? place.id ?? place.place_id ?? String(Math.random());
+    const placeName = place.name ?? place.title ?? 'Unknown';
+    const placeDesc = place.detail_overview ?? place['detail-overview'] ?? place.description ?? place.desc ?? place.summary ?? '';
+    const placeType = place.curio_type ?? place['curio-type'] ?? '';
+    
+    return {
+      id: placeId,
+      name: placeName,
+      description: placeDesc,
+      latitude: placeLat,
+      longitude: placeLng,
+      curioType: placeType,
+      distance: calculateDistance(lat, lng, placeLat, placeLng)
+    };
+  });
+  
+  placesWithDistance.sort((a, b) => a.distance - b.distance);
+  
+  return placesWithDistance.slice(0, limit).map(({ distance, ...place }) => place);
+}
+
 export async function getNearestCurios(lat: number, lng: number, limit: number = 20): Promise<Curio[]> {
   // Check if we have a recent cached result for nearby coordinates (within 100m)
   if (nearbyCache) {
@@ -135,84 +166,63 @@ export async function getNearestCurios(lat: number, lng: number, limit: number =
       console.log('Starting Supabase places query...');
       const startTime = Date.now();
       
-      // Supabase has a default limit of 1000 rows - fetch all by using range
-      let allData: any[] = [];
-      let from = 0;
-      const pageSize = 1000;
-      let hasMore = true;
+      // Use bounding box to limit results - roughly 10km radius
+      const latDelta = 0.09; // ~10km
+      const lngDelta = 0.14; // ~10km at London latitude
+      const minLat = lat - latDelta;
+      const maxLat = lat + latDelta;
+      const minLng = lng - lngDelta;
+      const maxLng = lng + lngDelta;
       
-      while (hasMore) {
-        console.log(`Fetching page starting at ${from}...`);
-        const { data: pageData, error: pageError } = await supabase
+      console.log(`Querying bounding box: lat ${minLat}-${maxLat}, lng ${minLng}-${maxLng}`);
+      
+      const { data, error } = await supabase
+        .from('places')
+        .select('*')
+        .gte('latitude', minLat)
+        .lte('latitude', maxLat)
+        .gte('longitude', minLng)
+        .lte('longitude', maxLng)
+        .limit(500);
+      
+      if (error) {
+        console.error('Error fetching places:', error.message, error);
+        return [];
+      }
+      
+      console.log(`Query completed: ${data?.length || 0} records in ${Date.now() - startTime}ms`);
+
+      if (!data || data.length === 0) {
+        console.log('No places found in bounding box, trying wider search...');
+        // Fallback: fetch a sample of places if bounding box is empty
+        const { data: fallbackData, error: fallbackError } = await supabase
           .from('places')
           .select('*')
-          .range(from, from + pageSize - 1);
+          .limit(100);
         
-        if (pageError) {
-          console.error('Error fetching places:', pageError.message, pageError);
+        if (fallbackError || !fallbackData?.length) {
+          console.log('No places found in database');
           return [];
         }
         
-        console.log(`Page fetched: ${pageData?.length || 0} records in ${Date.now() - startTime}ms`);
-        
-        if (pageData && pageData.length > 0) {
-          allData = allData.concat(pageData);
-          from += pageSize;
-          hasMore = pageData.length === pageSize;
-        } else {
-          hasMore = false;
-        }
-      }
-      
-      const data = allData;
-
-      if (!data || data.length === 0) {
-        console.log('No places found in database');
-        return [];
+        return processPlaces(fallbackData, lat, lng, limit);
       }
 
-      console.log('Found', data.length, 'places, sorting by distance from center');
+      console.log('Found', data.length, 'places in bounding box, sorting by distance');
       
-      const placesWithCoords = data.filter(place => {
-        const latField = place.latitude ?? place.lat ?? place.y;
-        const lngField = place.longitude ?? place.lng ?? place.lon ?? place.x;
-        return latField != null && lngField != null;
-      });
+      const sortedPlaces = processPlaces(data, lat, lng, limit);
       
-      const placesWithDistance = placesWithCoords.map(place => {
-        const placeLat = place.latitude ?? place.lat ?? place.y;
-        const placeLng = place.longitude ?? place.lng ?? place.lon ?? place.x;
-        const placeId = place.curio_id ?? place['curio-id'] ?? place.uuid ?? place.id ?? place.place_id ?? String(Math.random());
-        const placeName = place.name ?? place.title ?? 'Unknown';
-        const placeDesc = place.detail_overview ?? place['detail-overview'] ?? place.description ?? place.desc ?? place.summary ?? '';
-        const placeType = place.curio_type ?? place['curio-type'] ?? '';
-        
-        return {
-          id: placeId,
-          name: placeName,
-          description: placeDesc,
-          latitude: placeLat,
-          longitude: placeLng,
-          curioType: placeType,
-          distance: calculateDistance(lat, lng, placeLat, placeLng)
-        };
-      });
-      
-      placesWithDistance.sort((a, b) => a.distance - b.distance);
-      
-      const allSortedPlaces = placesWithDistance.map(({ distance, ...place }) => place);
-      
-      // Cache all fetched places for reuse
+      // Cache fetched places for reuse
       nearbyCache = {
         lat,
         lng,
-        data: allSortedPlaces,
+        data: sortedPlaces,
         timestamp: Date.now()
       };
       
-      console.log('Returning', Math.min(limit, allSortedPlaces.length), 'nearest places');
+      console.log('Returning', sortedPlaces.length, 'nearest places');
       
-      return allSortedPlaces.slice(0, limit);
+      return sortedPlaces;
     } catch (error) {
       console.error('Error fetching places:', error);
       return [];
