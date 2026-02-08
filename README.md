@@ -10,4 +10,5 @@ To do:
 8. Add curios for all TFL rail/underground stations - DONE
 9. Walks need to be organized/arranged by London Neighbourhood (starting point)
 10. Tour schema overhaul
-11. Canva screens rebuild - splash page for loading, map/discovery, hunt/read more, user profile, tours, 
+11. Canva screens rebuild - splash page for loading, map/discovery, hunt/read more, user profile, tours.
+12. Eleven Labs audio for 1 complete tour (overview + facts) as a protoype - saving as MP3 files in object store within supabase
