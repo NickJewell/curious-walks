@@ -111,7 +111,6 @@ export default function MapScreen() {
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [mapCenter, setMapCenter] = useState<{ latitude: number; longitude: number }>(LONDON_CENTER);
   const [lastSearchCenter, setLastSearchCenter] = useState<{ latitude: number; longitude: number }>(LONDON_CENTER);
-  const [showSearchButton, setShowSearchButton] = useState(false);
   
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -385,8 +384,6 @@ export default function MapScreen() {
       const data = await getNearestCurios(lat, lng, 20);
       setCurios(data);
       setLastSearchCenter({ latitude: lat, longitude: lng });
-      setShowSearchButton(false);
-      
       // Fit map to extent of loaded places
       if (fitToBounds && data.length > 0 && mapRef.current) {
         const coordinates = data.map(c => ({
@@ -409,6 +406,8 @@ export default function MapScreen() {
     }
   };
 
+  const autoRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const onRegionChangeComplete = useCallback((region: Region) => {
     const newCenter = { latitude: region.latitude, longitude: region.longitude };
     setMapCenter(newCenter);
@@ -420,12 +419,15 @@ export default function MapScreen() {
       newCenter.longitude
     );
     
-    setShowSearchButton(distance > 500);
+    if (distance > 500) {
+      if (autoRefreshTimer.current) {
+        clearTimeout(autoRefreshTimer.current);
+      }
+      autoRefreshTimer.current = setTimeout(() => {
+        loadCurios(newCenter.latitude, newCenter.longitude, false);
+      }, 600);
+    }
   }, [lastSearchCenter]);
-
-  const handleSearchThisArea = () => {
-    loadCurios(mapCenter.latitude, mapCenter.longitude);
-  };
 
   const centerOnUser = async () => {
     try {
@@ -605,35 +607,18 @@ export default function MapScreen() {
       </View>
 
       <View style={[styles.topControls, { top: insets.top + Spacing.md + 60 }]}>
-        {userLocation ? (
-          <Pressable
-            style={({ pressed }) => [
-              styles.controlButton,
-              pressed && styles.controlButtonPressed,
-            ]}
-            onPress={centerOnUser}
-          >
-            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
-            <Feather name="navigation" size={20} color={Colors.dark.text} />
-          </Pressable>
-        ) : null}
+        <Pressable
+          style={({ pressed }) => [
+            styles.controlButton,
+            pressed && styles.controlButtonPressed,
+          ]}
+          onPress={centerOnUser}
+        >
+          <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+          <Feather name="crosshair" size={20} color={Colors.dark.text} />
+        </Pressable>
       </View>
 
-      {showSearchButton && searchResults.length === 0 ? (
-        <View style={[styles.searchAreaButtonContainer, { top: insets.top + Spacing.md + 70 }]}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.searchButton,
-              pressed && styles.searchButtonPressed,
-            ]}
-            onPress={handleSearchThisArea}
-          >
-            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
-            <Feather name="search" size={16} color={Colors.dark.text} style={styles.searchIcon} />
-            <Text style={styles.searchButtonText}>Search This Area</Text>
-          </Pressable>
-        </View>
-      ) : null}
 
       {isHunting ? (
         <Pressable
