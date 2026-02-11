@@ -179,10 +179,10 @@ export async function getNearestCurios(lat: number, lng: number, limit: number =
       const { data, error } = await supabase
         .from('places')
         .select('*')
-        .gte('latitude', minLat)
-        .lte('latitude', maxLat)
-        .gte('longitude', minLng)
-        .lte('longitude', maxLng)
+        .gte('lat', minLat)
+        .lte('lat', maxLat)
+        .gte('lon', minLng)
+        .lte('lon', maxLng)
         .limit(200);
       
       if (error) {
