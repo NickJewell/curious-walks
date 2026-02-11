@@ -53,6 +53,7 @@ export interface Curio {
   latitude: number;
   longitude: number;
   curioType?: string;
+  detailAudioPath?: string | null;
 }
 
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -94,6 +95,7 @@ export async function searchCurios(query: string, limit: number = 5): Promise<Cu
     const placeName = place.name ?? place.title ?? 'Unknown';
     const placeDesc = place.detail_overview ?? place['detail-overview'] ?? place.description ?? place.desc ?? place.summary ?? '';
     const placeType = place.curio_type ?? place['curio-type'] ?? '';
+    const audioPath = place.detail_audio_path ?? place['detail-audio-path'] ?? null;
     
     return {
       id: placeId,
@@ -102,6 +104,7 @@ export async function searchCurios(query: string, limit: number = 5): Promise<Cu
       latitude: placeLat,
       longitude: placeLng,
       curioType: placeType,
+      detailAudioPath: audioPath,
     };
   }).filter(p => p.latitude != null && p.longitude != null);
 }
@@ -124,6 +127,7 @@ function processPlaces(data: any[], lat: number, lng: number, limit: number): Cu
     const placeName = place.name ?? place.title ?? 'Unknown';
     const placeDesc = place.detail_overview ?? place['detail-overview'] ?? place.description ?? place.desc ?? place.summary ?? '';
     const placeType = place.curio_type ?? place['curio-type'] ?? '';
+    const audioPath = place.detail_audio_path ?? place['detail-audio-path'] ?? null;
     
     return {
       id: placeId,
@@ -132,6 +136,7 @@ function processPlaces(data: any[], lat: number, lng: number, limit: number): Cu
       latitude: placeLat,
       longitude: placeLng,
       curioType: placeType,
+      detailAudioPath: audioPath,
       distance: calculateDistance(lat, lng, placeLat, placeLng)
     };
   });
