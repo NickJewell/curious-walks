@@ -17,7 +17,7 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
-import { getTourById, getListItems } from '@/lib/lists';
+import { getTourWithStops } from '@/lib/lists';
 import { useTour } from '@/contexts/TourContext';
 import { useHunt } from '@/contexts/HuntContext';
 import type { Tour, ListItem } from '../../shared/schema';
@@ -42,10 +42,7 @@ export default function TourDetailScreen() {
   const loadTourData = useCallback(async () => {
     setLoading(true);
     try {
-      const [tourData, stopsData] = await Promise.all([
-        getTourById(tourId),
-        getListItems(tourId),
-      ]);
+      const { tour: tourData, stops: stopsData } = await getTourWithStops(tourId);
       setTour(tourData);
       setStops(stopsData);
     } catch (error) {
@@ -111,9 +108,8 @@ export default function TourDetailScreen() {
   }
 
   const heroImage = tour.metadata?.hero_image;
-  const difficulty = tour.metadata?.difficulty || 'Unknown';
-  const duration = tour.metadata?.duration || 'Unknown';
-  const distance = tour.metadata?.distance || 'Unknown';
+  const tourLength = tour.tour_length;
+  const duration = tour.metadata?.duration;
 
   return (
     <View style={styles.container}>
@@ -149,17 +145,21 @@ export default function TourDetailScreen() {
           <Text style={styles.title}>{tour.name}</Text>
 
           <View style={styles.statsRow}>
-            <View style={styles.statBadge}>
-              <Feather name="activity" size={14} color={Colors.dark.accent} />
-              <Text style={styles.statText}>{difficulty}</Text>
-            </View>
-            <View style={styles.statBadge}>
-              <Feather name="clock" size={14} color={Colors.dark.accent} />
-              <Text style={styles.statText}>{duration}</Text>
-            </View>
+            {tourLength ? (
+              <View style={styles.statBadge}>
+                <Feather name="navigation" size={14} color={Colors.dark.accent} />
+                <Text style={styles.statText}>{tourLength}</Text>
+              </View>
+            ) : null}
+            {duration ? (
+              <View style={styles.statBadge}>
+                <Feather name="clock" size={14} color={Colors.dark.accent} />
+                <Text style={styles.statText}>{duration}</Text>
+              </View>
+            ) : null}
             <View style={styles.statBadge}>
               <Feather name="map-pin" size={14} color={Colors.dark.accent} />
-              <Text style={styles.statText}>{distance}</Text>
+              <Text style={styles.statText}>{stops.length} {stops.length === 1 ? 'stop' : 'stops'}</Text>
             </View>
           </View>
 

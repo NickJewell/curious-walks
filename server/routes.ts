@@ -580,5 +580,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/tours/:tourId', async (req, res) => {
+    try {
+      const { tourId } = req.params;
+
+      const { data: tour, error: tourError } = await supabase
+        .from('lists')
+        .select('*')
+        .eq('id', tourId)
+        .eq('list_type', 'tour')
+        .single();
+
+      if (tourError || !tour) {
+        return res.status(404).json({ error: 'Tour not found' });
+      }
+
+      const { data: items, error: itemsError } = await supabase
+        .from('list_items')
+        .select('*')
+        .eq('list_uuid', tourId)
+        .order('order_index', { ascending: true });
+
+      let stops: any[] = [];
+      if (!itemsError && items && items.length > 0) {
+        const placeIds = items.map((item: any) => item.place_id);
+        const { data: places } = await supabase
+          .from('places')
+          .select('curio_id, name, detail_overview, lat, lon')
+          .in('curio_id', placeIds);
+
+        const placeMap: Record<string, any> = {};
+        if (places) {
+          for (const p of places) {
+            placeMap[p.curio_id] = p;
+          }
+        }
+
+        stops = items.map((item: any) => {
+          const place = placeMap[item.place_id];
+          return {
+            id: item.list_item_uuid,
+            list_id: item.list_uuid,
+            place_id: item.place_id,
+            place_name: place?.name || 'Unknown Place',
+            place_description: place?.detail_overview || '',
+            place_latitude: place?.lat || 0,
+            place_longitude: place?.lon || 0,
+            order_index: item.order_index,
+            created_at: item.created_at,
+          };
+        });
+      }
+
+      res.json({
+        tour: {
+          ...tour,
+          item_count: stops.length,
+          metadata: tour.metadata || {},
+        },
+        stops,
+      });
+    } catch (err) {
+      console.error('Error fetching tour detail:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   return createServer(app);
 }

@@ -217,27 +217,29 @@ export async function getOfficialTours(): Promise<Tour[]> {
   }
 }
 
-export async function getTourById(tourId: string): Promise<Tour | null> {
-  const { data, error } = await supabase
-    .from('lists')
-    .select('*')
-    .eq('id', tourId)
-    .eq('list_type', 'tour')
-    .single();
+export async function getTourWithStops(tourId: string): Promise<{ tour: Tour | null; stops: ListItem[] }> {
+  try {
+    const baseUrl = getApiUrl();
+    const url = new URL(`/api/tours/${tourId}`, baseUrl);
+    const res = await fetch(url, { credentials: 'include' });
 
-  if (error) {
-    console.error('Error fetching tour:', error.message);
-    return null;
+    if (!res.ok) {
+      console.error('Error fetching tour:', res.statusText);
+      return { tour: null, stops: [] };
+    }
+
+    const data = await res.json();
+    return {
+      tour: data.tour as Tour,
+      stops: data.stops as ListItem[],
+    };
+  } catch (error) {
+    console.error('Error fetching tour:', error);
+    return { tour: null, stops: [] };
   }
+}
 
-  const { count } = await supabase
-    .from('list_items')
-    .select('*', { count: 'exact', head: true })
-    .eq('list_id', tourId);
-
-  return {
-    ...data,
-    item_count: count || 0,
-    metadata: data.metadata || {},
-  } as Tour;
+export async function getTourById(tourId: string): Promise<Tour | null> {
+  const { tour } = await getTourWithStops(tourId);
+  return tour;
 }
