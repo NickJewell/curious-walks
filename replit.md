@@ -127,6 +127,7 @@ Preferred communication style: Simple, everyday language.
 - expo-symbols: System icons
 - expo-web-browser: External link handling
 - expo-sensors: Magnetometer for compass heading
+- expo-audio: Audio playback for place detail narrations
 
 **Geospatial Libraries:**
 - geolib: Bearing calculation and distance measurement for compass navigation
