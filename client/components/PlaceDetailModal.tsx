@@ -29,14 +29,6 @@ import { getApiUrl, apiRequest } from '@/lib/query-client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Curio } from '@/lib/supabase';
 
-function getAudioUrl(path: string): string {
-  if (path.startsWith('http://') || path.startsWith('https://')) {
-    return path;
-  }
-  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-  return `${supabaseUrl}/storage/v1/object/public/${path}`;
-}
-
 function formatTime(seconds: number): string {
   if (!isFinite(seconds) || seconds < 0) return '0:00';
   const mins = Math.floor(seconds / 60);
@@ -79,19 +71,47 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
   const [hasVotedUp, setHasVotedUp] = useState(false);
   const [hasVotedDown, setHasVotedDown] = useState(false);
   
-  const audioSource = place?.detailAudioPath ? getAudioUrl(place.detailAudioPath) : null;
   const hasAudio = !!place?.detailAudioPath;
-  const player = useAudioPlayer(audioSource, { updateInterval: 500 });
+  const [signedAudioUrl, setSignedAudioUrl] = useState<string | null>(null);
+  const [audioError, setAudioError] = useState(false);
+  const [audioLoading, setAudioLoading] = useState(false);
+
+  const player = useAudioPlayer(signedAudioUrl, { updateInterval: 500 });
   const status = useAudioPlayerStatus(player);
 
+  useEffect(() => {
+    if (visible && place?.id && hasAudio) {
+      setAudioError(false);
+      setAudioLoading(true);
+      const url = new URL(`/api/places/${encodeURIComponent(place.id)}/audio-url`, getApiUrl());
+      fetch(url.toString())
+        .then(r => {
+          if (!r.ok) throw new Error('Failed to fetch audio URL');
+          return r.json();
+        })
+        .then(data => {
+          setSignedAudioUrl(data.url);
+          setAudioLoading(false);
+        })
+        .catch(() => {
+          setAudioError(true);
+          setAudioLoading(false);
+        });
+    } else {
+      setSignedAudioUrl(null);
+      setAudioError(false);
+      setAudioLoading(false);
+    }
+  }, [visible, place?.id, hasAudio]);
+
   const handlePlayPause = useCallback(() => {
-    if (!hasAudio) return;
+    if (!hasAudio || !signedAudioUrl) return;
     if (status.playing) {
       player.pause();
     } else {
       player.play();
     }
-  }, [hasAudio, status.playing, player]);
+  }, [hasAudio, signedAudioUrl, status.playing, player]);
 
   const handleSeek = useCallback((locationX: number, layoutWidth: number) => {
     if (!hasAudio || !status.duration || status.duration <= 0) return;
@@ -349,26 +369,28 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
             <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
             <Pressable
               onPress={handlePlayPause}
-              disabled={!hasAudio}
+              disabled={!hasAudio || audioLoading || audioError || !signedAudioUrl}
               style={({ pressed }) => [
                 styles.audioPlayButton,
-                pressed && hasAudio && styles.audioPlayButtonPressed,
+                pressed && hasAudio && !audioLoading && styles.audioPlayButtonPressed,
               ]}
             >
-              {hasAudio && !status.isLoaded ? (
+              {audioLoading ? (
                 <ActivityIndicator size="small" color={Colors.dark.accent} />
+              ) : audioError ? (
+                <Feather name="alert-circle" size={32} color={Colors.dark.inactive} />
               ) : (
                 <Feather
                   name={status.playing ? 'pause-circle' : 'play-circle'}
                   size={32}
-                  color={hasAudio ? Colors.dark.accent : Colors.dark.inactive}
+                  color={hasAudio && signedAudioUrl ? Colors.dark.accent : Colors.dark.inactive}
                 />
               )}
             </Pressable>
             <View style={styles.audioDetails}>
               <Pressable
                 style={styles.audioProgressTouchable}
-                disabled={!hasAudio}
+                disabled={!hasAudio || !signedAudioUrl}
                 onPress={(e) => {
                   const { locationX } = e.nativeEvent;
                   handleSeek(locationX, SCREEN_WIDTH - Spacing.xl * 2 - Spacing.lg * 2 - 44 - Spacing.md);
@@ -379,17 +401,19 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
                     style={[
                       styles.audioProgressFill,
                       {
-                        width: hasAudio && status.duration > 0
+                        width: hasAudio && signedAudioUrl && status.duration > 0
                           ? `${Math.min(100, (status.currentTime / status.duration) * 100)}%`
                           : '0%',
-                        backgroundColor: hasAudio ? Colors.dark.accent : Colors.dark.inactive,
+                        backgroundColor: hasAudio && signedAudioUrl ? Colors.dark.accent : Colors.dark.inactive,
                       },
                     ]}
                   />
                 </View>
               </Pressable>
               <View style={styles.audioTimeRow}>
-                {hasAudio ? (
+                {audioError ? (
+                  <Text style={styles.audioUnavailableText}>Could not load audio</Text>
+                ) : hasAudio && signedAudioUrl ? (
                   <>
                     <Text style={styles.audioTimeText}>
                       {formatTime(status.currentTime)}
@@ -398,6 +422,8 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
                       {status.duration > 0 ? formatTime(status.duration) : '--:--'}
                     </Text>
                   </>
+                ) : hasAudio && audioLoading ? (
+                  <Text style={styles.audioUnavailableText}>Loading audio...</Text>
                 ) : (
                   <Text style={styles.audioUnavailableText}>Audio not yet available</Text>
                 )}

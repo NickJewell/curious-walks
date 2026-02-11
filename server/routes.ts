@@ -118,6 +118,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/places/:curioId/audio-url', async (req, res) => {
+    try {
+      const { curioId } = req.params;
+
+      const { data: place, error: placeError } = await supabase
+        .from('places')
+        .select('detail_audio_path')
+        .eq('curio_id', curioId)
+        .single();
+
+      if (placeError || !place?.detail_audio_path) {
+        return res.status(404).json({ error: 'No audio available for this place' });
+      }
+
+      const audioPath = place.detail_audio_path as string;
+      let bucket: string;
+      let filePath: string;
+
+      if (audioPath.startsWith('http')) {
+        const url = new URL(audioPath);
+        const parts = url.pathname.replace('/storage/v1/object/public/', '').split('/');
+        bucket = parts[0];
+        filePath = parts.slice(1).join('/');
+      } else {
+        const parts = audioPath.split('/');
+        bucket = parts[0];
+        filePath = parts.slice(1).join('/');
+      }
+
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(filePath, 3600);
+
+      if (error || !data?.signedUrl) {
+        console.error('Error creating signed URL:', error);
+        return res.status(500).json({ error: 'Could not generate audio URL' });
+      }
+
+      res.json({ url: data.signedUrl });
+    } catch (error) {
+      console.error('Error generating audio URL:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Get random facts for a place
   app.get('/api/places/:curioId/facts', async (req, res) => {
     try {
