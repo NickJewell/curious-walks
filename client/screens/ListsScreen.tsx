@@ -37,7 +37,7 @@ export default function ListsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { user, isGuest } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<TabOption>('lists');
+  const [activeTab, setActiveTab] = useState<TabOption>('tours');
   const [lists, setLists] = useState<ListWithItemCount[]>([]);
   const [tours, setTours] = useState<Tour[]>([]);
   const [loading, setLoading] = useState(true);
@@ -202,8 +202,8 @@ export default function ListsScreen() {
   };
 
   const renderTourCard = ({ item }: { item: Tour }) => {
-    const difficulty = item.metadata?.difficulty || 'Unknown';
-    const duration = item.metadata?.duration || 'Unknown';
+    const duration = item.metadata?.duration;
+    const tourLength = item.tour_length;
     const heroImage = item.metadata?.hero_image;
 
     return (
@@ -230,17 +230,22 @@ export default function ListsScreen() {
             {item.name}
           </Text>
           <View style={styles.tourCardMeta}>
-            <View style={styles.tourBadge}>
-              <Text style={styles.tourBadgeText}>{difficulty}</Text>
-            </View>
-            <View style={styles.tourBadge}>
-              <Feather name="clock" size={12} color={Colors.dark.textSecondary} />
-              <Text style={styles.tourBadgeText}>{duration}</Text>
-            </View>
-            <Text style={styles.tourCardStops}>
-              {item.item_count} {item.item_count === 1 ? 'stop' : 'stops'}
-            </Text>
+            {duration ? (
+              <View style={styles.tourBadge}>
+                <Feather name="clock" size={12} color={Colors.dark.textSecondary} />
+                <Text style={styles.tourBadgeText}>{duration}</Text>
+              </View>
+            ) : null}
+            {tourLength ? (
+              <View style={styles.tourBadge}>
+                <Feather name="navigation" size={12} color={Colors.dark.textSecondary} />
+                <Text style={styles.tourBadgeText}>{tourLength}</Text>
+              </View>
+            ) : null}
           </View>
+          <Text style={styles.tourCardStops}>
+            {item.item_count} {item.item_count === 1 ? 'stop' : 'stops'}
+          </Text>
         </View>
       </Pressable>
     );
@@ -293,22 +298,6 @@ export default function ListsScreen() {
       <Pressable
         style={[
           styles.segmentButton,
-          activeTab === 'lists' && styles.segmentButtonActive,
-        ]}
-        onPress={() => setActiveTab('lists')}
-      >
-        <Text
-          style={[
-            styles.segmentButtonText,
-            activeTab === 'lists' && styles.segmentButtonTextActive,
-          ]}
-        >
-          My Lists
-        </Text>
-      </Pressable>
-      <Pressable
-        style={[
-          styles.segmentButton,
           activeTab === 'tours' && styles.segmentButtonActive,
         ]}
         onPress={() => setActiveTab('tours')}
@@ -320,6 +309,22 @@ export default function ListsScreen() {
           ]}
         >
           Official Tours
+        </Text>
+      </Pressable>
+      <Pressable
+        style={[
+          styles.segmentButton,
+          activeTab === 'lists' && styles.segmentButtonActive,
+        ]}
+        onPress={() => setActiveTab('lists')}
+      >
+        <Text
+          style={[
+            styles.segmentButtonText,
+            activeTab === 'lists' && styles.segmentButtonTextActive,
+          ]}
+        >
+          My Lists
         </Text>
       </Pressable>
     </View>
