@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
+  SectionList,
   Pressable,
   TextInput,
   Modal,
@@ -130,6 +131,24 @@ export default function ListsScreen() {
     navigation.navigate('TourDetail', { tourId: tour.id });
   };
 
+  const tourSections = useMemo(() => {
+    const grouped: Record<string, Tour[]> = {};
+    for (const tour of tours) {
+      const region = tour.tour_start_region || tour.metadata?.tour_start_region || 'Other';
+      if (!grouped[region]) {
+        grouped[region] = [];
+      }
+      grouped[region].push(tour);
+    }
+    return Object.entries(grouped)
+      .sort(([a], [b]) => {
+        if (a === 'Other') return 1;
+        if (b === 'Other') return -1;
+        return a.localeCompare(b);
+      })
+      .map(([title, data]) => ({ title, data }));
+  }, [tours]);
+
   const renderRightActions = (listId: string, listName: string) => {
     return (
       <Pressable
@@ -218,10 +237,10 @@ export default function ListsScreen() {
               <Feather name="clock" size={12} color={Colors.dark.textSecondary} />
               <Text style={styles.tourBadgeText}>{duration}</Text>
             </View>
+            <Text style={styles.tourCardStops}>
+              {item.item_count} {item.item_count === 1 ? 'stop' : 'stops'}
+            </Text>
           </View>
-          <Text style={styles.tourCardStops}>
-            {item.item_count} {item.item_count === 1 ? 'stop' : 'stops'}
-          </Text>
         </View>
       </Pressable>
     );
@@ -309,9 +328,7 @@ export default function ListsScreen() {
   return (
     <GestureHandlerRootView style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
-        <Text style={styles.headerTitle}>
-          {activeTab === 'lists' ? 'My Lists' : 'Tours'}
-        </Text>
+        <Text style={styles.headerTitle}>Tours</Text>
         {activeTab === 'lists' && !isGuest ? (
           <Pressable
             style={({ pressed }) => [
@@ -348,13 +365,16 @@ export default function ListsScreen() {
           showsVerticalScrollIndicator={false}
         />
       ) : (
-        <FlatList
-          key="tours-flatlist"
-          data={tours}
+        <SectionList
+          key="tours-sectionlist"
+          sections={tourSections}
           keyExtractor={(item) => item.id}
-          renderItem={renderTourCard}
-          numColumns={2}
-          columnWrapperStyle={styles.tourGrid}
+          renderItem={({ item }) => renderTourCard({ item })}
+          renderSectionHeader={({ section: { title } }) => (
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionHeaderText}>{title}</Text>
+            </View>
+          )}
           contentContainerStyle={[
             styles.listContent,
             { paddingBottom: tabBarHeight + Spacing.xl },
@@ -362,6 +382,7 @@ export default function ListsScreen() {
           ]}
           ListEmptyComponent={renderEmptyState}
           showsVerticalScrollIndicator={false}
+          stickySectionHeadersEnabled={false}
         />
       )}
 
@@ -492,21 +513,27 @@ const styles = StyleSheet.create({
   emptyListContent: {
     flex: 1,
   },
-  tourGrid: {
-    gap: Spacing.md,
+  sectionHeader: {
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.sm,
+  },
+  sectionHeaderText: {
+    ...Typography.title,
+    color: Colors.dark.text,
   },
   tourCard: {
-    flex: 1,
-    maxWidth: '48%',
     backgroundColor: Colors.dark.backgroundSecondary,
     borderRadius: BorderRadius.md,
     overflow: 'hidden',
     marginBottom: Spacing.md,
+    flexDirection: 'row',
+    height: 120,
   },
   tourCardPressed: {
     opacity: 0.8,
   },
   tourCardImage: {
+    width: 120,
     height: 120,
     backgroundColor: Colors.dark.backgroundTertiary,
   },
@@ -517,7 +544,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.2)',
   },
   tourCardContent: {
+    flex: 1,
     padding: Spacing.md,
+    justifyContent: 'center',
   },
   tourCardTitle: {
     ...Typography.headline,

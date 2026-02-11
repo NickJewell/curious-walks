@@ -35,7 +35,7 @@ Preferred communication style: Simple, everyday language.
 - Haptic feedback on arrival
 - Map shows gold target marker and greyed other markers during hunt
 
-**Curated Lists ("My Lists" Feature):**
+**Curated Lists ("Tours" Tab):**
 - Authenticated users can create custom lists to save places
 - ListsScreen shows all user lists with item counts
 - Swipe-to-delete gesture for list removal
