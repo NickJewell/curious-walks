@@ -58,7 +58,7 @@ export default function MainTabNavigator() {
         name="ListsTab"
         component={ListsScreen}
         options={{
-          title: "My Lists",
+          title: "Tours",
           tabBarIcon: ({ color, size }) => (
             <Feather name="list" size={size} color={color} />
           ),

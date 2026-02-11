@@ -11,6 +11,7 @@ export interface TourMetadata {
   duration?: string;
   distance?: string;
   hero_image?: string;
+  tour_start_region?: string;
 }
 
 export interface UserList {
@@ -19,6 +20,7 @@ export interface UserList {
   name: string;
   description?: string;
   list_type?: 'list' | 'tour';
+  tour_start_region?: string;
   metadata?: TourMetadata;
   created_at: string;
   updated_at: string;
