@@ -141,7 +141,7 @@ function processPlaces(data: any[], lat: number, lng: number, limit: number): Cu
   return placesWithDistance.slice(0, limit).map(({ distance, ...place }) => place);
 }
 
-export async function getNearestCurios(lat: number, lng: number, limit: number = 20): Promise<Curio[]> {
+export async function getNearestCurios(lat: number, lng: number, limit: number = 10): Promise<Curio[]> {
   // Check if we have a recent cached result for nearby coordinates (within 100m)
   if (nearbyCache) {
     const cacheAge = Date.now() - nearbyCache.timestamp;
@@ -166,9 +166,9 @@ export async function getNearestCurios(lat: number, lng: number, limit: number =
       console.log('Starting Supabase places query...');
       const startTime = Date.now();
       
-      // Use bounding box to limit results - roughly 10km radius
-      const latDelta = 0.09; // ~10km
-      const lngDelta = 0.14; // ~10km at London latitude
+      // Use bounding box to limit results - roughly 2km radius
+      const latDelta = 0.018; // ~2km
+      const lngDelta = 0.028; // ~2km at London latitude
       const minLat = lat - latDelta;
       const maxLat = lat + latDelta;
       const minLng = lng - lngDelta;
@@ -183,7 +183,7 @@ export async function getNearestCurios(lat: number, lng: number, limit: number =
         .lte('latitude', maxLat)
         .gte('longitude', minLng)
         .lte('longitude', maxLng)
-        .limit(500);
+        .limit(200);
       
       if (error) {
         console.error('Error fetching places:', error.message, error);
