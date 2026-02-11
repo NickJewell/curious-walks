@@ -76,8 +76,16 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
   const [audioError, setAudioError] = useState(false);
   const [audioLoading, setAudioLoading] = useState(false);
 
+  const [shouldAutoPlay, setShouldAutoPlay] = useState(false);
   const player = useAudioPlayer(signedAudioUrl, { updateInterval: 500 });
   const status = useAudioPlayerStatus(player);
+
+  useEffect(() => {
+    if (shouldAutoPlay && status.isLoaded && !status.playing) {
+      player.play();
+      setShouldAutoPlay(false);
+    }
+  }, [shouldAutoPlay, status.isLoaded, status.playing, player]);
 
   useEffect(() => {
     if (visible && place?.id && hasAudio) {
@@ -91,6 +99,7 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
         })
         .then(data => {
           setSignedAudioUrl(data.url);
+          setShouldAutoPlay(true);
           setAudioLoading(false);
         })
         .catch(() => {
@@ -101,6 +110,7 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
       setSignedAudioUrl(null);
       setAudioError(false);
       setAudioLoading(false);
+      setShouldAutoPlay(false);
     }
   }, [visible, place?.id, hasAudio]);
 
