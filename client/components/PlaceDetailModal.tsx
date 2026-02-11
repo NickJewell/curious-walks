@@ -29,10 +29,12 @@ import { getApiUrl, apiRequest } from '@/lib/query-client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Curio } from '@/lib/supabase';
 
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-
 function getAudioUrl(path: string): string {
-  return `${SUPABASE_URL}/storage/v1/object/public/${path}`;
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+  return `${supabaseUrl}/storage/v1/object/public/${path}`;
 }
 
 function formatTime(seconds: number): string {
