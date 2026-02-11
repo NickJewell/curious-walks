@@ -1,4 +1,5 @@
 import { supabase, Curio } from './supabase';
+import { getApiUrl } from './query-client';
 import type { UserList, ListItem, ListWithItemCount, Tour } from '../../shared/schema';
 
 export async function getUserLists(userId: string): Promise<ListWithItemCount[]> {
@@ -93,7 +94,22 @@ export async function getListItems(listId: string): Promise<ListItem[]> {
     return [];
   }
 
-  return data || [];
+  if (data && data.length > 0) {
+    return data;
+  }
+
+  const { data: dataByUuid, error: uuidError } = await supabase
+    .from('list_items')
+    .select('*')
+    .eq('list_uuid', listId)
+    .order('order_index', { ascending: true });
+
+  if (uuidError) {
+    console.error('Error fetching list items by uuid:', uuidError.message);
+    return [];
+  }
+
+  return dataByUuid || [];
 }
 
 export async function addPlaceToList(
@@ -183,37 +199,22 @@ export async function getListById(listId: string): Promise<UserList | null> {
 }
 
 export async function getOfficialTours(): Promise<Tour[]> {
-  const { data: tours, error: toursError } = await supabase
-    .from('lists')
-    .select('*')
-    .eq('list_type', 'tour')
-    .order('created_at', { ascending: false });
+  try {
+    const baseUrl = getApiUrl();
+    const url = new URL('/api/tours', baseUrl);
+    const res = await fetch(url, { credentials: 'include' });
 
-  if (toursError) {
-    console.error('Error fetching tours:', toursError.message);
+    if (!res.ok) {
+      console.error('Error fetching tours:', res.statusText);
+      return [];
+    }
+
+    const data = await res.json();
+    return data as Tour[];
+  } catch (error) {
+    console.error('Error fetching tours:', error);
     return [];
   }
-
-  if (!tours || tours.length === 0) {
-    return [];
-  }
-
-  const toursWithCounts = await Promise.all(
-    tours.map(async (tour) => {
-      const { count } = await supabase
-        .from('list_items')
-        .select('*', { count: 'exact', head: true })
-        .eq('list_id', tour.id);
-
-      return {
-        ...tour,
-        item_count: count || 0,
-        metadata: tour.metadata || {},
-      } as Tour;
-    })
-  );
-
-  return toursWithCounts;
 }
 
 export async function getTourById(tourId: string): Promise<Tour | null> {

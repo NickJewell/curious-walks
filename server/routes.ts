@@ -535,5 +535,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/tours', async (req, res) => {
+    try {
+      const { data: tours, error: toursError } = await supabase
+        .from('lists')
+        .select('*')
+        .eq('list_type', 'tour')
+        .order('created_at', { ascending: false });
+
+      if (toursError) {
+        console.error('Error fetching tours:', toursError);
+        return res.status(500).json({ error: toursError.message });
+      }
+
+      if (!tours || tours.length === 0) {
+        return res.json([]);
+      }
+
+      const toursWithCounts = await Promise.all(
+        tours.map(async (tour) => {
+          const { data: items, error: itemsError } = await supabase
+            .from('list_items')
+            .select('place_id, place_uuid, order_index')
+            .eq('list_uuid', tour.id)
+            .order('order_index', { ascending: true });
+
+          let itemCount = 0;
+          if (!itemsError && items) {
+            itemCount = items.length;
+          }
+
+          return {
+            ...tour,
+            item_count: itemCount,
+            metadata: tour.metadata || {},
+          };
+        })
+      );
+
+      res.json(toursWithCounts);
+    } catch (err) {
+      console.error('Error fetching tours:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   return createServer(app);
 }
