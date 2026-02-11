@@ -23,10 +23,24 @@ import Animated, {
   withSequence,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
 import { getApiUrl, apiRequest } from '@/lib/query-client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Curio } from '@/lib/supabase';
+
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+
+function getAudioUrl(path: string): string {
+  return `${SUPABASE_URL}/storage/v1/object/public/${path}`;
+}
+
+function formatTime(seconds: number): string {
+  if (!isFinite(seconds) || seconds < 0) return '0:00';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -63,6 +77,33 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
   const [hasVotedUp, setHasVotedUp] = useState(false);
   const [hasVotedDown, setHasVotedDown] = useState(false);
   
+  const audioSource = place?.detailAudioPath ? getAudioUrl(place.detailAudioPath) : null;
+  const hasAudio = !!place?.detailAudioPath;
+  const player = useAudioPlayer(audioSource, { updateInterval: 500 });
+  const status = useAudioPlayerStatus(player);
+
+  const handlePlayPause = useCallback(() => {
+    if (!hasAudio) return;
+    if (status.playing) {
+      player.pause();
+    } else {
+      player.play();
+    }
+  }, [hasAudio, status.playing, player]);
+
+  const handleSeek = useCallback((locationX: number, layoutWidth: number) => {
+    if (!hasAudio || !status.duration || status.duration <= 0) return;
+    const ratio = Math.max(0, Math.min(1, locationX / layoutWidth));
+    player.seekTo(ratio * status.duration);
+  }, [hasAudio, status.duration, player]);
+
+  useEffect(() => {
+    if (!visible && player) {
+      player.pause();
+      player.seekTo(0);
+    }
+  }, [visible, player]);
+
   const thumbsUpScale = useSharedValue(1);
   const thumbsDownScale = useSharedValue(1);
 
@@ -302,13 +343,64 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
             </View>
           </View>
 
-          <View style={styles.audioPlayerPlaceholder}>
+          <View style={[styles.audioPlayerContainer, !hasAudio && styles.audioPlayerDisabled]}>
             <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
-            <Feather name="play-circle" size={28} color={Colors.dark.inactive} />
-            <View style={styles.audioProgress}>
-              <View style={styles.audioProgressBar} />
+            <Pressable
+              onPress={handlePlayPause}
+              disabled={!hasAudio}
+              style={({ pressed }) => [
+                styles.audioPlayButton,
+                pressed && hasAudio && styles.audioPlayButtonPressed,
+              ]}
+            >
+              {hasAudio && !status.isLoaded ? (
+                <ActivityIndicator size="small" color={Colors.dark.accent} />
+              ) : (
+                <Feather
+                  name={status.playing ? 'pause-circle' : 'play-circle'}
+                  size={32}
+                  color={hasAudio ? Colors.dark.accent : Colors.dark.inactive}
+                />
+              )}
+            </Pressable>
+            <View style={styles.audioDetails}>
+              <Pressable
+                style={styles.audioProgressTouchable}
+                disabled={!hasAudio}
+                onPress={(e) => {
+                  const { locationX } = e.nativeEvent;
+                  handleSeek(locationX, SCREEN_WIDTH - Spacing.xl * 2 - Spacing.lg * 2 - 44 - Spacing.md);
+                }}
+              >
+                <View style={styles.audioProgressTrack}>
+                  <View
+                    style={[
+                      styles.audioProgressFill,
+                      {
+                        width: hasAudio && status.duration > 0
+                          ? `${Math.min(100, (status.currentTime / status.duration) * 100)}%`
+                          : '0%',
+                        backgroundColor: hasAudio ? Colors.dark.accent : Colors.dark.inactive,
+                      },
+                    ]}
+                  />
+                </View>
+              </Pressable>
+              <View style={styles.audioTimeRow}>
+                {hasAudio ? (
+                  <>
+                    <Text style={styles.audioTimeText}>
+                      {formatTime(status.currentTime)}
+                    </Text>
+                    <Text style={styles.audioTimeText}>
+                      {status.duration > 0 ? formatTime(status.duration) : '--:--'}
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={styles.audioUnavailableText}>Audio not yet available</Text>
+                )}
+              </View>
             </View>
-            <Text style={styles.audioDisabledText}>Audio coming soon</Text>
           </View>
 
           <Text style={styles.narrative}>
@@ -507,7 +599,7 @@ const styles = StyleSheet.create({
   voteButton: {
     padding: Spacing.sm,
   },
-  audioPlayerPlaceholder: {
+  audioPlayerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: Spacing.lg,
@@ -517,21 +609,47 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     backgroundColor: 'rgba(30, 36, 46, 0.6)',
   },
-  audioProgress: {
+  audioPlayerDisabled: {
+    opacity: 0.45,
+  },
+  audioPlayButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  audioPlayButtonPressed: {
+    opacity: 0.6,
+  },
+  audioDetails: {
     flex: 1,
+    gap: Spacing.xs,
+  },
+  audioProgressTouchable: {
+    paddingVertical: Spacing.xs,
+  },
+  audioProgressTrack: {
     height: 4,
     backgroundColor: Colors.dark.backgroundTertiary,
     borderRadius: 2,
+    overflow: 'hidden',
   },
-  audioProgressBar: {
-    width: '0%',
+  audioProgressFill: {
     height: '100%',
-    backgroundColor: Colors.dark.accent,
     borderRadius: 2,
   },
-  audioDisabledText: {
-    fontSize: 12,
+  audioTimeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  audioTimeText: {
+    fontSize: 11,
     color: Colors.dark.textSecondary,
+    fontVariant: ['tabular-nums'],
+  },
+  audioUnavailableText: {
+    fontSize: 12,
+    color: Colors.dark.inactive,
   },
   narrative: {
     fontSize: 17,
