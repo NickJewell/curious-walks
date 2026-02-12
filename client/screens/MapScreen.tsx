@@ -224,30 +224,44 @@ export default function MapScreen() {
 
   useEffect(() => {
     let didLoad = false;
+    let cancelled = false;
     
     const loadWithLocation = async () => {
       console.log('[MapScreen] Starting location request...');
       try {
-        const permissionResult = await Promise.race([
-          Location.requestForegroundPermissionsAsync(),
-          new Promise<{ status: string }>((_, reject) => 
-            setTimeout(() => reject(new Error('Permission timeout')), 5000)
-          ),
-        ]);
-        
-        const { status } = permissionResult;
+        const lastKnown = await Location.getLastKnownPositionAsync();
+        if (lastKnown && !didLoad && !cancelled) {
+          console.log('[MapScreen] Using last known position:', lastKnown.coords.latitude, lastKnown.coords.longitude);
+          const coords = {
+            latitude: lastKnown.coords.latitude,
+            longitude: lastKnown.coords.longitude,
+          };
+          setUserLocation(coords);
+          setMapCenter(coords);
+          setLastSearchCenter(coords);
+          didLoad = true;
+
+          mapRef.current?.animateToRegion({
+            ...coords,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          }, 500);
+
+          loadCurios(coords.latitude, coords.longitude);
+        }
+      } catch (e) {
+        console.log('[MapScreen] No last known position available');
+      }
+
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
         console.log('[MapScreen] Location permission status:', status);
         
-        if (status === "granted" && !didLoad) {
+        if (status === "granted" && !cancelled) {
           console.log('[MapScreen] Getting current position...');
-          const location = await Promise.race([
-            Location.getCurrentPositionAsync({
-              accuracy: Location.Accuracy.Balanced,
-            }),
-            new Promise<Location.LocationObject>((_, reject) => 
-              setTimeout(() => reject(new Error('Position timeout')), 10000)
-            ),
-          ]);
+          const location = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
           console.log('[MapScreen] Got position:', location.coords.latitude, location.coords.longitude);
           
           const coords = {
@@ -264,17 +278,19 @@ export default function MapScreen() {
             longitudeDelta: 0.01,
           }, 500);
           
-          console.log('[MapScreen] Calling loadCurios...');
-          didLoad = true;
-          loadCurios(coords.latitude, coords.longitude);
-        } else if (!didLoad) {
+          if (!didLoad) {
+            console.log('[MapScreen] Calling loadCurios...');
+            didLoad = true;
+            loadCurios(coords.latitude, coords.longitude);
+          }
+        } else if (!didLoad && !cancelled) {
           console.log('[MapScreen] Permission denied, using London center');
           didLoad = true;
           loadCurios(LONDON_CENTER.latitude, LONDON_CENTER.longitude);
         }
       } catch (error) {
         console.error('[MapScreen] Location error:', error);
-        if (!didLoad) {
+        if (!didLoad && !cancelled) {
           console.log('[MapScreen] Falling back to London center');
           didLoad = true;
           loadCurios(LONDON_CENTER.latitude, LONDON_CENTER.longitude);
@@ -284,16 +300,18 @@ export default function MapScreen() {
 
     loadWithLocation();
     
-    // Fallback: if nothing loads in 8 seconds, load London
     const fallbackTimer = setTimeout(() => {
-      if (!didLoad) {
+      if (!didLoad && !cancelled) {
         console.log('[MapScreen] Fallback timer triggered, loading London center');
         didLoad = true;
         loadCurios(LONDON_CENTER.latitude, LONDON_CENTER.longitude);
       }
-    }, 8000);
+    }, 15000);
     
-    return () => clearTimeout(fallbackTimer);
+    return () => {
+      cancelled = true;
+      clearTimeout(fallbackTimer);
+    };
   }, []);
 
   useEffect(() => {
