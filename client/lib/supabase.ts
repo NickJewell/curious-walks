@@ -223,7 +223,7 @@ export async function getCuriosInBounds(
         .lte('lat', maxLat)
         .gte('lon', minLng)
         .lte('lon', maxLng)
-        .limit(500);
+        .limit(1000);
 
       if (error) {
         console.error('Error fetching bounds places:', error.message);
@@ -232,7 +232,7 @@ export async function getCuriosInBounds(
 
       if (!data || data.length === 0) return [];
 
-      return processPlaces(data, centerLat, centerLng, 500);
+      return processPlaces(data, centerLat, centerLng, 1000);
     } catch (error) {
       console.error('Error fetching bounds places:', error);
       return [];
