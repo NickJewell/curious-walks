@@ -286,6 +286,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         source_id: sourceId,
         source_type: sourceType || 'place',
         issue_type: issueType,
+        user_id: userId || null,
       };
       if (issueType === 'other' && otherDesc) {
         row.other_desc = String(otherDesc).slice(0, 200);
