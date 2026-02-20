@@ -400,19 +400,7 @@ export default function MapScreen() {
     }
   };
 
-  const autoRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const loadNearbyPlaces = useCallback(async (lat: number, lng: number) => {
-    try {
-      const data = await getCuriosNearPoint(lat, lng, 1000);
-      if (data.length > 0) {
-        setCurios(data);
-        setLastSearchCenter({ latitude: lat, longitude: lng });
-      }
-    } catch (error) {
-      console.error("Error loading nearby places:", error);
-    }
-  }, []);
+  const [showSearchHere, setShowSearchHere] = useState(false);
 
   const onRegionChangeComplete = useCallback((region: Region) => {
     const newCenter = { latitude: region.latitude, longitude: region.longitude };
@@ -420,13 +408,20 @@ export default function MapScreen() {
     
     if (!initialLoadDone.current) return;
 
-    if (autoRefreshTimer.current) {
-      clearTimeout(autoRefreshTimer.current);
+    const dist = Math.sqrt(
+      Math.pow(newCenter.latitude - lastSearchCenter.latitude, 2) +
+      Math.pow(newCenter.longitude - lastSearchCenter.longitude, 2)
+    );
+    if (dist > 0.003) {
+      setShowSearchHere(true);
     }
-    autoRefreshTimer.current = setTimeout(() => {
-      loadNearbyPlaces(region.latitude, region.longitude);
-    }, 400);
-  }, [loadNearbyPlaces]);
+  }, [lastSearchCenter]);
+
+  const handleSearchHere = () => {
+    setShowSearchHere(false);
+    setSelectedCurio(null);
+    loadCurios(mapCenter.latitude, mapCenter.longitude);
+  };
 
   const centerOnUser = async () => {
     try {
@@ -607,6 +602,23 @@ export default function MapScreen() {
           </View>
         ) : null}
       </View>
+
+      {showSearchHere || !loading ? (
+        <View style={[styles.searchHereContainer, { top: insets.top + Spacing.md + 60 }]}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.searchHereBtn,
+              pressed && styles.searchHereBtnPressed,
+            ]}
+            onPress={handleSearchHere}
+          >
+            <Feather name="refresh-cw" size={14} color="#fff" />
+            <Text style={styles.searchHereBtnText}>
+              {loading ? "Loading..." : showSearchHere ? "Search here" : `${curios.length} places nearby`}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <View style={[styles.topControls, { top: insets.top + Spacing.md + 60 }]}>
         <Pressable
@@ -1009,30 +1021,26 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  searchAreaButtonContainer: {
+  searchHereContainer: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    alignItems: "center",
+    alignSelf: "center",
+    zIndex: 50,
   },
-  searchButton: {
+  searchHereBtn: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "rgba(30,30,30,0.9)",
+    paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    overflow: "hidden",
-    backgroundColor: "rgba(21, 26, 35, 0.9)",
+    borderRadius: BorderRadius.full,
+    gap: Spacing.xs,
   },
-  searchButtonPressed: {
-    opacity: 0.8,
+  searchHereBtnPressed: {
+    opacity: 0.7,
   },
-  searchIcon: {
-    marginRight: Spacing.xs,
-  },
-  searchButtonText: {
-    color: Colors.dark.text,
-    ...Typography.body,
+  searchHereBtnText: {
+    color: "#fff",
+    ...Typography.caption,
     fontWeight: "600",
   },
   huntButton: {
