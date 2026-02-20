@@ -273,32 +273,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Submit content report
-  app.post('/api/content/report', async (req, res) => {
+  // Submit content issue
+  app.post('/api/content/issue', async (req, res) => {
     try {
-      const { curioId, reason, comment, userId } = req.body;
+      const { curioId, sourceType, issueType, otherDesc, userId } = req.body;
       
-      if (!curioId || !reason) {
-        return res.status(400).json({ error: 'curioId and reason are required' });
+      if (!curioId || !issueType) {
+        return res.status(400).json({ error: 'curioId and issueType are required' });
+      }
+
+      const row: Record<string, any> = {
+        curio_id: curioId,
+        source_type: sourceType || 'place',
+        issue_type: issueType,
+        user_id: userId || null,
+      };
+      if (issueType === 'other' && otherDesc) {
+        row.other_desc = String(otherDesc).slice(0, 200);
       }
 
       const { data, error } = await supabase
-        .from('content_reports')
-        .insert({
-          curio_id: curioId,
-          reason: reason,
-          comment: comment || null,
-          user_id: userId || null,
-        })
+        .from('issues')
+        .insert(row)
         .select()
         .single();
 
       if (error) {
-        console.log('Report error (table may not exist):', error.message);
-        return res.status(500).json({ error: 'Could not save report. Table may not exist.' });
+        console.log('Issue insert error:', error.message);
+        return res.status(500).json({ error: 'Could not save issue.' });
       }
 
-      res.json({ success: true, report: data });
+      res.json({ success: true, issue: data });
     } catch (err) {
       res.status(500).json({ error: 'Internal server error' });
     }

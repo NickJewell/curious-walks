@@ -55,8 +55,15 @@ interface PlaceDetailModalProps {
   onClose: () => void;
 }
 
-const REPORT_REASONS = ['Inaccurate', 'Typo', 'Offensive', 'Other'] as const;
-type ReportReason = typeof REPORT_REASONS[number];
+const ISSUE_TYPES = [
+  { key: 'incorrect_location', label: 'Incorrect Location' },
+  { key: 'incorrect_info', label: 'Incorrect Info' },
+  { key: 'typo', label: 'Typo' },
+  { key: 'bad_audio', label: 'Bad Audio' },
+  { key: 'offensive', label: 'Offensive' },
+  { key: 'other', label: 'Other' },
+] as const;
+type IssueType = typeof ISSUE_TYPES[number]['key'];
 
 export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetailModalProps) {
   const insets = useSafeAreaInsets();
@@ -69,8 +76,8 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
   const [loadingFacts, setLoadingFacts] = useState(false);
   
   const [showReportModal, setShowReportModal] = useState(false);
-  const [reportReason, setReportReason] = useState<ReportReason>('Inaccurate');
-  const [reportComment, setReportComment] = useState('');
+  const [issueType, setIssueType] = useState<IssueType>('incorrect_info');
+  const [otherDesc, setOtherDesc] = useState('');
   const [submittingReport, setSubmittingReport] = useState(false);
   
   const [hasVotedUp, setHasVotedUp] = useState(false);
@@ -366,15 +373,14 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
     
     setSubmittingReport(true);
     try {
-      // Submit report
-      await apiRequest('POST', '/api/content/report', {
+      await apiRequest('POST', '/api/content/issue', {
         curioId: place.id,
-        reason: reportReason,
-        comment: reportComment,
+        sourceType: 'place',
+        issueType: issueType,
+        otherDesc: issueType === 'other' ? otherDesc.slice(0, 200) : null,
         userId: user?.id || null,
       });
       
-      // Remove any existing up vote first
       if (hasVotedUp) {
         await apiRequest('DELETE', '/api/content/vote', {
           curioId: place.id,
@@ -384,7 +390,6 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
         setHasVotedUp(false);
       }
       
-      // Submit a down vote
       await apiRequest('POST', '/api/content/vote', {
         curioId: place.id,
         voteType: 'down',
@@ -393,10 +398,11 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
       
       setHasVotedDown(true);
       setShowReportModal(false);
-      setReportComment('');
+      setOtherDesc('');
+      setIssueType('incorrect_info');
       Alert.alert('Thank you', "We'll look into it.");
     } catch (error) {
-      console.error('Error submitting report:', error);
+      console.error('Error submitting issue:', error);
       Alert.alert('Error', 'Could not submit report. Please try again.');
     } finally {
       setSubmittingReport(false);
@@ -658,44 +664,50 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
               
               <Text style={styles.reportLabel}>What's wrong?</Text>
               <View style={styles.reasonButtons}>
-                {REPORT_REASONS.map((reason) => (
+                {ISSUE_TYPES.map((issue) => (
                   <Pressable
-                    key={reason}
+                    key={issue.key}
                     style={[
                       styles.reasonButton,
-                      reportReason === reason && styles.reasonButtonActive,
+                      issueType === issue.key && styles.reasonButtonActive,
                     ]}
-                    onPress={() => setReportReason(reason)}
+                    onPress={() => setIssueType(issue.key)}
                   >
                     <Text
                       style={[
                         styles.reasonButtonText,
-                        reportReason === reason && styles.reasonButtonTextActive,
+                        issueType === issue.key && styles.reasonButtonTextActive,
                       ]}
                     >
-                      {reason}
+                      {issue.label}
                     </Text>
                   </Pressable>
                 ))}
               </View>
 
-              <Text style={styles.reportLabel}>Additional details (optional)</Text>
-              <TextInput
-                style={styles.reportCommentInput}
-                placeholder="Tell us more..."
-                placeholderTextColor={Colors.dark.textSecondary}
-                value={reportComment}
-                onChangeText={setReportComment}
-                multiline
-                numberOfLines={3}
-              />
+              {issueType === 'other' ? (
+                <>
+                  <Text style={styles.reportLabel}>Please describe ({200 - otherDesc.length} chars left)</Text>
+                  <TextInput
+                    style={styles.reportCommentInput}
+                    placeholder="Tell us more..."
+                    placeholderTextColor={Colors.dark.textSecondary}
+                    value={otherDesc}
+                    onChangeText={(text) => setOtherDesc(text.slice(0, 200))}
+                    multiline
+                    numberOfLines={3}
+                    maxLength={200}
+                  />
+                </>
+              ) : null}
 
               <View style={styles.reportButtons}>
                 <Pressable
                   style={styles.reportCancelButton}
                   onPress={() => {
                     setShowReportModal(false);
-                    setReportComment('');
+                    setOtherDesc('');
+                    setIssueType('incorrect_info');
                   }}
                 >
                   <Text style={styles.reportCancelText}>Cancel</Text>
