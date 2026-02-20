@@ -45,6 +45,10 @@ interface Fact {
   fact_info: string;
 }
 
+function stripUrls(text: string): string {
+  return text.replace(/https?:\/\/[^\s)>\]]+/gi, '').replace(/\s{2,}/g, ' ').trim();
+}
+
 interface PlaceDetailModalProps {
   visible: boolean;
   place: Curio | null;
@@ -594,7 +598,7 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
                       </Pressable>
                     </View>
                   </View>
-                  <Text style={styles.factText}>{currentFact.fact_info}</Text>
+                  <Text style={styles.factText}>{stripUrls(currentFact.fact_info)}</Text>
                   <Text style={styles.tapAgainText}>Tap for another fact</Text>
                 </Animated.View>
               ) : (
