@@ -25,6 +25,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
+import SafeMapView, { Marker, isMapAvailable } from '@/components/SafeMapView';
 import { getApiUrl, apiRequest } from '@/lib/query-client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Curio } from '@/lib/supabase';
@@ -399,9 +400,39 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
     >
       <View style={[styles.container, { backgroundColor: Colors.dark.backgroundRoot }]}>
         <View style={[styles.heroSection, { paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
-          <View style={styles.heroPlaceholder}>
-            <Feather name="map-pin" size={48} color={Colors.dark.accent} />
-          </View>
+          {isMapAvailable && place.latitude && place.longitude ? (
+            <SafeMapView
+              style={StyleSheet.absoluteFill}
+              initialRegion={{
+                latitude: place.latitude,
+                longitude: place.longitude,
+                latitudeDelta: 0.003,
+                longitudeDelta: 0.003,
+              }}
+              scrollEnabled={false}
+              zoomEnabled={false}
+              rotateEnabled={false}
+              pitchEnabled={false}
+              showsUserLocation={false}
+              showsMyLocationButton={false}
+              userInterfaceStyle="dark"
+              pointerEvents="none"
+            >
+              {Marker ? (
+                <Marker
+                  coordinate={{
+                    latitude: place.latitude,
+                    longitude: place.longitude,
+                  }}
+                  tracksViewChanges={false}
+                />
+              ) : null}
+            </SafeMapView>
+          ) : (
+            <View style={styles.heroPlaceholder}>
+              <Feather name="map-pin" size={48} color={Colors.dark.accent} />
+            </View>
+          )}
           
           <Pressable
             style={({ pressed }) => [
