@@ -23,6 +23,7 @@ import Animated, {
   withSequence,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as WebBrowser from 'expo-web-browser';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
 import { getApiUrl, apiRequest } from '@/lib/query-client';
@@ -562,7 +563,26 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
                       </Pressable>
                     </View>
                   </View>
-                  <Text style={styles.factText}>{currentFact.fact_info}</Text>
+                  {(() => {
+                    const urlRegex = /https?:\/\/[^\s)]+/g;
+                    const urls = currentFact.fact_info.match(urlRegex) || [];
+                    const textWithoutUrls = currentFact.fact_info.replace(urlRegex, '').trim();
+                    return (
+                      <>
+                        <Text style={styles.factText}>{textWithoutUrls}</Text>
+                        {urls.map((url, i) => (
+                          <Pressable
+                            key={i}
+                            onPress={() => WebBrowser.openBrowserAsync(url)}
+                            style={styles.externalLinkRow}
+                          >
+                            <Feather name="external-link" size={14} color={Colors.dark.accent} />
+                            <Text style={styles.externalLinkText}>External Link</Text>
+                          </Pressable>
+                        ))}
+                      </>
+                    );
+                  })()}
                   <Text style={styles.tapAgainText}>Tap for another fact</Text>
                 </Animated.View>
               ) : (
@@ -835,6 +855,17 @@ const styles = StyleSheet.create({
   },
   factVoteBtn: {
     padding: Spacing.xs,
+  },
+  externalLinkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: Spacing.sm,
+  },
+  externalLinkText: {
+    fontSize: 14,
+    color: Colors.dark.accent,
+    fontWeight: '600',
   },
   factText: {
     fontSize: 16,
