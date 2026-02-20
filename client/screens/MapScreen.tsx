@@ -24,7 +24,7 @@ import { BlurView } from "expo-blur";
 import * as Location from "expo-location";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
-import { getNearestCurios, getCuriosInBounds, searchCurios, Curio } from "@/lib/supabase";
+import { getNearestCurios, getCuriosNearPoint, searchCurios, Curio } from "@/lib/supabase";
 import { useHunt } from "@/contexts/HuntContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCheckins } from "@/contexts/CheckinContext";
@@ -385,30 +385,13 @@ export default function MapScreen() {
     Keyboard.dismiss();
   };
 
-  const loadCurios = async (lat: number, lng: number, fitToBounds: boolean = true) => {
+  const loadCurios = async (lat: number, lng: number) => {
     setLoading(true);
     try {
-      const data = await getNearestCurios(lat, lng, 20);
+      const data = await getCuriosNearPoint(lat, lng, 1000);
       setCurios(data);
       setLastSearchCenter({ latitude: lat, longitude: lng });
-      if (fitToBounds && data.length > 0 && mapRef.current) {
-        const coordinates = data.map(c => ({
-          latitude: c.latitude,
-          longitude: c.longitude,
-        }));
-        
-        setTimeout(() => {
-          mapRef.current?.fitToCoordinates(coordinates, {
-            edgePadding: { top: 150, right: 50, bottom: 150, left: 50 },
-            animated: true,
-          });
-          setTimeout(() => {
-            initialLoadDone.current = true;
-          }, 800);
-        }, 100);
-      } else {
-        initialLoadDone.current = true;
-      }
+      initialLoadDone.current = true;
     } catch (error) {
       console.error("Error loading curios:", error);
       initialLoadDone.current = true;
@@ -419,20 +402,15 @@ export default function MapScreen() {
 
   const autoRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadBoundsPlaces = useCallback(async (region: Region) => {
-    const minLat = region.latitude - region.latitudeDelta / 2;
-    const maxLat = region.latitude + region.latitudeDelta / 2;
-    const minLng = region.longitude - region.longitudeDelta / 2;
-    const maxLng = region.longitude + region.longitudeDelta / 2;
-    
+  const loadNearbyPlaces = useCallback(async (lat: number, lng: number) => {
     try {
-      const data = await getCuriosInBounds(minLat, maxLat, minLng, maxLng);
+      const data = await getCuriosNearPoint(lat, lng, 1000);
       if (data.length > 0) {
         setCurios(data);
-        setLastSearchCenter({ latitude: region.latitude, longitude: region.longitude });
+        setLastSearchCenter({ latitude: lat, longitude: lng });
       }
     } catch (error) {
-      console.error("Error loading bounds places:", error);
+      console.error("Error loading nearby places:", error);
     }
   }, []);
 
@@ -446,9 +424,9 @@ export default function MapScreen() {
       clearTimeout(autoRefreshTimer.current);
     }
     autoRefreshTimer.current = setTimeout(() => {
-      loadBoundsPlaces(region);
+      loadNearbyPlaces(region.latitude, region.longitude);
     }, 400);
-  }, [loadBoundsPlaces]);
+  }, [loadNearbyPlaces]);
 
   const centerOnUser = async () => {
     try {

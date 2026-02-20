@@ -202,44 +202,45 @@ export async function getNearestCurios(lat: number, lng: number, limit: number =
   return fetchInProgress;
 }
 
-let boundsFetchInProgress: Promise<Curio[]> | null = null;
+let radiusFetchInProgress: Promise<Curio[]> | null = null;
 
-export async function getCuriosInBounds(
-  minLat: number, maxLat: number, minLng: number, maxLng: number
+export async function getCuriosNearPoint(
+  lat: number, lng: number, radiusMeters: number = 1000
 ): Promise<Curio[]> {
-  if (boundsFetchInProgress) {
-    return boundsFetchInProgress;
+  if (radiusFetchInProgress) {
+    return radiusFetchInProgress;
   }
 
-  const centerLat = (minLat + maxLat) / 2;
-  const centerLng = (minLng + maxLng) / 2;
+  const latDelta = radiusMeters / 111320;
+  const lngDelta = radiusMeters / (111320 * Math.cos(lat * Math.PI / 180));
 
-  boundsFetchInProgress = (async () => {
+  radiusFetchInProgress = (async () => {
     try {
       const { data, error } = await supabase
         .from('places')
         .select('*')
-        .gte('lat', minLat)
-        .lte('lat', maxLat)
-        .gte('lon', minLng)
-        .lte('lon', maxLng)
-        .limit(1000);
+        .gte('lat', lat - latDelta)
+        .lte('lat', lat + latDelta)
+        .gte('lon', lng - lngDelta)
+        .lte('lon', lng + lngDelta)
+        .limit(500);
 
       if (error) {
-        console.error('Error fetching bounds places:', error.message);
+        console.error('Error fetching nearby places:', error.message);
         return [];
       }
 
       if (!data || data.length === 0) return [];
 
-      return processPlaces(data, centerLat, centerLng, 1000);
+      const allPlaces = processPlaces(data, lat, lng, 500);
+      return allPlaces.filter(p => calculateDistance(lat, lng, p.latitude, p.longitude) <= radiusMeters);
     } catch (error) {
-      console.error('Error fetching bounds places:', error);
+      console.error('Error fetching nearby places:', error);
       return [];
     } finally {
-      boundsFetchInProgress = null;
+      radiusFetchInProgress = null;
     }
   })();
 
-  return boundsFetchInProgress;
+  return radiusFetchInProgress;
 }
