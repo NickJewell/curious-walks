@@ -238,7 +238,7 @@ export default function AdminEditScreen() {
           <Feather name="arrow-left" size={22} color="#fff" />
         </Pressable>
         <View style={styles.headerTextWrap}>
-          <Text style={styles.headerTitle} numberOfLines={1}>{curioName || curioId}</Text>
+          <Text style={styles.headerTitle} numberOfLines={1} selectable>{curioName || curioId}</Text>
           <Text style={styles.headerSubtitle}>{curioId}</Text>
         </View>
       </View>
