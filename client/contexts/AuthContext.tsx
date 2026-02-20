@@ -12,12 +12,15 @@ interface UserProfile {
   full_name: string | null;
 }
 
+const ADMIN_EMAIL = 'nick.jewell@gmail.com';
+
 interface AuthContextType {
   session: Session | null;
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
   isGuest: boolean;
+  isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, fullName?: string) => Promise<{ error: string | null; needsEmailConfirmation?: boolean }>;
   signInWithGoogle: () => Promise<{ error: string | null }>;
@@ -245,7 +248,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, loading, isGuest, signIn, signUp, signInWithGoogle, signOut, continueAsGuest }}>
+    <AuthContext.Provider value={{ session, user, profile, loading, isGuest, isAdmin: !!(user?.email && user.email.toLowerCase() === ADMIN_EMAIL), signIn, signUp, signInWithGoogle, signOut, continueAsGuest }}>
       {children}
     </AuthContext.Provider>
   );
