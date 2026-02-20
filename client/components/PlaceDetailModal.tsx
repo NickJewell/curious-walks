@@ -25,7 +25,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
-import SafeMapView, { Marker, isMapAvailable } from '@/components/SafeMapView';
+import SafeMapView, { Marker, isMapAvailable, PROVIDER_GOOGLE } from '@/components/SafeMapView';
 import { getApiUrl, apiRequest } from '@/lib/query-client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Curio } from '@/lib/supabase';
@@ -403,6 +403,7 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
           {isMapAvailable && place.latitude && place.longitude ? (
             <SafeMapView
               style={StyleSheet.absoluteFill}
+              provider={PROVIDER_GOOGLE}
               initialRegion={{
                 latitude: place.latitude,
                 longitude: place.longitude,
