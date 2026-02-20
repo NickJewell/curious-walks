@@ -121,7 +121,7 @@ export default function LoginScreen() {
           <Text style={styles.title}>Discover</Text>
           <Text style={styles.titleAccent}>Hidden London</Text>
           <Text style={styles.subtitle}>
-            Uncover mysteries, legends, and forgotten stories scattered across the city
+            {"Uncover mysteries, legends,\nand forgotten stories scattered\nacross the city."}
           </Text>
         </View>
 
