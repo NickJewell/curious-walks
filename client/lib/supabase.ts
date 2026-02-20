@@ -147,86 +147,49 @@ function processPlaces(data: any[], lat: number, lng: number, limit: number): Cu
 }
 
 export async function getNearestCurios(lat: number, lng: number, limit: number = 10): Promise<Curio[]> {
-  // Check if we have a recent cached result for nearby coordinates (within 100m)
   if (nearbyCache) {
     const cacheAge = Date.now() - nearbyCache.timestamp;
     const cacheDistance = calculateDistance(lat, lng, nearbyCache.lat, nearbyCache.lng);
-    // Use cache if it's less than 30 seconds old and within 100 meters
     if (cacheAge < 30000 && cacheDistance < 100) {
-      console.log('Using cached places data');
       return nearbyCache.data.slice(0, limit);
     }
   }
   
-  // If a fetch is already in progress, wait for it
   if (fetchInProgress) {
-    console.log('Waiting for existing fetch to complete');
     return fetchInProgress;
   }
   
-  console.log('Fetching places near:', lat, lng);
-  
   fetchInProgress = (async () => {
     try {
-      console.log('Starting Supabase places query...');
-      const startTime = Date.now();
-      
-      // Use bounding box to limit results - roughly 2km radius
-      const latDelta = 0.018; // ~2km
-      const lngDelta = 0.028; // ~2km at London latitude
-      const minLat = lat - latDelta;
-      const maxLat = lat + latDelta;
-      const minLng = lng - lngDelta;
-      const maxLng = lng + lngDelta;
-      
-      console.log(`Querying bounding box: lat ${minLat}-${maxLat}, lng ${minLng}-${maxLng}`);
+      const latDelta = 0.018;
+      const lngDelta = 0.028;
       
       const { data, error } = await supabase
         .from('places')
         .select('*')
-        .gte('lat', minLat)
-        .lte('lat', maxLat)
-        .gte('lon', minLng)
-        .lte('lon', maxLng)
+        .gte('lat', lat - latDelta)
+        .lte('lat', lat + latDelta)
+        .gte('lon', lng - lngDelta)
+        .lte('lon', lng + lngDelta)
         .limit(200);
       
       if (error) {
-        console.error('Error fetching places:', error.message, error);
+        console.error('Error fetching places:', error.message);
         return [];
       }
-      
-      console.log(`Query completed: ${data?.length || 0} records in ${Date.now() - startTime}ms`);
 
       if (!data || data.length === 0) {
-        console.log('No places found in bounding box, trying wider search...');
-        // Fallback: fetch a sample of places if bounding box is empty
         const { data: fallbackData, error: fallbackError } = await supabase
           .from('places')
           .select('*')
           .limit(100);
         
-        if (fallbackError || !fallbackData?.length) {
-          console.log('No places found in database');
-          return [];
-        }
-        
+        if (fallbackError || !fallbackData?.length) return [];
         return processPlaces(fallbackData, lat, lng, limit);
       }
-
-      console.log('Found', data.length, 'places in bounding box, sorting by distance');
       
       const sortedPlaces = processPlaces(data, lat, lng, limit);
-      
-      // Cache fetched places for reuse
-      nearbyCache = {
-        lat,
-        lng,
-        data: sortedPlaces,
-        timestamp: Date.now()
-      };
-      
-      console.log('Returning', sortedPlaces.length, 'nearest places');
-      
+      nearbyCache = { lat, lng, data: sortedPlaces, timestamp: Date.now() };
       return sortedPlaces;
     } catch (error) {
       console.error('Error fetching places:', error);
@@ -237,4 +200,61 @@ export async function getNearestCurios(lat: number, lng: number, limit: number =
   })();
   
   return fetchInProgress;
+}
+
+let boundsFetchInProgress: Promise<Curio[]> | null = null;
+
+export async function getCuriosInBounds(
+  minLat: number, maxLat: number, minLng: number, maxLng: number
+): Promise<Curio[]> {
+  if (boundsFetchInProgress) {
+    return boundsFetchInProgress;
+  }
+
+  boundsFetchInProgress = (async () => {
+    try {
+      const { data, error } = await supabase
+        .from('places')
+        .select('*')
+        .gte('lat', minLat)
+        .lte('lat', maxLat)
+        .gte('lon', minLng)
+        .lte('lon', maxLng)
+        .limit(500);
+
+      if (error) {
+        console.error('Error fetching bounds places:', error.message);
+        return [];
+      }
+
+      if (!data || data.length === 0) return [];
+
+      return data.map(place => {
+        const placeLat = place.latitude ?? place.lat ?? place.y;
+        const placeLng = place.longitude ?? place.lng ?? place.lon ?? place.x;
+        const placeId = place.curio_id ?? place['curio-id'] ?? place.uuid ?? place.id ?? place.place_id ?? String(Math.random());
+        const placeName = place.name ?? place.title ?? 'Unknown';
+        const placeDesc = place.detail_overview ?? place['detail-overview'] ?? place.description ?? place.desc ?? place.summary ?? '';
+        const placeType = place.curio_type ?? place['curio-type'] ?? '';
+        const audioPath = place.detail_audio_path ?? place['detail-audio-path'] ?? null;
+
+        return {
+          id: placeId,
+          name: placeName,
+          description: placeDesc,
+          latitude: placeLat,
+          longitude: placeLng,
+          curioType: placeType,
+          detailAudioPath: audioPath,
+        };
+      }).filter(p => p.latitude != null && p.longitude != null);
+    } catch (error) {
+      console.error('Error fetching bounds places:', error);
+      return [];
+    } finally {
+      boundsFetchInProgress = null;
+    }
+  })();
+
+  return boundsFetchInProgress;
 }
