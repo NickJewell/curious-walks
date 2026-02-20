@@ -11,6 +11,8 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  Keyboard,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Feather } from '@expo/vector-icons';
@@ -655,10 +657,16 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
         transparent
         onRequestClose={() => setShowReportModal(false)}
       >
-        <View style={styles.reportModalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.reportModalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           <Pressable
             style={StyleSheet.absoluteFill}
-            onPress={() => setShowReportModal(false)}
+            onPress={() => {
+              Keyboard.dismiss();
+              setShowReportModal(false);
+            }}
           />
           <Animated.View
             entering={FadeIn.duration(200)}
@@ -704,6 +712,8 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
                     multiline
                     numberOfLines={3}
                     maxLength={200}
+                    returnKeyType="done"
+                    blurOnSubmit
                   />
                 </>
               ) : null}
@@ -736,7 +746,7 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
               </View>
             </View>
           </Animated.View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </Modal>
   );
