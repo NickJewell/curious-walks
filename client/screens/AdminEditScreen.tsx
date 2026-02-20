@@ -39,13 +39,16 @@ export default function AdminEditScreen() {
   const route = useRoute<any>();
   const curioId: string = route.params?.curioId || "";
   const curioName: string = route.params?.curioName || "";
+  const isNew: boolean = route.params?.isNew || false;
 
   const [tab, setTab] = useState<TabMode>("manual");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [place, setPlace] = useState<PlaceData | null>(null);
   const [facts, setFacts] = useState<Fact[]>([]);
   const [detailOverview, setDetailOverview] = useState("");
+  const [placeName, setPlaceName] = useState(curioName);
+  const [savingName, setSavingName] = useState(false);
   const [editingFactId, setEditingFactId] = useState<string | null>(null);
   const [editingFactText, setEditingFactText] = useState("");
   const [jsonText, setJsonText] = useState("");
@@ -53,7 +56,7 @@ export default function AdminEditScreen() {
   const [importing, setImporting] = useState(false);
 
   useEffect(() => {
-    fetchCurioData();
+    if (!isNew) fetchCurioData();
   }, [curioId]);
 
   const fetchCurioData = async () => {
@@ -66,6 +69,7 @@ export default function AdminEditScreen() {
       setPlace(data.place);
       setFacts(data.facts || []);
       setDetailOverview(data.place?.detail_overview || "");
+      setPlaceName(data.place?.name || curioName);
     } catch (e: any) {
       Alert.alert("Error", e.message || "Failed to load curio data");
     } finally {
@@ -88,6 +92,22 @@ export default function AdminEditScreen() {
       Alert.alert("Error", e.message || "Failed to save");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveName = async () => {
+    if (!placeName.trim()) {
+      Alert.alert("Error", "Name cannot be empty");
+      return;
+    }
+    setSavingName(true);
+    try {
+      await apiRequest("PATCH", `/api/admin/place/${encodeURIComponent(curioId)}/name`, { name: placeName.trim() });
+      Alert.alert("Saved", "Place name updated.");
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Failed to save name");
+    } finally {
+      setSavingName(false);
     }
   };
 
@@ -263,6 +283,28 @@ export default function AdminEditScreen() {
           style={styles.scrollContent}
           contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
         >
+          <Text style={styles.sectionLabel}>Place Name</Text>
+          <TextInput
+            style={styles.nameInput}
+            value={placeName}
+            onChangeText={setPlaceName}
+            placeholder="Enter place name..."
+            placeholderTextColor={Colors.dark.textSecondary}
+          />
+          <Pressable
+            style={[styles.saveBtn, savingName && styles.saveBtnDisabled]}
+            onPress={handleSaveName}
+            disabled={savingName}
+          >
+            {savingName ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.saveBtnText}>Save Name</Text>
+            )}
+          </Pressable>
+
+          <View style={styles.divider} />
+
           <Text style={styles.sectionLabel}>Detail Overview</Text>
           <TextInput
             style={styles.textArea}
@@ -463,6 +505,15 @@ const styles = StyleSheet.create({
     ...Typography.headline,
     fontWeight: "700",
     marginBottom: Spacing.sm,
+  },
+  nameInput: {
+    backgroundColor: Colors.dark.backgroundSecondary,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    color: "#fff",
+    ...Typography.body,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
   },
   textArea: {
     backgroundColor: Colors.dark.backgroundSecondary,
