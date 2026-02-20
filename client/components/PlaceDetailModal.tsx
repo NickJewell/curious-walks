@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -87,6 +87,12 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
   const hasFactAudio = !!factAudioUrl && !factAudioError;
 
   const [activeSource, setActiveSource] = useState<'detail' | 'fact'>('detail');
+  const keepAudioRef = useRef(false);
+
+  const handleMapTapClose = useCallback(() => {
+    keepAudioRef.current = true;
+    onClose();
+  }, [onClose]);
 
   const [shouldAutoPlay, setShouldAutoPlay] = useState(false);
   const player = useAudioPlayer(signedAudioUrl, { updateInterval: 500 });
@@ -205,10 +211,14 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
 
   useEffect(() => {
     if (!visible) {
-      player.pause();
-      player.seekTo(0);
-      factPlayer.pause();
-      factPlayer.seekTo(0);
+      if (keepAudioRef.current) {
+        keepAudioRef.current = false;
+      } else {
+        player.pause();
+        player.seekTo(0);
+        factPlayer.pause();
+        factPlayer.seekTo(0);
+      }
     }
   }, [visible, player, factPlayer]);
 
@@ -405,38 +415,44 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
       <View style={[styles.container, { backgroundColor: Colors.dark.backgroundRoot }]}>
         <View style={[styles.heroSection, { paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
           {isMapAvailable && place.latitude && place.longitude ? (
-            <SafeMapView
-              style={StyleSheet.absoluteFill}
-              provider={PROVIDER_GOOGLE}
-              initialRegion={{
-                latitude: place.latitude,
-                longitude: place.longitude,
-                latitudeDelta: 0.003,
-                longitudeDelta: 0.003,
-              }}
-              scrollEnabled={false}
-              zoomEnabled={false}
-              rotateEnabled={false}
-              pitchEnabled={false}
-              showsUserLocation={false}
-              showsMyLocationButton={false}
-              userInterfaceStyle="dark"
-              pointerEvents="none"
-            >
-              {Marker ? (
-                <Marker
-                  coordinate={{
-                    latitude: place.latitude,
-                    longitude: place.longitude,
-                  }}
-                  tracksViewChanges={false}
-                />
-              ) : null}
-            </SafeMapView>
+            <>
+              <SafeMapView
+                style={StyleSheet.absoluteFill}
+                provider={PROVIDER_GOOGLE}
+                initialRegion={{
+                  latitude: place.latitude,
+                  longitude: place.longitude,
+                  latitudeDelta: 0.003,
+                  longitudeDelta: 0.003,
+                }}
+                scrollEnabled={false}
+                zoomEnabled={false}
+                rotateEnabled={false}
+                pitchEnabled={false}
+                showsUserLocation={false}
+                showsMyLocationButton={false}
+                userInterfaceStyle="dark"
+                pointerEvents="none"
+              >
+                {Marker ? (
+                  <Marker
+                    coordinate={{
+                      latitude: place.latitude,
+                      longitude: place.longitude,
+                    }}
+                    tracksViewChanges={false}
+                  />
+                ) : null}
+              </SafeMapView>
+              <Pressable
+                style={StyleSheet.absoluteFill}
+                onPress={handleMapTapClose}
+              />
+            </>
           ) : (
-            <View style={styles.heroPlaceholder}>
+            <Pressable style={styles.heroPlaceholder} onPress={handleMapTapClose}>
               <Feather name="map-pin" size={48} color={Colors.dark.accent} />
-            </View>
+            </Pressable>
           )}
           
           <Pressable
