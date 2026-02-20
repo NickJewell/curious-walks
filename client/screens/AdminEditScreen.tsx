@@ -9,6 +9,7 @@ import {
   Platform,
   Alert,
   ScrollView,
+  Keyboard,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -252,7 +253,7 @@ export default function AdminEditScreen() {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <Pressable style={[styles.container, { paddingTop: insets.top }]} onPress={Keyboard.dismiss}>
       <View style={styles.header}>
         <Pressable style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Feather name="arrow-left" size={22} color="#fff" />
@@ -282,6 +283,7 @@ export default function AdminEditScreen() {
         <KeyboardAwareScrollViewCompat
           style={styles.scrollContent}
           contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+          keyboardDismissMode="on-drag"
         >
           <Text style={styles.sectionLabel}>Place Name</Text>
           <TextInput
@@ -386,6 +388,7 @@ export default function AdminEditScreen() {
         <KeyboardAwareScrollViewCompat
           style={styles.scrollContent}
           contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+          keyboardDismissMode="on-drag"
         >
           <Text style={styles.sectionLabel}>Paste JSON</Text>
           <Text style={styles.hintText}>
@@ -436,7 +439,7 @@ export default function AdminEditScreen() {
           ) : null}
         </KeyboardAwareScrollViewCompat>
       )}
-    </View>
+    </Pressable>
   );
 }
 
