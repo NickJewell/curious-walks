@@ -122,38 +122,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { curioId } = req.params;
 
-      const { data: place, error: placeError } = await supabase
-        .from('places')
-        .select('detail_audio_path')
-        .eq('curio_id', curioId)
-        .single();
-
-      if (placeError || !place?.detail_audio_path) {
-        return res.status(404).json({ error: 'No audio available for this place' });
+      const match = curioId.match(/(\d+)$/);
+      if (!match) {
+        return res.status(400).json({ error: 'Invalid curio ID format' });
       }
 
-      const audioPath = place.detail_audio_path as string;
-      let bucket: string;
-      let filePath: string;
+      const num = parseInt(match[1], 10);
+      const bucketStart = Math.floor((num - 1) / 1000) * 1000 + 1;
+      const bucketEnd = bucketStart + 999;
+      const folderStart = Math.floor((num - 1) / 100) * 100 + 1;
+      const folderEnd = folderStart + 99;
 
-      if (audioPath.startsWith('http')) {
-        const url = new URL(audioPath);
-        const parts = url.pathname.replace('/storage/v1/object/public/', '').split('/');
-        bucket = parts[0];
-        filePath = parts.slice(1).join('/');
-      } else {
-        const parts = audioPath.split('/');
-        bucket = parts[0];
-        filePath = parts.slice(1).join('/');
-      }
+      const bucket = `audio_overviews_${bucketStart}_${bucketEnd}`;
+      const filePath = `${folderStart}-${folderEnd}/curio_detail_${num}.mp3`;
 
       const { data, error } = await supabase.storage
         .from(bucket)
         .createSignedUrl(filePath, 3600);
 
       if (error || !data?.signedUrl) {
-        console.error('Error creating signed URL:', error);
-        return res.status(500).json({ error: 'Could not generate audio URL' });
+        console.error('Error creating signed URL:', error, `bucket=${bucket} path=${filePath}`);
+        return res.status(404).json({ error: 'Audio not available for this place' });
       }
 
       res.json({ url: data.signedUrl });
