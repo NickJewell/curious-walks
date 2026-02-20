@@ -10,9 +10,8 @@ interface UserProfile {
   email: string | null;
   avatar_url: string | null;
   full_name: string | null;
+  admin_flag: boolean;
 }
-
-const ADMIN_EMAIL = 'nick.jewell@gmail.com';
 
 interface AuthContextType {
   session: Session | null;
@@ -100,6 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: data.email || email,
         avatar_url: googleAvatarUrl || data.avatar_url,
         full_name: data.full_name || googleFullName,
+        admin_flag: !!data.admin_flag,
       });
     } else {
       const { error: insertError } = await supabase
@@ -120,6 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: email ?? null,
         avatar_url: googleAvatarUrl,
         full_name: googleFullName,
+        admin_flag: false,
       });
     }
   };
@@ -248,7 +249,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, loading, isGuest, isAdmin: !!(user?.email && user.email.toLowerCase() === ADMIN_EMAIL), signIn, signUp, signInWithGoogle, signOut, continueAsGuest }}>
+    <AuthContext.Provider value={{ session, user, profile, loading, isGuest, isAdmin: !!profile?.admin_flag, signIn, signUp, signInWithGoogle, signOut, continueAsGuest }}>
       {children}
     </AuthContext.Provider>
   );
