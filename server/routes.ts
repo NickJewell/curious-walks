@@ -152,6 +152,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/places/:curioId/fact-audio/:factId', async (req, res) => {
+    try {
+      const { curioId, factId } = req.params;
+
+      const match = curioId.match(/(\d+)$/);
+      if (!match) {
+        return res.status(400).json({ error: 'Invalid curio ID format' });
+      }
+
+      const num = parseInt(match[1], 10);
+      const bucketStart = Math.floor((num - 1) / 1000) * 1000 + 1;
+      const bucketEnd = bucketStart + 999;
+      const folderStart = Math.floor((num - 1) / 100) * 100 + 1;
+      const folderEnd = folderStart + 99;
+
+      const bucket = `audio_overviews_${bucketStart}_${bucketEnd}`;
+      const filePath = `${folderStart}-${folderEnd}/curio_${num}_${factId}.mp3`;
+
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(filePath, 3600);
+
+      if (error || !data?.signedUrl) {
+        console.error('Error creating fact audio signed URL:', error, `bucket=${bucket} path=${filePath}`);
+        return res.status(404).json({ error: 'Fact audio not available' });
+      }
+
+      res.json({ url: data.signedUrl });
+    } catch (error) {
+      console.error('Error generating fact audio URL:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Get random facts for a place
   app.get('/api/places/:curioId/facts', async (req, res) => {
     try {

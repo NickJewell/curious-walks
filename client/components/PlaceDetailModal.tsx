@@ -76,9 +76,20 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
   const [audioLoading, setAudioLoading] = useState(false);
   const hasAudio = !!signedAudioUrl && !audioError;
 
+  const [factAudioUrl, setFactAudioUrl] = useState<string | null>(null);
+  const [factAudioLoading, setFactAudioLoading] = useState(false);
+  const [factAudioError, setFactAudioError] = useState(false);
+  const hasFactAudio = !!factAudioUrl && !factAudioError;
+
+  const [activeSource, setActiveSource] = useState<'detail' | 'fact'>('detail');
+
   const [shouldAutoPlay, setShouldAutoPlay] = useState(false);
   const player = useAudioPlayer(signedAudioUrl, { updateInterval: 500 });
   const status = useAudioPlayerStatus(player);
+
+  const [shouldAutoPlayFact, setShouldAutoPlayFact] = useState(false);
+  const factPlayer = useAudioPlayer(factAudioUrl, { updateInterval: 500 });
+  const factStatus = useAudioPlayerStatus(factPlayer);
 
   useEffect(() => {
     if (shouldAutoPlay && status.isLoaded && !status.playing) {
@@ -88,10 +99,20 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
   }, [shouldAutoPlay, status.isLoaded, status.playing, player]);
 
   useEffect(() => {
+    if (shouldAutoPlayFact && factStatus.isLoaded && !factStatus.playing) {
+      factPlayer.play();
+      setShouldAutoPlayFact(false);
+    }
+  }, [shouldAutoPlayFact, factStatus.isLoaded, factStatus.playing, factPlayer]);
+
+  useEffect(() => {
     if (visible && place?.id) {
       setAudioError(false);
       setAudioLoading(true);
       setSignedAudioUrl(null);
+      setFactAudioUrl(null);
+      setFactAudioError(false);
+      setActiveSource('detail');
       const url = new URL(`/api/places/${encodeURIComponent(place.id)}/audio-url`, getApiUrl());
       fetch(url.toString())
         .then(r => {
@@ -112,30 +133,79 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
       setAudioError(false);
       setAudioLoading(false);
       setShouldAutoPlay(false);
+      setFactAudioUrl(null);
+      setFactAudioError(false);
+      setFactAudioLoading(false);
+      setShouldAutoPlayFact(false);
     }
   }, [visible, place?.id]);
 
+  const playFactAudio = useCallback((fact: Fact) => {
+    if (!place) return;
+    player.pause();
+    setActiveSource('fact');
+    setFactAudioError(false);
+    setFactAudioLoading(true);
+    setFactAudioUrl(null);
+    const url = new URL(
+      `/api/places/${encodeURIComponent(place.id)}/fact-audio/${encodeURIComponent(fact.id)}`,
+      getApiUrl()
+    );
+    fetch(url.toString())
+      .then(r => {
+        if (!r.ok) throw new Error('Failed to fetch fact audio URL');
+        return r.json();
+      })
+      .then(data => {
+        setFactAudioUrl(data.url);
+        setShouldAutoPlayFact(true);
+        setFactAudioLoading(false);
+      })
+      .catch(() => {
+        setFactAudioError(true);
+        setFactAudioLoading(false);
+      });
+  }, [place, player]);
+
   const handlePlayPause = useCallback(() => {
+    if (activeSource === 'fact' && hasFactAudio) {
+      if (factStatus.playing) {
+        factPlayer.pause();
+      } else {
+        factPlayer.play();
+      }
+      return;
+    }
     if (!hasAudio || !signedAudioUrl) return;
     if (status.playing) {
       player.pause();
     } else {
+      factPlayer.pause();
+      setActiveSource('detail');
       player.play();
     }
-  }, [hasAudio, signedAudioUrl, status.playing, player]);
+  }, [activeSource, hasAudio, hasFactAudio, signedAudioUrl, status.playing, factStatus.playing, player, factPlayer]);
 
   const handleSeek = useCallback((locationX: number, layoutWidth: number) => {
+    if (activeSource === 'fact' && hasFactAudio) {
+      if (!factStatus.duration || factStatus.duration <= 0) return;
+      const ratio = Math.max(0, Math.min(1, locationX / layoutWidth));
+      factPlayer.seekTo(ratio * factStatus.duration);
+      return;
+    }
     if (!status.duration || status.duration <= 0) return;
     const ratio = Math.max(0, Math.min(1, locationX / layoutWidth));
     player.seekTo(ratio * status.duration);
-  }, [status.duration, player]);
+  }, [activeSource, hasFactAudio, status.duration, factStatus.duration, player, factPlayer]);
 
   useEffect(() => {
-    if (!visible && player) {
+    if (!visible) {
       player.pause();
       player.seekTo(0);
+      factPlayer.pause();
+      factPlayer.seekTo(0);
     }
-  }, [visible, player]);
+  }, [visible, player, factPlayer]);
 
   const thumbsUpScale = useSharedValue(1);
   const thumbsDownScale = useSharedValue(1);
@@ -176,20 +246,24 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
 
   const handleShowRandomFact = () => {
     const unviewedFacts = facts.filter(f => !viewedFactIds.has(f.id));
+    let selectedFact: Fact | null = null;
+
     if (unviewedFacts.length === 0) {
       if (facts.length > 0) {
         setViewedFactIds(new Set());
-        const randomFact = facts[Math.floor(Math.random() * facts.length)];
-        setCurrentFact(randomFact);
-        setViewedFactIds(new Set([randomFact.id]));
+        selectedFact = facts[Math.floor(Math.random() * facts.length)];
+        setViewedFactIds(new Set([selectedFact.id]));
       }
-      return;
+    } else {
+      selectedFact = unviewedFacts[Math.floor(Math.random() * unviewedFacts.length)];
+      setViewedFactIds(prev => new Set([...prev, selectedFact!.id]));
     }
-    
-    const randomFact = unviewedFacts[Math.floor(Math.random() * unviewedFacts.length)];
-    setCurrentFact(randomFact);
-    setViewedFactIds(prev => new Set([...prev, randomFact.id]));
-    setShowFact(true);
+
+    if (selectedFact) {
+      setCurrentFact(selectedFact);
+      setShowFact(true);
+      playFactAudio(selectedFact);
+    }
   };
 
   const handleVoteUp = async () => {
@@ -376,71 +450,87 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
             </View>
           </View>
 
-          <View style={[styles.audioPlayerContainer, !hasAudio && !audioLoading && styles.audioPlayerDisabled]}>
-            <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
-            <Pressable
-              onPress={handlePlayPause}
-              disabled={!hasAudio || audioLoading || audioError}
-              style={({ pressed }) => [
-                styles.audioPlayButton,
-                pressed && hasAudio && !audioLoading && styles.audioPlayButtonPressed,
-              ]}
-            >
-              {audioLoading ? (
-                <ActivityIndicator size="small" color={Colors.dark.accent} />
-              ) : audioError ? (
-                <Feather name="alert-circle" size={32} color={Colors.dark.inactive} />
-              ) : (
-                <Feather
-                  name={status.playing ? 'pause-circle' : 'play-circle'}
-                  size={32}
-                  color={hasAudio ? Colors.dark.accent : Colors.dark.inactive}
-                />
-              )}
-            </Pressable>
-            <View style={styles.audioDetails}>
-              <Pressable
-                style={styles.audioProgressTouchable}
-                disabled={!hasAudio}
-                onPress={(e) => {
-                  const { locationX } = e.nativeEvent;
-                  handleSeek(locationX, SCREEN_WIDTH - Spacing.xl * 2 - Spacing.lg * 2 - 44 - Spacing.md);
-                }}
-              >
-                <View style={styles.audioProgressTrack}>
-                  <View
-                    style={[
-                      styles.audioProgressFill,
-                      {
-                        width: hasAudio && status.duration > 0
-                          ? `${Math.min(100, (status.currentTime / status.duration) * 100)}%`
-                          : '0%',
-                        backgroundColor: hasAudio ? Colors.dark.accent : Colors.dark.inactive,
-                      },
-                    ]}
-                  />
+          {(() => {
+            const isFactActive = activeSource === 'fact' && (hasFactAudio || factAudioLoading);
+            const activeStatus = isFactActive ? factStatus : status;
+            const isPlaying = isFactActive ? factStatus.playing : status.playing;
+            const isLoading = isFactActive ? factAudioLoading : audioLoading;
+            const isError = isFactActive ? factAudioError : audioError;
+            const isReady = isFactActive ? hasFactAudio : hasAudio;
+            const activeDuration = activeStatus.duration;
+            const activeTime = activeStatus.currentTime;
+
+            return (
+              <View style={[styles.audioPlayerContainer, !isReady && !isLoading && styles.audioPlayerDisabled]}>
+                <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+                <Pressable
+                  onPress={handlePlayPause}
+                  disabled={!isReady || isLoading || isError}
+                  style={({ pressed }) => [
+                    styles.audioPlayButton,
+                    pressed && isReady && !isLoading && styles.audioPlayButtonPressed,
+                  ]}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator size="small" color={Colors.dark.accent} />
+                  ) : isError ? (
+                    <Feather name="alert-circle" size={32} color={Colors.dark.inactive} />
+                  ) : (
+                    <Feather
+                      name={isPlaying ? 'pause-circle' : 'play-circle'}
+                      size={32}
+                      color={isReady ? Colors.dark.accent : Colors.dark.inactive}
+                    />
+                  )}
+                </Pressable>
+                <View style={styles.audioDetails}>
+                  {isFactActive ? (
+                    <Text style={styles.audioSourceLabel}>Playing fact</Text>
+                  ) : null}
+                  <Pressable
+                    style={styles.audioProgressTouchable}
+                    disabled={!isReady}
+                    onPress={(e) => {
+                      const { locationX } = e.nativeEvent;
+                      handleSeek(locationX, SCREEN_WIDTH - Spacing.xl * 2 - Spacing.lg * 2 - 44 - Spacing.md);
+                    }}
+                  >
+                    <View style={styles.audioProgressTrack}>
+                      <View
+                        style={[
+                          styles.audioProgressFill,
+                          {
+                            width: isReady && activeDuration > 0
+                              ? `${Math.min(100, (activeTime / activeDuration) * 100)}%`
+                              : '0%',
+                            backgroundColor: isReady ? Colors.dark.accent : Colors.dark.inactive,
+                          },
+                        ]}
+                      />
+                    </View>
+                  </Pressable>
+                  <View style={styles.audioTimeRow}>
+                    {isError ? (
+                      <Text style={styles.audioUnavailableText}>Audio not available</Text>
+                    ) : isLoading ? (
+                      <Text style={styles.audioUnavailableText}>Loading audio...</Text>
+                    ) : isReady ? (
+                      <>
+                        <Text style={styles.audioTimeText}>
+                          {formatTime(activeTime)}
+                        </Text>
+                        <Text style={styles.audioTimeText}>
+                          {activeDuration > 0 ? formatTime(activeDuration) : '--:--'}
+                        </Text>
+                      </>
+                    ) : (
+                      <Text style={styles.audioUnavailableText}>Audio not available</Text>
+                    )}
+                  </View>
                 </View>
-              </Pressable>
-              <View style={styles.audioTimeRow}>
-                {audioError ? (
-                  <Text style={styles.audioUnavailableText}>Audio not available</Text>
-                ) : audioLoading ? (
-                  <Text style={styles.audioUnavailableText}>Loading audio...</Text>
-                ) : hasAudio ? (
-                  <>
-                    <Text style={styles.audioTimeText}>
-                      {formatTime(status.currentTime)}
-                    </Text>
-                    <Text style={styles.audioTimeText}>
-                      {status.duration > 0 ? formatTime(status.duration) : '--:--'}
-                    </Text>
-                  </>
-                ) : (
-                  <Text style={styles.audioUnavailableText}>Audio not available</Text>
-                )}
               </View>
-            </View>
-          </View>
+            );
+          })()}
 
           <Text style={styles.narrative}>
             {place.description || 'No description available for this location.'}
@@ -689,6 +779,12 @@ const styles = StyleSheet.create({
   audioUnavailableText: {
     fontSize: 12,
     color: Colors.dark.inactive,
+  },
+  audioSourceLabel: {
+    fontSize: 11,
+    color: Colors.dark.accent,
+    fontWeight: '600',
+    marginBottom: 2,
   },
   narrative: {
     fontSize: 17,
