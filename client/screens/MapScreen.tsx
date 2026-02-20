@@ -24,7 +24,7 @@ import { BlurView } from "expo-blur";
 import * as Location from "expo-location";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
-import { getNearestCurios, searchCurios, Curio } from "@/lib/supabase";
+import { getNearestCurios, getCuriosInBounds, searchCurios, Curio } from "@/lib/supabase";
 import { useHunt } from "@/contexts/HuntContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCheckins } from "@/contexts/CheckinContext";
@@ -83,6 +83,68 @@ function getDistanceFromLatLon(lat1: number, lon1: number, lat2: number, lon2: n
   return R * c;
 }
 
+interface ClusterItem {
+  type: 'single';
+  curio: Curio;
+  latitude: number;
+  longitude: number;
+}
+
+interface ClusterGroup {
+  type: 'cluster';
+  id: string;
+  curios: Curio[];
+  latitude: number;
+  longitude: number;
+  count: number;
+}
+
+type MapItem = ClusterItem | ClusterGroup;
+
+function clusterCurios(curios: Curio[], region: Region): MapItem[] {
+  if (curios.length === 0) return [];
+
+  const clusterRadius = Math.max(region.latitudeDelta, region.longitudeDelta) * 0.06;
+
+  const assigned = new Set<string>();
+  const result: MapItem[] = [];
+
+  for (let i = 0; i < curios.length; i++) {
+    if (assigned.has(curios[i].id)) continue;
+
+    const group: Curio[] = [curios[i]];
+    assigned.add(curios[i].id);
+    let sumLat = curios[i].latitude;
+    let sumLng = curios[i].longitude;
+
+    for (let j = i + 1; j < curios.length; j++) {
+      if (assigned.has(curios[j].id)) continue;
+      const dLat = Math.abs(curios[i].latitude - curios[j].latitude);
+      const dLng = Math.abs(curios[i].longitude - curios[j].longitude);
+      if (dLat < clusterRadius && dLng < clusterRadius) {
+        group.push(curios[j]);
+        assigned.add(curios[j].id);
+        sumLat += curios[j].latitude;
+        sumLng += curios[j].longitude;
+      }
+    }
+
+    if (group.length === 1) {
+      result.push({ type: 'single', curio: group[0], latitude: group[0].latitude, longitude: group[0].longitude });
+    } else {
+      result.push({
+        type: 'cluster',
+        id: `cluster-${group[0].id}`,
+        curios: group,
+        latitude: sumLat / group.length,
+        longitude: sumLng / group.length,
+        count: group.length,
+      });
+    }
+  }
+  return result;
+}
+
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
   
@@ -111,6 +173,7 @@ export default function MapScreen() {
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [mapCenter, setMapCenter] = useState<{ latitude: number; longitude: number }>(LONDON_CENTER);
   const [lastSearchCenter, setLastSearchCenter] = useState<{ latitude: number; longitude: number }>(LONDON_CENTER);
+  const [currentRegion, setCurrentRegion] = useState<Region>({ ...LONDON_CENTER, latitudeDelta: 0.01, longitudeDelta: 0.01 });
   
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -140,6 +203,28 @@ export default function MapScreen() {
     setSelectedCurio(null);
     setActiveTarget(curio);
     navigation.navigate("Compass");
+  };
+
+  const clusteredItems = useMemo(() => {
+    return clusterCurios(curios, currentRegion);
+  }, [curios, currentRegion]);
+
+  const handleClusterPress = (cluster: ClusterGroup) => {
+    const lats = cluster.curios.map(c => c.latitude);
+    const lngs = cluster.curios.map(c => c.longitude);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs);
+    const maxLng = Math.max(...lngs);
+    const padLat = Math.max((maxLat - minLat) * 0.3, 0.002);
+    const padLng = Math.max((maxLng - minLng) * 0.3, 0.002);
+
+    mapRef.current?.animateToRegion({
+      latitude: (minLat + maxLat) / 2,
+      longitude: (minLng + maxLng) / 2,
+      latitudeDelta: (maxLat - minLat) + padLat,
+      longitudeDelta: (maxLng - minLng) + padLng,
+    }, 400);
   };
 
   const handleMarkerPress = (curio: Curio) => {
@@ -426,26 +511,35 @@ export default function MapScreen() {
 
   const autoRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const loadBoundsPlaces = useCallback(async (region: Region) => {
+    const minLat = region.latitude - region.latitudeDelta / 2;
+    const maxLat = region.latitude + region.latitudeDelta / 2;
+    const minLng = region.longitude - region.longitudeDelta / 2;
+    const maxLng = region.longitude + region.longitudeDelta / 2;
+    
+    try {
+      const data = await getCuriosInBounds(minLat, maxLat, minLng, maxLng);
+      if (data.length > 0) {
+        setCurios(data);
+        setLastSearchCenter({ latitude: region.latitude, longitude: region.longitude });
+      }
+    } catch (error) {
+      console.error("Error loading bounds places:", error);
+    }
+  }, []);
+
   const onRegionChangeComplete = useCallback((region: Region) => {
     const newCenter = { latitude: region.latitude, longitude: region.longitude };
     setMapCenter(newCenter);
+    setCurrentRegion(region);
     
-    const distance = getDistanceFromLatLon(
-      lastSearchCenter.latitude,
-      lastSearchCenter.longitude,
-      newCenter.latitude,
-      newCenter.longitude
-    );
-    
-    if (distance > 500) {
-      if (autoRefreshTimer.current) {
-        clearTimeout(autoRefreshTimer.current);
-      }
-      autoRefreshTimer.current = setTimeout(() => {
-        loadCurios(newCenter.latitude, newCenter.longitude, false);
-      }, 600);
+    if (autoRefreshTimer.current) {
+      clearTimeout(autoRefreshTimer.current);
     }
-  }, [lastSearchCenter]);
+    autoRefreshTimer.current = setTimeout(() => {
+      loadBoundsPlaces(region);
+    }, 400);
+  }, [loadBoundsPlaces]);
 
   const centerOnUser = async () => {
     try {
@@ -493,7 +587,24 @@ export default function MapScreen() {
         userInterfaceStyle="dark"
         onRegionChangeComplete={onRegionChangeComplete}
       >
-        {isMapAvailable && Marker ? curios.map((curio) => {
+        {isMapAvailable && Marker ? clusteredItems.map((item) => {
+          if (item.type === 'cluster') {
+            const size = item.count >= 50 ? 56 : item.count >= 20 ? 48 : item.count >= 5 ? 42 : 36;
+            return (
+              <Marker
+                key={item.id}
+                coordinate={{ latitude: item.latitude, longitude: item.longitude }}
+                tracksViewChanges={false}
+                zIndex={50}
+                onPress={() => handleClusterPress(item)}
+              >
+                <View style={[styles.clusterBubble, { width: size, height: size, borderRadius: size / 2 }]}>
+                  <Text style={styles.clusterText}>{item.count}</Text>
+                </View>
+              </Marker>
+            );
+          }
+          const curio = item.curio;
           const isTarget = isHunting && activeTarget?.id === curio.id;
           const isGreyed = isHunting && activeTarget?.id !== curio.id;
           const isCheckedIn = checkedInPlaceIds.has(curio.id);
@@ -908,6 +1019,23 @@ const styles = StyleSheet.create({
   },
   markerCheckedIn: {
     backgroundColor: "#D4AF37",
+  },
+  clusterBubble: {
+    backgroundColor: Colors.dark.accent,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 3,
+    borderColor: "rgba(255,255,255,0.9)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  clusterText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
   },
   calloutContainer: {
     width: 280,
