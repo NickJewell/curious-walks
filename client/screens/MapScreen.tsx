@@ -103,29 +103,35 @@ type MapItem = ClusterItem | ClusterGroup;
 
 function clusterCurios(curios: Curio[], region: Region): MapItem[] {
   if (curios.length === 0) return [];
+  
+  const validCurios = curios.filter(c => 
+    c && c.id && typeof c.latitude === 'number' && typeof c.longitude === 'number' && 
+    !isNaN(c.latitude) && !isNaN(c.longitude)
+  );
+  if (validCurios.length === 0) return [];
 
-  const clusterRadius = Math.max(region.latitudeDelta, region.longitudeDelta) * 0.06;
+  const clusterRadius = Math.max(region.latitudeDelta || 0.01, region.longitudeDelta || 0.01) * 0.06;
 
   const assigned = new Set<string>();
   const result: MapItem[] = [];
 
-  for (let i = 0; i < curios.length; i++) {
-    if (assigned.has(curios[i].id)) continue;
+  for (let i = 0; i < validCurios.length; i++) {
+    if (assigned.has(validCurios[i].id)) continue;
 
-    const group: Curio[] = [curios[i]];
-    assigned.add(curios[i].id);
-    let sumLat = curios[i].latitude;
-    let sumLng = curios[i].longitude;
+    const group: Curio[] = [validCurios[i]];
+    assigned.add(validCurios[i].id);
+    let sumLat = validCurios[i].latitude;
+    let sumLng = validCurios[i].longitude;
 
-    for (let j = i + 1; j < curios.length; j++) {
-      if (assigned.has(curios[j].id)) continue;
-      const dLat = Math.abs(curios[i].latitude - curios[j].latitude);
-      const dLng = Math.abs(curios[i].longitude - curios[j].longitude);
+    for (let j = i + 1; j < validCurios.length; j++) {
+      if (assigned.has(validCurios[j].id)) continue;
+      const dLat = Math.abs(validCurios[i].latitude - validCurios[j].latitude);
+      const dLng = Math.abs(validCurios[i].longitude - validCurios[j].longitude);
       if (dLat < clusterRadius && dLng < clusterRadius) {
-        group.push(curios[j]);
-        assigned.add(curios[j].id);
-        sumLat += curios[j].latitude;
-        sumLng += curios[j].longitude;
+        group.push(validCurios[j]);
+        assigned.add(validCurios[j].id);
+        sumLat += validCurios[j].latitude;
+        sumLng += validCurios[j].longitude;
       }
     }
 
@@ -174,6 +180,7 @@ export default function MapScreen() {
   const [mapCenter, setMapCenter] = useState<{ latitude: number; longitude: number }>(LONDON_CENTER);
   const [lastSearchCenter, setLastSearchCenter] = useState<{ latitude: number; longitude: number }>(LONDON_CENTER);
   const [currentRegion, setCurrentRegion] = useState<Region>({ ...LONDON_CENTER, latitudeDelta: 0.01, longitudeDelta: 0.01 });
+  const initialLoadDone = useRef(false);
   
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -487,14 +494,13 @@ export default function MapScreen() {
       const data = await getNearestCurios(lat, lng, 20);
       setCurios(data);
       setLastSearchCenter({ latitude: lat, longitude: lng });
-      // Fit map to extent of loaded places
+      initialLoadDone.current = true;
       if (fitToBounds && data.length > 0 && mapRef.current) {
         const coordinates = data.map(c => ({
           latitude: c.latitude,
           longitude: c.longitude,
         }));
         
-        // Add small delay to ensure map is ready
         setTimeout(() => {
           mapRef.current?.fitToCoordinates(coordinates, {
             edgePadding: { top: 150, right: 50, bottom: 150, left: 50 },
@@ -533,6 +539,8 @@ export default function MapScreen() {
     setMapCenter(newCenter);
     setCurrentRegion(region);
     
+    if (!initialLoadDone.current) return;
+
     if (autoRefreshTimer.current) {
       clearTimeout(autoRefreshTimer.current);
     }
@@ -594,12 +602,12 @@ export default function MapScreen() {
               <Marker
                 key={item.id}
                 coordinate={{ latitude: item.latitude, longitude: item.longitude }}
-                tracksViewChanges={false}
+                tracksViewChanges={Platform.OS !== 'web'}
                 zIndex={50}
                 onPress={() => handleClusterPress(item)}
               >
                 <View style={[styles.clusterBubble, { width: size, height: size, borderRadius: size / 2 }]}>
-                  <Text style={styles.clusterText}>{item.count}</Text>
+                  <Text style={styles.clusterText}>{String(item.count)}</Text>
                 </View>
               </Marker>
             );

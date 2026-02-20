@@ -239,15 +239,15 @@ export async function getCuriosInBounds(
         const audioPath = place.detail_audio_path ?? place['detail-audio-path'] ?? null;
 
         return {
-          id: placeId,
+          id: String(placeId),
           name: placeName,
           description: placeDesc,
-          latitude: placeLat,
-          longitude: placeLng,
+          latitude: Number(placeLat),
+          longitude: Number(placeLng),
           curioType: placeType,
           detailAudioPath: audioPath,
         };
-      }).filter(p => p.latitude != null && p.longitude != null);
+      }).filter(p => !isNaN(p.latitude) && !isNaN(p.longitude));
     } catch (error) {
       console.error('Error fetching bounds places:', error);
       return [];
