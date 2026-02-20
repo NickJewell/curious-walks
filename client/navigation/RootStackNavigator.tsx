@@ -6,6 +6,7 @@ import CompassScreen from "@/screens/CompassScreen";
 import ListDetailScreen from "@/screens/ListDetailScreen";
 import TourDetailScreen from "@/screens/TourDetailScreen";
 import VisitedPlacesScreen from "@/screens/VisitedPlacesScreen";
+import AdminEditScreen from "@/screens/AdminEditScreen";
 import LoginScreen from "@/screens/LoginScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { Colors } from "@/constants/theme";
@@ -18,6 +19,7 @@ export type RootStackParamList = {
   ListDetail: { listId: string; listName: string };
   TourDetail: { tourId: string };
   VisitedPlaces: undefined;
+  AdminEdit: { curioId: string; curioName: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -81,6 +83,14 @@ export default function RootStackNavigator() {
           <Stack.Screen
             name="VisitedPlaces"
             component={VisitedPlacesScreen}
+            options={{
+              headerShown: false,
+              animation: "slide_from_right",
+            }}
+          />
+          <Stack.Screen
+            name="AdminEdit"
+            component={AdminEditScreen}
             options={{
               headerShown: false,
               animation: "slide_from_right",

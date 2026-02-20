@@ -12,11 +12,14 @@ import type { Region } from "react-native-maps";
 import SafeMapView, { Marker, PROVIDER_GOOGLE, isMapAvailable } from "@/components/SafeMapView";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { getCuriosNearPoint, Curio } from "@/lib/supabase";
 import { apiRequest } from "@/lib/query-client";
+import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 const LONDON_CENTER = {
   latitude: 51.5074,
@@ -25,9 +28,12 @@ const LONDON_CENTER = {
   longitudeDelta: 0.05,
 };
 
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
 export default function AdminMapScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
+  const navigation = useNavigation<NavigationProp>();
   const mapRef = useRef<any>(null);
 
   const [curios, setCurios] = useState<Curio[]>([]);
@@ -171,20 +177,29 @@ export default function AdminMapScreen() {
           <Text style={styles.panelType}>{selectedCurio.curioType || "Unknown type"}</Text>
           <Text style={styles.panelId}>ID: {selectedCurio.id}</Text>
           <Text style={styles.panelDesc} numberOfLines={3}>{selectedCurio.description}</Text>
-          <Pressable
-            style={[styles.deleteBtn, deleting && styles.deleteBtnDisabled]}
-            onPress={handleDelete}
-            disabled={deleting}
-          >
-            {deleting ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <Feather name="trash-2" size={18} color="#fff" />
-                <Text style={styles.deleteBtnText}>Delete Place & Facts</Text>
-              </>
-            )}
-          </Pressable>
+          <View style={styles.panelButtons}>
+            <Pressable
+              style={styles.editBtn}
+              onPress={() => navigation.navigate("AdminEdit", { curioId: selectedCurio.id, curioName: selectedCurio.name })}
+            >
+              <Feather name="edit-2" size={18} color="#fff" />
+              <Text style={styles.editBtnText}>Edit</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.deleteBtn, deleting && styles.deleteBtnDisabled]}
+              onPress={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Feather name="trash-2" size={18} color="#fff" />
+                  <Text style={styles.deleteBtnText}>Delete</Text>
+                </>
+              )}
+            </Pressable>
+          </View>
         </View>
       ) : null}
 
@@ -284,7 +299,27 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: Spacing.md,
   },
+  panelButtons: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  editBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.dark.accent,
+    paddingVertical: Spacing.sm + 2,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.xs,
+  },
+  editBtnText: {
+    color: "#fff",
+    ...Typography.body,
+    fontWeight: "700",
+  },
   deleteBtn: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
