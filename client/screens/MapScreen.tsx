@@ -494,7 +494,6 @@ export default function MapScreen() {
       const data = await getNearestCurios(lat, lng, 20);
       setCurios(data);
       setLastSearchCenter({ latitude: lat, longitude: lng });
-      initialLoadDone.current = true;
       if (fitToBounds && data.length > 0 && mapRef.current) {
         const coordinates = data.map(c => ({
           latitude: c.latitude,
@@ -506,10 +505,16 @@ export default function MapScreen() {
             edgePadding: { top: 150, right: 50, bottom: 150, left: 50 },
             animated: true,
           });
+          setTimeout(() => {
+            initialLoadDone.current = true;
+          }, 800);
         }, 100);
+      } else {
+        initialLoadDone.current = true;
       }
     } catch (error) {
       console.error("Error loading curios:", error);
+      initialLoadDone.current = true;
     } finally {
       setLoading(false);
     }
@@ -597,17 +602,18 @@ export default function MapScreen() {
       >
         {isMapAvailable && Marker ? clusteredItems.map((item) => {
           if (item.type === 'cluster') {
-            const size = item.count >= 50 ? 56 : item.count >= 20 ? 48 : item.count >= 5 ? 42 : 36;
+            const bSize = item.count >= 50 ? 56 : item.count >= 20 ? 48 : item.count >= 5 ? 42 : 36;
             return (
               <Marker
                 key={item.id}
                 coordinate={{ latitude: item.latitude, longitude: item.longitude }}
-                tracksViewChanges={Platform.OS !== 'web'}
+                tracksViewChanges={true}
                 zIndex={50}
                 onPress={() => handleClusterPress(item)}
+                anchor={{ x: 0.5, y: 0.5 }}
               >
-                <View style={[styles.clusterBubble, { width: size, height: size, borderRadius: size / 2 }]}>
-                  <Text style={styles.clusterText}>{String(item.count)}</Text>
+                <View style={[styles.clusterBubble, { width: bSize, height: bSize, borderRadius: bSize / 2 }]}>
+                  <Text allowFontScaling={false} style={styles.clusterText}>{`${item.count}`}</Text>
                 </View>
               </Marker>
             );
@@ -1033,17 +1039,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.9)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
-    elevation: 6,
+    borderColor: "#FFFFFFE6",
   },
   clusterText: {
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "700",
+    textAlign: "center",
   },
   calloutContainer: {
     width: 280,

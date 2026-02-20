@@ -211,6 +211,9 @@ export async function getCuriosInBounds(
     return boundsFetchInProgress;
   }
 
+  const centerLat = (minLat + maxLat) / 2;
+  const centerLng = (minLng + maxLng) / 2;
+
   boundsFetchInProgress = (async () => {
     try {
       const { data, error } = await supabase
@@ -229,25 +232,7 @@ export async function getCuriosInBounds(
 
       if (!data || data.length === 0) return [];
 
-      return data.map(place => {
-        const placeLat = place.latitude ?? place.lat ?? place.y;
-        const placeLng = place.longitude ?? place.lng ?? place.lon ?? place.x;
-        const placeId = place.curio_id ?? place['curio-id'] ?? place.uuid ?? place.id ?? place.place_id ?? String(Math.random());
-        const placeName = place.name ?? place.title ?? 'Unknown';
-        const placeDesc = place.detail_overview ?? place['detail-overview'] ?? place.description ?? place.desc ?? place.summary ?? '';
-        const placeType = place.curio_type ?? place['curio-type'] ?? '';
-        const audioPath = place.detail_audio_path ?? place['detail-audio-path'] ?? null;
-
-        return {
-          id: String(placeId),
-          name: placeName,
-          description: placeDesc,
-          latitude: Number(placeLat),
-          longitude: Number(placeLng),
-          curioType: placeType,
-          detailAudioPath: audioPath,
-        };
-      }).filter(p => !isNaN(p.latitude) && !isNaN(p.longitude));
+      return processPlaces(data, centerLat, centerLng, 500);
     } catch (error) {
       console.error('Error fetching bounds places:', error);
       return [];
