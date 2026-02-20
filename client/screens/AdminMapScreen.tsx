@@ -18,7 +18,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { getCuriosNearPoint, Curio } from "@/lib/supabase";
-import { apiRequest } from "@/lib/query-client";
+import { apiRequest, getApiUrl } from "@/lib/query-client";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 const LONDON_CENTER = {
@@ -96,6 +96,44 @@ export default function AdminMapScreen() {
     setSelectedCurio(curio);
   };
 
+  const handleLongPress = (event: any) => {
+    const { latitude, longitude } = event.nativeEvent.coordinate;
+    Alert.alert(
+      "Create New Place",
+      `Create a new place at this location?\n\nLat: ${latitude.toFixed(6)}\nLon: ${longitude.toFixed(6)}`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Create",
+          onPress: async () => {
+            setLoading(true);
+            try {
+              const url = new URL("/api/admin/place", getApiUrl());
+              const res = await fetch(url.toString(), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ lat: latitude, lon: longitude, name: "New Place" }),
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || "Failed to create place");
+              navigation.navigate("AdminEdit", {
+                curioId: data.curioId,
+                curioName: "New Place",
+                isNew: true,
+                latitude,
+                longitude,
+              });
+            } catch (e: any) {
+              Alert.alert("Error", e.message || "Failed to create place");
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleDelete = () => {
     if (!selectedCurio) return;
 
@@ -143,6 +181,7 @@ export default function AdminMapScreen() {
         showsUserLocation
         showsMyLocationButton={false}
         onRegionChangeComplete={handleRegionChangeComplete}
+        onLongPress={handleLongPress}
       >
         {curios.map(curio => (
           <Marker
