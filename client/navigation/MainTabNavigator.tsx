@@ -4,20 +4,24 @@ import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { Platform, StyleSheet } from "react-native";
 import { Colors } from "@/constants/theme";
+import { useAuth } from "@/contexts/AuthContext";
 import MapScreen from "@/screens/MapScreen";
 import ListsScreen from "@/screens/ListsScreen";
 import ProfileScreen from "@/screens/ProfileScreen";
+import AdminMapScreen from "@/screens/AdminMapScreen";
 
 export type MainTabParamList = {
   MapTab: undefined;
   ListsTab: undefined;
   ProfileTab: undefined;
+  AdminTab: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 export default function MainTabNavigator() {
   const theme = Colors.dark;
+  const { isAdmin } = useAuth();
 
   return (
     <Tab.Navigator
@@ -74,6 +78,18 @@ export default function MainTabNavigator() {
           ),
         }}
       />
+      {isAdmin ? (
+        <Tab.Screen
+          name="AdminTab"
+          component={AdminMapScreen}
+          options={{
+            title: "Admin",
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="shield" size={size} color={color} />
+            ),
+          }}
+        />
+      ) : null}
     </Tab.Navigator>
   );
 }
