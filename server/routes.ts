@@ -438,6 +438,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin API: Create a new place with auto-generated curio_id
+  app.post('/api/admin/place', async (req, res) => {
+    try {
+      const { lat, lon, name } = req.body;
+
+      if (lat == null || lon == null) {
+        return res.status(400).json({ error: 'lat and lon are required' });
+      }
+
+      // Find the highest existing curio_id number
+      const { data: maxRows, error: maxError } = await supabase
+        .from('places')
+        .select('curio_id')
+        .order('curio_id', { ascending: false })
+        .limit(200);
+
+      if (maxError) {
+        console.error('Error finding max curio_id:', maxError);
+        return res.status(500).json({ error: maxError.message });
+      }
+
+      let maxNum = 0;
+      for (const row of (maxRows || [])) {
+        const num = parseInt((row.curio_id || '').replace(/\D/g, '')) || 0;
+        if (num > maxNum) maxNum = num;
+      }
+      const newCurioId = `CURIO-${maxNum + 1}`;
+
+      const { data, error } = await supabase
+        .from('places')
+        .insert({
+          curio_id: newCurioId,
+          name: name || 'New Place',
+          lat: lat,
+          lon: lon,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating place:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      res.json({ success: true, place: data, curioId: newCurioId });
+    } catch (err) {
+      console.error('Error creating place:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Admin API: Update place name
+  app.patch('/api/admin/place/:curioId/name', async (req, res) => {
+    try {
+      const { curioId } = req.params;
+      const { name } = req.body;
+
+      if (!name) {
+        return res.status(400).json({ error: 'name is required' });
+      }
+
+      const { data, error } = await supabase
+        .from('places')
+        .update({ name })
+        .eq('curio_id', curioId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating place name:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      res.json({ success: true, place: data });
+    } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Admin API: Delete a place and all its related facts by curio_id
   app.delete('/api/admin/place/:curioId', async (req, res) => {
     try {

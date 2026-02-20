@@ -19,7 +19,7 @@ export type RootStackParamList = {
   ListDetail: { listId: string; listName: string };
   TourDetail: { tourId: string };
   VisitedPlaces: undefined;
-  AdminEdit: { curioId: string; curioName: string };
+  AdminEdit: { curioId: string; curioName: string; isNew?: boolean; latitude?: number; longitude?: number };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
