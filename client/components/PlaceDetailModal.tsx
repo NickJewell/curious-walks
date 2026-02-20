@@ -76,6 +76,7 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
   const [loadingFacts, setLoadingFacts] = useState(false);
   
   const [showReportModal, setShowReportModal] = useState(false);
+  const [reportSource, setReportSource] = useState<{ type: 'place'; id: string } | { type: 'fact'; id: string }>({ type: 'place', id: '' });
   const [issueType, setIssueType] = useState<IssueType>('incorrect_info');
   const [otherDesc, setOtherDesc] = useState('');
   const [submittingReport, setSubmittingReport] = useState(false);
@@ -344,10 +345,9 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
     );
     
     if (hasVotedDown) {
-      // Remove the down vote
       handleRemoveDownVote();
     } else {
-      // Show report modal to add down vote
+      setReportSource({ type: 'place', id: place.id });
       setShowReportModal(true);
     }
   };
@@ -374,29 +374,32 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
     setSubmittingReport(true);
     try {
       await apiRequest('POST', '/api/content/issue', {
-        curioId: place.id,
-        sourceType: 'place',
+        sourceType: reportSource.type,
+        sourceId: reportSource.id,
         issueType: issueType,
         otherDesc: issueType === 'other' ? otherDesc.slice(0, 200) : null,
         userId: user?.id || null,
       });
       
-      if (hasVotedUp) {
-        await apiRequest('DELETE', '/api/content/vote', {
+      if (reportSource.type === 'place') {
+        if (hasVotedUp) {
+          await apiRequest('DELETE', '/api/content/vote', {
+            curioId: place.id,
+            voteType: 'up',
+            userId: user?.id || null,
+          });
+          setHasVotedUp(false);
+        }
+        
+        await apiRequest('POST', '/api/content/vote', {
           curioId: place.id,
-          voteType: 'up',
+          voteType: 'down',
           userId: user?.id || null,
         });
-        setHasVotedUp(false);
+        
+        setHasVotedDown(true);
       }
       
-      await apiRequest('POST', '/api/content/vote', {
-        curioId: place.id,
-        voteType: 'down',
-        userId: user?.id || null,
-      });
-      
-      setHasVotedDown(true);
       setShowReportModal(false);
       setOtherDesc('');
       setIssueType('incorrect_info');
@@ -611,14 +614,18 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
                     <Feather name="zap" size={18} color={Colors.dark.accent} />
                     <Text style={styles.factLabel}>Did you know?</Text>
                     
-                    <View style={styles.factVoteButtons}>
-                      <Pressable style={styles.factVoteBtn}>
-                        <Feather name="thumbs-up" size={14} color={Colors.dark.textSecondary} />
-                      </Pressable>
-                      <Pressable style={styles.factVoteBtn}>
-                        <Feather name="thumbs-down" size={14} color={Colors.dark.textSecondary} />
-                      </Pressable>
-                    </View>
+                    <Pressable
+                      style={styles.factVoteBtn}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        if (currentFact) {
+                          setReportSource({ type: 'fact', id: currentFact.id });
+                          setShowReportModal(true);
+                        }
+                      }}
+                    >
+                      <Feather name="thumbs-down" size={14} color={Colors.dark.textSecondary} />
+                    </Pressable>
                   </View>
                   <Text style={styles.factText}>{stripUrls(currentFact.fact_info)}</Text>
                   <Text style={styles.tapAgainText}>Tap for another fact</Text>

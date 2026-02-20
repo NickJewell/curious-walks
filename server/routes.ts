@@ -276,14 +276,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Submit content issue
   app.post('/api/content/issue', async (req, res) => {
     try {
-      const { curioId, sourceType, issueType, otherDesc, userId } = req.body;
+      const { sourceType, sourceId, issueType, otherDesc, userId } = req.body;
       
-      if (!curioId || !issueType) {
-        return res.status(400).json({ error: 'curioId and issueType are required' });
+      if (!sourceId || !issueType) {
+        return res.status(400).json({ error: 'sourceId and issueType are required' });
       }
 
       const row: Record<string, any> = {
-        curio_id: curioId,
+        source_id: sourceId,
         source_type: sourceType || 'place',
         issue_type: issueType,
         user_id: userId || null,
