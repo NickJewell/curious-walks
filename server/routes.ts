@@ -433,6 +433,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin API: Delete a place and all its related facts by curio_id
+  app.delete('/api/admin/place/:curioId', async (req, res) => {
+    try {
+      const { curioId } = req.params;
+
+      const { error: factsError } = await supabase
+        .from('facts')
+        .delete()
+        .eq('curio_id', curioId);
+
+      if (factsError) {
+        console.error('Error deleting facts:', factsError);
+      }
+
+      const { error: placeError } = await supabase
+        .from('places')
+        .delete()
+        .eq('curio_id', curioId);
+
+      if (placeError) {
+        console.error('Error deleting place:', placeError);
+        return res.status(500).json({ error: placeError.message });
+      }
+
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Admin API: Get places near a point (within specified radius in meters)
   app.get('/api/admin/places/nearby', async (req, res) => {
     try {
