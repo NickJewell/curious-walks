@@ -76,6 +76,24 @@ export default function AdminMapScreen() {
     }, 300);
   };
 
+  const [randomLoading, setRandomLoading] = useState(false);
+
+  const handleRandomPlace = async () => {
+    setRandomLoading(true);
+    try {
+      const url = new URL("/api/admin/places/random", getApiUrl());
+      const res = await fetch(url.toString());
+      const data = await res.json();
+      if (data.curio_id) {
+        handleSearchResultPress(data);
+      }
+    } catch {
+      Alert.alert("Error", "Could not fetch a random place.");
+    } finally {
+      setRandomLoading(false);
+    }
+  };
+
   const handleSearchResultPress = (result: { curio_id: string; name: string; lat: number; lon: number }) => {
     Keyboard.dismiss();
     setShowSearch(false);
@@ -269,6 +287,18 @@ export default function AdminMapScreen() {
         onPress={() => { setShowSearch(true); setSelectedCurio(null); }}
       >
         <Feather name="search" size={18} color="#fff" />
+      </Pressable>
+
+      <Pressable
+        style={[styles.randomBtn, { top: insets.top + Spacing.sm }]}
+        onPress={handleRandomPlace}
+        disabled={randomLoading}
+      >
+        {randomLoading ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <Feather name="shuffle" size={18} color="#fff" />
+        )}
       </Pressable>
 
       {showSearch ? (
@@ -496,6 +526,17 @@ const styles = StyleSheet.create({
   searchToggleBtn: {
     position: "absolute",
     left: Spacing.md,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(30,30,30,0.9)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+  },
+  randomBtn: {
+    position: "absolute",
+    left: Spacing.md + 48,
     width: 40,
     height: 40,
     borderRadius: 20,

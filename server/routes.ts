@@ -1070,6 +1070,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Random place for admin review
+  app.get('/api/admin/places/random', async (req, res) => {
+    try {
+      const { count, error: countError } = await supabase
+        .from('places')
+        .select('*', { count: 'exact', head: true });
+
+      if (countError || !count) return res.status(500).json({ error: 'Could not count places' });
+
+      const offset = Math.floor(Math.random() * count);
+      const { data, error } = await supabase
+        .from('places')
+        .select('curio_id, name, lat, lon')
+        .range(offset, offset)
+        .limit(1);
+
+      if (error || !data?.length) return res.status(500).json({ error: 'Could not fetch random place' });
+      res.json(data[0]);
+    } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Search places for adding to tours
   app.get('/api/admin/places/search', async (req, res) => {
     try {
