@@ -22,6 +22,7 @@ export interface UserList {
   list_type?: 'list' | 'tour';
   tour_start_region?: string;
   tour_length?: string;
+  promoted_flag?: boolean;
   metadata?: TourMetadata;
   created_at: string;
   updated_at: string;
