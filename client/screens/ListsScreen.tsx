@@ -131,6 +131,10 @@ export default function ListsScreen() {
     navigation.navigate('TourDetail', { tourId: tour.id });
   };
 
+  const promotedTours = useMemo(() => {
+    return tours.filter(t => t.promoted_flag);
+  }, [tours]);
+
   const tourSections = useMemo(() => {
     const grouped: Record<string, Tour[]> = {};
     for (const tour of tours) {
@@ -201,15 +205,17 @@ export default function ListsScreen() {
     );
   };
 
-  const renderTourCard = ({ item }: { item: Tour }) => {
+  const renderTourCard = ({ item, isPromotedSection = false }: { item: Tour; isPromotedSection?: boolean }) => {
     const duration = item.metadata?.duration;
     const tourLength = item.tour_length;
     const heroImage = item.metadata?.hero_image;
+    const isPromoted = isPromotedSection && item.promoted_flag;
 
     return (
       <Pressable
         style={({ pressed }) => [
           styles.tourCard,
+          isPromoted ? styles.promotedTourCard : null,
           pressed && styles.tourCardPressed,
         ]}
         onPress={() => handleOpenTour(item)}
@@ -219,31 +225,31 @@ export default function ListsScreen() {
           style={styles.tourCardImage}
           resizeMode="cover"
         >
-          <View style={styles.tourCardOverlay}>
+          <View style={[styles.tourCardOverlay, isPromoted ? styles.promotedCardOverlay : null]}>
             {!heroImage ? (
-              <Feather name="map" size={32} color={Colors.dark.textSecondary} />
+              <Feather name="map" size={32} color={isPromoted ? '#D4A017' : Colors.dark.textSecondary} />
             ) : null}
           </View>
         </ImageBackground>
         <View style={styles.tourCardContent}>
-          <Text style={styles.tourCardTitle} numberOfLines={2}>
+          <Text style={[styles.tourCardTitle, isPromoted ? styles.promotedTourTitle : null]} numberOfLines={2}>
             {item.name}
           </Text>
           <View style={styles.tourCardMeta}>
             {duration ? (
-              <View style={styles.tourBadge}>
-                <Feather name="clock" size={12} color={Colors.dark.textSecondary} />
-                <Text style={styles.tourBadgeText}>{duration}</Text>
+              <View style={[styles.tourBadge, isPromoted ? styles.promotedBadge : null]}>
+                <Feather name="clock" size={12} color={isPromoted ? '#D4A017' : Colors.dark.textSecondary} />
+                <Text style={[styles.tourBadgeText, isPromoted ? styles.promotedBadgeText : null]}>{duration}</Text>
               </View>
             ) : null}
             {tourLength ? (
-              <View style={styles.tourBadge}>
-                <Feather name="navigation" size={12} color={Colors.dark.textSecondary} />
-                <Text style={styles.tourBadgeText}>{tourLength}</Text>
+              <View style={[styles.tourBadge, isPromoted ? styles.promotedBadge : null]}>
+                <Feather name="navigation" size={12} color={isPromoted ? '#D4A017' : Colors.dark.textSecondary} />
+                <Text style={[styles.tourBadgeText, isPromoted ? styles.promotedBadgeText : null]}>{tourLength}</Text>
               </View>
             ) : null}
           </View>
-          <Text style={styles.tourCardStops}>
+          <Text style={[styles.tourCardStops, isPromoted ? styles.promotedStops : null]}>
             {item.item_count} {item.item_count === 1 ? 'stop' : 'stops'}
           </Text>
         </View>
@@ -380,6 +386,21 @@ export default function ListsScreen() {
               <Text style={styles.sectionHeaderText}>{title}</Text>
             </View>
           )}
+          ListHeaderComponent={
+            promotedTours.length > 0 ? (
+              <View style={styles.promotedSection}>
+                <View style={styles.promotedHeaderRow}>
+                  <Feather name="star" size={18} color="#D4A017" />
+                  <Text style={styles.promotedHeaderText}>Featured Tours</Text>
+                </View>
+                {promotedTours.map((tour) => (
+                  <View key={`promoted-${tour.id}`}>
+                    {renderTourCard({ item: tour, isPromotedSection: true })}
+                  </View>
+                ))}
+              </View>
+            ) : null
+          }
           contentContainerStyle={[
             styles.listContent,
             { paddingBottom: tabBarHeight + Spacing.xl },
@@ -580,6 +601,43 @@ const styles = StyleSheet.create({
   tourCardStops: {
     ...Typography.caption,
     color: Colors.dark.accent,
+  },
+  promotedSection: {
+    marginBottom: Spacing.lg,
+    paddingBottom: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(212, 160, 23, 0.2)',
+  },
+  promotedHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.md,
+  },
+  promotedHeaderText: {
+    ...Typography.title,
+    color: '#D4A017',
+  },
+  promotedTourCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(212, 160, 23, 0.4)',
+    backgroundColor: 'rgba(212, 160, 23, 0.08)',
+  },
+  promotedCardOverlay: {
+    backgroundColor: 'rgba(212, 160, 23, 0.15)',
+  },
+  promotedTourTitle: {
+    color: '#F0D060',
+  },
+  promotedBadge: {
+    backgroundColor: 'rgba(212, 160, 23, 0.15)',
+  },
+  promotedBadgeText: {
+    color: '#D4A017',
+  },
+  promotedStops: {
+    color: '#D4A017',
   },
   listCard: {
     backgroundColor: Colors.dark.backgroundSecondary,
