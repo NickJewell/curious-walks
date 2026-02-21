@@ -875,7 +875,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         name: name.trim(),
         description: description || null,
         list_type: 'tour',
-        user_id: '00000000-0000-0000-0000-000000000000',
+        user_id: 'fafec54e-cf0e-45ce-8467-7b2a50870987',
       };
       if (tour_length) insert.tour_length = tour_length;
       if (tour_length_category) insert.tour_length_category = tour_length_category;
@@ -1017,8 +1017,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           list_uuid: id,
           place_id: place.curio_id,
           place_name: place.name,
-          place_latitude: place.lat,
-          place_longitude: place.lon,
+          place_lat: place.lat,
+          place_lon: place.lon,
           order_index: (count || 0) + 1,
         })
         .select()
