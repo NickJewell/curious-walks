@@ -65,26 +65,27 @@ export default function TourDetailScreen() {
     setActiveTour(tour);
 
     const firstStop = stops[0];
-    setActiveTarget({
-      id: firstStop.place_id,
-      name: firstStop.place_name,
-      description: firstStop.place_description,
-      latitude: firstStop.place_latitude,
-      longitude: firstStop.place_longitude,
+    navigation.navigate('PlaceDetail', {
+      placeId: firstStop.place_id,
+      placeName: firstStop.place_name,
+      placeDescription: firstStop.place_description,
+      placeLat: firstStop.place_latitude,
+      placeLng: firstStop.place_longitude,
+      tourId: tour.id,
+      tourName: tour.name,
     });
-
-    navigation.navigate('Compass');
   };
 
   const handleStopPress = (stop: ListItem) => {
-    setActiveTarget({
-      id: stop.place_id,
-      name: stop.place_name,
-      description: stop.place_description,
-      latitude: stop.place_latitude,
-      longitude: stop.place_longitude,
+    navigation.navigate('PlaceDetail', {
+      placeId: stop.place_id,
+      placeName: stop.place_name,
+      placeDescription: stop.place_description,
+      placeLat: stop.place_latitude,
+      placeLng: stop.place_longitude,
+      tourId: tour?.id,
+      tourName: tour?.name,
     });
-    navigation.navigate('Compass');
   };
 
   if (loading) {
