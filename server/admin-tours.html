@@ -63,20 +63,26 @@
   <label>Description</label>
   <textarea id="new-desc" placeholder="Brief description of the tour..."></textarea>
   <div class="two-col">
-    <div><label>Difficulty</label>
-      <select id="new-difficulty"><option value="">--</option><option>Easy</option><option>Moderate</option><option>Challenging</option></select>
+    <div><label>Tour ID</label>
+      <input type="text" id="new-tour-id" placeholder="e.g. TOUR-11">
     </div>
-    <div><label>Duration</label>
-      <input type="text" id="new-duration" placeholder="e.g. 1.5 hours">
+    <div><label>Tour Length</label>
+      <input type="text" id="new-tour-length" placeholder="e.g. 1-2 hours">
     </div>
   </div>
   <div class="two-col">
-    <div><label>Distance</label>
-      <input type="text" id="new-distance" placeholder="e.g. 3.2 km">
+    <div><label>Length Category</label>
+      <select id="new-length-cat"><option value="">--</option><option>Short</option><option>Medium</option><option>Long</option><option>Half Day</option></select>
     </div>
     <div><label>Start Region</label>
-      <input type="text" id="new-region" placeholder="e.g. Southwark">
+      <input type="text" id="new-start-region" placeholder="e.g. Southwark">
     </div>
+  </div>
+  <div class="two-col">
+    <div><label>End Region</label>
+      <input type="text" id="new-end-region" placeholder="e.g. Greenwich">
+    </div>
+    <div></div>
   </div>
   <div class="btn-row">
     <button class="btn btn-primary" onclick="createTour()">Create Tour</button>
@@ -102,20 +108,26 @@
   <label>Description</label>
   <textarea id="edit-desc"></textarea>
   <div class="two-col">
-    <div><label>Difficulty</label>
-      <select id="edit-difficulty"><option value="">--</option><option>Easy</option><option>Moderate</option><option>Challenging</option></select>
+    <div><label>Tour ID</label>
+      <input type="text" id="edit-tour-id">
     </div>
-    <div><label>Duration</label>
-      <input type="text" id="edit-duration">
+    <div><label>Tour Length</label>
+      <input type="text" id="edit-tour-length">
     </div>
   </div>
   <div class="two-col">
-    <div><label>Distance</label>
-      <input type="text" id="edit-distance">
+    <div><label>Length Category</label>
+      <select id="edit-length-cat"><option value="">--</option><option>Short</option><option>Medium</option><option>Long</option><option>Half Day</option></select>
     </div>
     <div><label>Start Region</label>
-      <input type="text" id="edit-region">
+      <input type="text" id="edit-start-region">
     </div>
+  </div>
+  <div class="two-col">
+    <div><label>End Region</label>
+      <input type="text" id="edit-end-region">
+    </div>
+    <div></div>
   </div>
 
   <h2 style="margin-top:24px">Stops</h2>
@@ -165,10 +177,9 @@ function renderTours() {
       <h3>${esc(t.name)}</h3>
       <div class="meta">
         <span>${t.item_count} stop${t.item_count !== 1 ? 's' : ''}</span>
-        <span>${t.metadata?.difficulty || '---'}</span>
-        <span>${t.metadata?.duration || '---'}</span>
-        <span>${t.metadata?.distance || '---'}</span>
-        <span class="badge badge-purple">${t.id.substring(0,8)}</span>
+        <span>${t.tour_length || '---'}</span>
+        <span>${t.tour_start_region || '---'}</span>
+        ${t.tour_id ? `<span class="badge badge-purple">${esc(t.tour_id)}</span>` : ''}
       </div>
     </div>
   `).join('');
@@ -177,29 +188,32 @@ function renderTours() {
 async function createTour() {
   const name = document.getElementById('new-name').value.trim();
   if (!name) { toast('Name is required', 'error'); return; }
-  const metadata = {};
-  const diff = document.getElementById('new-difficulty').value;
-  const dur = document.getElementById('new-duration').value.trim();
-  const dist = document.getElementById('new-distance').value.trim();
-  const reg = document.getElementById('new-region').value.trim();
-  if (diff) metadata.difficulty = diff;
-  if (dur) metadata.duration = dur;
-  if (dist) metadata.distance = dist;
-  if (reg) metadata.tour_start_region = reg;
+
+  const body = {
+    name,
+    description: document.getElementById('new-desc').value.trim(),
+  };
+  const tourId = document.getElementById('new-tour-id').value.trim();
+  const tourLength = document.getElementById('new-tour-length').value.trim();
+  const lengthCat = document.getElementById('new-length-cat').value;
+  const startRegion = document.getElementById('new-start-region').value.trim();
+  const endRegion = document.getElementById('new-end-region').value.trim();
+  if (tourId) body.tour_id = tourId;
+  if (tourLength) body.tour_length = tourLength;
+  if (lengthCat) body.tour_length_category = lengthCat;
+  if (startRegion) body.tour_start_region = startRegion;
+  if (endRegion) body.tour_end_region = endRegion;
 
   try {
-    await api('POST', '/api/admin/tours', {
-      name,
-      description: document.getElementById('new-desc').value.trim(),
-      metadata,
-    });
+    await api('POST', '/api/admin/tours', body);
     toast('Tour created');
     document.getElementById('new-name').value = '';
     document.getElementById('new-desc').value = '';
-    document.getElementById('new-difficulty').value = '';
-    document.getElementById('new-duration').value = '';
-    document.getElementById('new-distance').value = '';
-    document.getElementById('new-region').value = '';
+    document.getElementById('new-tour-id').value = '';
+    document.getElementById('new-tour-length').value = '';
+    document.getElementById('new-length-cat').value = '';
+    document.getElementById('new-start-region').value = '';
+    document.getElementById('new-end-region').value = '';
     await loadTours();
   } catch (e) { toast(e.message, 'error'); }
 }
@@ -214,10 +228,11 @@ async function selectTour(id) {
   document.getElementById('detail-title').textContent = tour.name;
   document.getElementById('edit-name').value = tour.name || '';
   document.getElementById('edit-desc').value = tour.description || '';
-  document.getElementById('edit-difficulty').value = tour.metadata?.difficulty || '';
-  document.getElementById('edit-duration').value = tour.metadata?.duration || '';
-  document.getElementById('edit-distance').value = tour.metadata?.distance || '';
-  document.getElementById('edit-region').value = tour.metadata?.tour_start_region || '';
+  document.getElementById('edit-tour-id').value = tour.tour_id || '';
+  document.getElementById('edit-tour-length').value = tour.tour_length || '';
+  document.getElementById('edit-length-cat').value = tour.tour_length_category || '';
+  document.getElementById('edit-start-region').value = tour.tour_start_region || '';
+  document.getElementById('edit-end-region').value = tour.tour_end_region || '';
   document.getElementById('search-place').value = '';
   document.getElementById('search-results').style.display = 'none';
 
@@ -250,21 +265,16 @@ function renderItems() {
 
 async function saveTourEdits() {
   if (!selectedTourId) return;
-  const metadata = {};
-  const diff = document.getElementById('edit-difficulty').value;
-  const dur = document.getElementById('edit-duration').value.trim();
-  const dist = document.getElementById('edit-distance').value.trim();
-  const reg = document.getElementById('edit-region').value.trim();
-  if (diff) metadata.difficulty = diff;
-  if (dur) metadata.duration = dur;
-  if (dist) metadata.distance = dist;
-  if (reg) metadata.tour_start_region = reg;
 
   try {
     await api('PATCH', `/api/admin/tours/${selectedTourId}`, {
       name: document.getElementById('edit-name').value.trim(),
       description: document.getElementById('edit-desc').value.trim(),
-      metadata,
+      tour_id: document.getElementById('edit-tour-id').value.trim() || null,
+      tour_length: document.getElementById('edit-tour-length').value.trim() || null,
+      tour_length_category: document.getElementById('edit-length-cat').value || null,
+      tour_start_region: document.getElementById('edit-start-region').value.trim() || null,
+      tour_end_region: document.getElementById('edit-end-region').value.trim() || null,
     });
     toast('Tour updated');
     await loadTours();

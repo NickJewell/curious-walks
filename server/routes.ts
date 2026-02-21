@@ -868,18 +868,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a new tour
   app.post('/api/admin/tours', async (req, res) => {
     try {
-      const { name, description, metadata } = req.body;
+      const { name, description, tour_length, tour_length_category, tour_start_region, tour_end_region, tour_id } = req.body;
       if (!name) return res.status(400).json({ error: 'name is required' });
+
+      const insert: any = {
+        name: name.trim(),
+        description: description || null,
+        list_type: 'tour',
+        user_id: '00000000-0000-0000-0000-000000000000',
+      };
+      if (tour_length) insert.tour_length = tour_length;
+      if (tour_length_category) insert.tour_length_category = tour_length_category;
+      if (tour_start_region) insert.tour_start_region = tour_start_region;
+      if (tour_end_region) insert.tour_end_region = tour_end_region;
+      if (tour_id) insert.tour_id = tour_id;
 
       const { data, error } = await supabase
         .from('lists')
-        .insert({
-          name: name.trim(),
-          description: description || null,
-          list_type: 'tour',
-          metadata: metadata || {},
-          user_id: '00000000-0000-0000-0000-000000000000',
-        })
+        .insert(insert)
         .select()
         .single();
 
@@ -894,11 +900,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/admin/tours/:id', async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, description, metadata } = req.body;
+      const { name, description, tour_length, tour_length_category, tour_start_region, tour_end_region, tour_id } = req.body;
       const updates: any = { updated_at: new Date().toISOString() };
       if (name !== undefined) updates.name = name.trim();
       if (description !== undefined) updates.description = description;
-      if (metadata !== undefined) updates.metadata = metadata;
+      if (tour_length !== undefined) updates.tour_length = tour_length;
+      if (tour_length_category !== undefined) updates.tour_length_category = tour_length_category;
+      if (tour_start_region !== undefined) updates.tour_start_region = tour_start_region;
+      if (tour_end_region !== undefined) updates.tour_end_region = tour_end_region;
+      if (tour_id !== undefined) updates.tour_id = tour_id;
 
       const { data, error } = await supabase
         .from('lists')
