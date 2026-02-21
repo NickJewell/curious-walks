@@ -27,6 +27,15 @@ Preferred communication style: Simple, everyday language.
 - Compass screen for hunt navigation (full-screen modal)
 - Platform-specific implementations (.web.tsx files for web compatibility)
 
+**Place Detail Screen:**
+- PlaceDetailScreen is a full-screen experience for viewing place details
+- Autoplays audio narration on open
+- Shows map hero, title, audio player, description, and facts
+- Compass button in top-right navigates to hunt mode
+- "Back to Tour" button appears when accessed from a tour
+- Accessible from TourDetailScreen (tour stops) and potentially other flows
+- Includes vote (thumbs up/down) and report functionality
+
 **Compass Navigation ("Hunt" Mode):**
 - HuntContext provides global state for active hunt target
 - CompassScreen displays directional arrow pointing to target
