@@ -1016,9 +1016,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .insert({
           list_uuid: id,
           place_id: place.curio_id,
-          place_name: place.name,
-          place_lat: place.lat,
-          place_lon: place.lon,
           order_index: (count || 0) + 1,
         })
         .select()
