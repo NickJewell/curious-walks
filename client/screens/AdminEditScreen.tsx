@@ -390,10 +390,28 @@ export default function AdminEditScreen() {
           contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
           keyboardDismissMode="on-drag"
         >
-          <Text style={styles.sectionLabel}>Paste JSON</Text>
-          <Text style={styles.hintText}>
-            Use keys "DETAIL-OVERVIEW" (string) and/or "FACTS" (array of strings or objects with "fact" key). Max 10 facts.
-          </Text>
+          <View style={styles.jsonHeaderRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sectionLabel}>Paste JSON</Text>
+              <Text style={styles.hintText}>
+                Use keys "DETAIL-OVERVIEW" (string) and/or "FACTS" (array of strings or objects with "fact" key). Max 10 facts.
+              </Text>
+            </View>
+            <Pressable
+              style={[styles.importBtn, (importing || !jsonText.trim()) && styles.saveBtnDisabled]}
+              onPress={handleImportJson}
+              disabled={importing || !jsonText.trim()}
+            >
+              {importing ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Feather name="upload" size={16} color="#fff" />
+                  <Text style={styles.importBtnText}>Import</Text>
+                </>
+              )}
+            </Pressable>
+          </View>
           <TextInput
             style={[styles.textArea, { minHeight: 200 }]}
             value={jsonText}
@@ -405,20 +423,6 @@ export default function AdminEditScreen() {
             autoCapitalize="none"
             autoCorrect={false}
           />
-          <Pressable
-            style={[styles.importBtn, (importing || !jsonText.trim()) && styles.saveBtnDisabled]}
-            onPress={handleImportJson}
-            disabled={importing || !jsonText.trim()}
-          >
-            {importing ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <Feather name="upload" size={16} color="#fff" />
-                <Text style={styles.importBtnText}>Import JSON</Text>
-              </>
-            )}
-          </Pressable>
 
           {importLog.length > 0 ? (
             <View style={styles.logBox}>
@@ -629,15 +633,21 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     lineHeight: 18,
   },
+  jsonHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.md,
+  },
   importBtn: {
     flexDirection: "row",
     backgroundColor: Colors.dark.accent,
     paddingVertical: Spacing.sm + 2,
+    paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.md,
     alignItems: "center",
     justifyContent: "center",
     gap: Spacing.xs,
-    marginTop: Spacing.sm,
+    marginTop: Spacing.xs,
   },
   importBtnText: {
     color: "#fff",
