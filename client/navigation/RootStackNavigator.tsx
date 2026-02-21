@@ -5,6 +5,7 @@ import MainTabNavigator from "@/navigation/MainTabNavigator";
 import CompassScreen from "@/screens/CompassScreen";
 import ListDetailScreen from "@/screens/ListDetailScreen";
 import TourDetailScreen from "@/screens/TourDetailScreen";
+import PlaceDetailScreen from "@/screens/PlaceDetailScreen";
 import VisitedPlacesScreen from "@/screens/VisitedPlacesScreen";
 import AdminEditScreen from "@/screens/AdminEditScreen";
 import LoginScreen from "@/screens/LoginScreen";
@@ -18,6 +19,15 @@ export type RootStackParamList = {
   Compass: undefined;
   ListDetail: { listId: string; listName: string };
   TourDetail: { tourId: string };
+  PlaceDetail: {
+    placeId: string;
+    placeName: string;
+    placeDescription?: string;
+    placeLat: number;
+    placeLng: number;
+    tourId?: string;
+    tourName?: string;
+  };
   VisitedPlaces: undefined;
   AdminEdit: { curioId: string; curioName: string; isNew?: boolean; latitude?: number; longitude?: number };
 };
@@ -75,6 +85,14 @@ export default function RootStackNavigator() {
           <Stack.Screen
             name="TourDetail"
             component={TourDetailScreen}
+            options={{
+              headerShown: false,
+              animation: "slide_from_right",
+            }}
+          />
+          <Stack.Screen
+            name="PlaceDetail"
+            component={PlaceDetailScreen}
             options={{
               headerShown: false,
               animation: "slide_from_right",
