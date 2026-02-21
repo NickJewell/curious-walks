@@ -50,6 +50,7 @@
   .move-btn:hover { border-color: #888; color: #fff; }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
   .badge-purple { background: rgba(108,99,255,0.2); color: #6C63FF; }
+  .badge-gold { background: rgba(212,160,23,0.2); color: #D4A017; }
 </style>
 </head>
 <body>
@@ -127,7 +128,12 @@
     <div><label>End Region</label>
       <input type="text" id="edit-end-region">
     </div>
-    <div></div>
+    <div style="display:flex;align-items:flex-end;padding-bottom:4px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0">
+        <input type="checkbox" id="edit-promoted" style="width:auto;accent-color:#D4A017;transform:scale(1.3)">
+        <span style="color:#D4A017;font-weight:600;font-size:14px">Promoted</span>
+      </label>
+    </div>
   </div>
 
   <h2 style="margin-top:24px">Stops</h2>
@@ -180,6 +186,7 @@ function renderTours() {
         <span>${t.tour_length || '---'}</span>
         <span>${t.tour_start_region || '---'}</span>
         ${t.tour_id ? `<span class="badge badge-purple">${esc(t.tour_id)}</span>` : ''}
+        ${t.promoted_flag ? `<span class="badge badge-gold">Promoted</span>` : ''}
       </div>
     </div>
   `).join('');
@@ -233,6 +240,7 @@ async function selectTour(id) {
   document.getElementById('edit-length-cat').value = tour.tour_length_category || '';
   document.getElementById('edit-start-region').value = tour.tour_start_region || '';
   document.getElementById('edit-end-region').value = tour.tour_end_region || '';
+  document.getElementById('edit-promoted').checked = !!tour.promoted_flag;
   document.getElementById('search-place').value = '';
   document.getElementById('search-results').style.display = 'none';
 
@@ -275,6 +283,7 @@ async function saveTourEdits() {
       tour_length_category: document.getElementById('edit-length-cat').value || null,
       tour_start_region: document.getElementById('edit-start-region').value.trim() || null,
       tour_end_region: document.getElementById('edit-end-region').value.trim() || null,
+      promoted_flag: document.getElementById('edit-promoted').checked,
     });
     toast('Tour updated');
     await loadTours();

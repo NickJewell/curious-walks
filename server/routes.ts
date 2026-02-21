@@ -900,7 +900,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/admin/tours/:id', async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, description, tour_length, tour_length_category, tour_start_region, tour_end_region, tour_id } = req.body;
+      const { name, description, tour_length, tour_length_category, tour_start_region, tour_end_region, tour_id, promoted_flag } = req.body;
       const updates: any = { updated_at: new Date().toISOString() };
       if (name !== undefined) updates.name = name.trim();
       if (description !== undefined) updates.description = description;
@@ -909,6 +909,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (tour_start_region !== undefined) updates.tour_start_region = tour_start_region;
       if (tour_end_region !== undefined) updates.tour_end_region = tour_end_region;
       if (tour_id !== undefined) updates.tour_id = tour_id;
+      if (promoted_flag !== undefined) updates.promoted_flag = promoted_flag;
 
       const { data, error } = await supabase
         .from('lists')
