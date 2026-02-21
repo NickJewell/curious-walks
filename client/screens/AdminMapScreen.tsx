@@ -4,9 +4,12 @@ import {
   StyleSheet,
   Pressable,
   Text,
+  TextInput,
   ActivityIndicator,
   Platform,
   Alert,
+  FlatList,
+  Keyboard,
 } from "react-native";
 import type { Region } from "react-native-maps";
 import SafeMapView, { Marker, PROVIDER_GOOGLE, isMapAvailable } from "@/components/SafeMapView";
@@ -43,6 +46,60 @@ export default function AdminMapScreen() {
   const [mapCenter, setMapCenter] = useState<{ latitude: number; longitude: number }>(LONDON_CENTER);
   const [selectedCurio, setSelectedCurio] = useState<Curio | null>(null);
   const initialLoadDone = useRef(false);
+
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [searchResults, setSearchResults] = useState<Array<{ curio_id: string; name: string; lat: number; lon: number }>>([]);
+  const [searching, setSearching] = useState(false);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSearchTextChange = (text: string) => {
+    setSearchText(text);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    if (text.trim().length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    searchTimeout.current = setTimeout(async () => {
+      try {
+        const url = new URL("/api/admin/places/search", getApiUrl());
+        url.searchParams.set("q", text.trim());
+        const res = await fetch(url.toString());
+        const data = await res.json();
+        setSearchResults(data);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+  };
+
+  const handleSearchResultPress = (result: { curio_id: string; name: string; lat: number; lon: number }) => {
+    Keyboard.dismiss();
+    setShowSearch(false);
+    setSearchText("");
+    setSearchResults([]);
+
+    const curio: Curio = {
+      id: result.curio_id,
+      name: result.name,
+      description: "",
+      latitude: result.lat,
+      longitude: result.lon,
+    };
+    setSelectedCurio(curio);
+
+    if (mapRef.current?.animateToRegion) {
+      mapRef.current.animateToRegion({
+        latitude: result.lat,
+        longitude: result.lon,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      }, 500);
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -206,6 +263,62 @@ export default function AdminMapScreen() {
         <Feather name="shield" size={14} color="#E53935" />
         <Text style={styles.adminBadgeText}>Admin</Text>
       </View>
+
+      <Pressable
+        style={[styles.searchToggleBtn, { top: insets.top + Spacing.sm }]}
+        onPress={() => { setShowSearch(true); setSelectedCurio(null); }}
+      >
+        <Feather name="search" size={18} color="#fff" />
+      </Pressable>
+
+      {showSearch ? (
+        <View style={[styles.searchOverlay, { top: insets.top + Spacing.sm }]}>
+          <View style={styles.searchInputRow}>
+            <Feather name="search" size={16} color={Colors.dark.textSecondary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by name or curio ID..."
+              placeholderTextColor={Colors.dark.textSecondary}
+              value={searchText}
+              onChangeText={handleSearchTextChange}
+              autoFocus
+              returnKeyType="search"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {searching ? (
+              <ActivityIndicator size="small" color={Colors.dark.accent} />
+            ) : null}
+            <Pressable onPress={() => { setShowSearch(false); setSearchText(""); setSearchResults([]); }}>
+              <Feather name="x" size={18} color={Colors.dark.textSecondary} />
+            </Pressable>
+          </View>
+          {searchResults.length > 0 ? (
+            <FlatList
+              data={searchResults}
+              keyExtractor={(item) => item.curio_id}
+              keyboardShouldPersistTaps="handled"
+              style={styles.searchResultsList}
+              renderItem={({ item }) => (
+                <Pressable
+                  style={({ pressed }) => [styles.searchResultItem, pressed && styles.searchResultItemPressed]}
+                  onPress={() => handleSearchResultPress(item)}
+                >
+                  <View style={styles.searchResultContent}>
+                    <Text style={styles.searchResultName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.searchResultId}>{item.curio_id}</Text>
+                  </View>
+                  <Feather name="arrow-right" size={16} color={Colors.dark.textSecondary} />
+                </Pressable>
+              )}
+            />
+          ) : searchText.length >= 2 && !searching ? (
+            <View style={styles.searchNoResults}>
+              <Text style={styles.searchNoResultsText}>No results found</Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
 
       {selectedCurio ? (
         <View style={[styles.panel, { bottom: tabBarHeight + Spacing.md }]}>
@@ -379,5 +492,78 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: "50%",
     alignSelf: "center",
+  },
+  searchToggleBtn: {
+    position: "absolute",
+    left: Spacing.md,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(30,30,30,0.9)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+  },
+  searchOverlay: {
+    position: "absolute",
+    left: Spacing.md,
+    right: Spacing.md,
+    backgroundColor: "rgba(20,20,20,0.97)",
+    borderRadius: BorderRadius.lg,
+    zIndex: 30,
+    maxHeight: 350,
+    overflow: "hidden",
+  },
+  searchInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.1)",
+  },
+  searchInput: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 15,
+    paddingVertical: Spacing.xs,
+  },
+  searchResultsList: {
+    maxHeight: 280,
+  },
+  searchResultItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+  },
+  searchResultItemPressed: {
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
+  searchResultContent: {
+    flex: 1,
+    marginRight: Spacing.sm,
+  },
+  searchResultName: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "500",
+    marginBottom: 2,
+  },
+  searchResultId: {
+    color: Colors.dark.textSecondary,
+    fontSize: 11,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+  searchNoResults: {
+    padding: Spacing.xl,
+    alignItems: "center",
+  },
+  searchNoResultsText: {
+    color: Colors.dark.textSecondary,
+    fontSize: 14,
   },
 });
