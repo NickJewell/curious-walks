@@ -96,6 +96,7 @@ export default function MapScreen() {
   
   const [curios, setCurios] = useState<Curio[]>([]);
   const [loading, setLoading] = useState(true);
+  const [locationReady, setLocationReady] = useState(false);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [mapCenter, setMapCenter] = useState<{ latitude: number; longitude: number }>(LONDON_CENTER);
   const [lastSearchCenter, setLastSearchCenter] = useState<{ latitude: number; longitude: number }>(LONDON_CENTER);
@@ -212,91 +213,66 @@ export default function MapScreen() {
   };
 
   useEffect(() => {
-    let didLoad = false;
     let cancelled = false;
-    
-    const loadWithLocation = async () => {
-      console.log('[MapScreen] Starting location request...');
-      try {
-        const lastKnown = await Location.getLastKnownPositionAsync();
-        if (lastKnown && !didLoad && !cancelled) {
-          console.log('[MapScreen] Using last known position:', lastKnown.coords.latitude, lastKnown.coords.longitude);
-          const coords = {
-            latitude: lastKnown.coords.latitude,
-            longitude: lastKnown.coords.longitude,
-          };
-          setUserLocation(coords);
-          setMapCenter(coords);
-          setLastSearchCenter(coords);
-          didLoad = true;
 
-          mapRef.current?.animateToRegion({
-            ...coords,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          }, 500);
-
-          loadCurios(coords.latitude, coords.longitude);
-        }
-      } catch (e) {
-        console.log('[MapScreen] No last known position available');
-      }
+    const init = async () => {
+      let coords: { latitude: number; longitude: number } | null = null;
 
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
-        console.log('[MapScreen] Location permission status:', status);
-        
+
         if (status === "granted" && !cancelled) {
-          console.log('[MapScreen] Getting current position...');
-          const location = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
-          console.log('[MapScreen] Got position:', location.coords.latitude, location.coords.longitude);
-          
-          const coords = {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-          };
-          setUserLocation(coords);
-          setMapCenter(coords);
-          setLastSearchCenter(coords);
-          
-          mapRef.current?.animateToRegion({
-            ...coords,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          }, 500);
-          
-          if (!didLoad) {
-            console.log('[MapScreen] Calling loadCurios...');
-            didLoad = true;
-            loadCurios(coords.latitude, coords.longitude);
-          }
-        } else if (!didLoad && !cancelled) {
-          console.log('[MapScreen] Permission denied, using London center');
-          didLoad = true;
-          loadCurios(LONDON_CENTER.latitude, LONDON_CENTER.longitude);
+          try {
+            const lastKnown = await Location.getLastKnownPositionAsync();
+            if (lastKnown && !cancelled) {
+              coords = {
+                latitude: lastKnown.coords.latitude,
+                longitude: lastKnown.coords.longitude,
+              };
+              setUserLocation(coords);
+              setMapCenter(coords);
+              setLastSearchCenter(coords);
+              setLocationReady(true);
+            }
+          } catch {}
+
+          try {
+            const location = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+            });
+            if (!cancelled) {
+              coords = {
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude,
+              };
+              setUserLocation(coords);
+              setMapCenter(coords);
+              setLastSearchCenter(coords);
+              setLocationReady(true);
+            }
+          } catch {}
         }
-      } catch (error) {
-        console.error('[MapScreen] Location error:', error);
-        if (!didLoad && !cancelled) {
-          console.log('[MapScreen] Falling back to London center');
-          didLoad = true;
-          loadCurios(LONDON_CENTER.latitude, LONDON_CENTER.longitude);
-        }
+      } catch {}
+
+      if (cancelled) return;
+
+      if (!coords) {
+        coords = LONDON_CENTER;
+        setLocationReady(true);
       }
+
+      loadCurios(coords.latitude, coords.longitude);
     };
 
-    loadWithLocation();
-    
+    init();
+
     const fallbackTimer = setTimeout(() => {
-      if (!didLoad && !cancelled) {
-        console.log('[MapScreen] Fallback timer triggered, loading London center');
-        didLoad = true;
+      if (!cancelled && !initialLoadDone.current) {
+        setLocationReady(true);
         loadCurios(LONDON_CENTER.latitude, LONDON_CENTER.longitude);
       }
-    }, 15000);
-    
+    }, 10000);
+
     return () => {
       cancelled = true;
       clearTimeout(fallbackTimer);
@@ -455,7 +431,16 @@ export default function MapScreen() {
     }
   };
 
-  const isInitialLoading = loading && curios.length === 0;
+  const isInitialLoading = !locationReady || (loading && curios.length === 0);
+
+  if (!locationReady) {
+    return (
+      <View style={[styles.container, styles.initLoadingContainer]}>
+        <ActivityIndicator size="large" color={Colors.dark.accent} />
+        <Text style={styles.initLoadingText}>Finding your location...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -463,7 +448,7 @@ export default function MapScreen() {
         ref={mapRef}
         style={styles.map}
         provider={PROVIDER_GOOGLE}
-        initialRegion={userLocation ? { ...userLocation, latitudeDelta: 0.01, longitudeDelta: 0.01 } : LONDON_CENTER}
+        initialRegion={{ ...mapCenter, latitudeDelta: 0.01, longitudeDelta: 0.01 }}
         showsUserLocation
         showsMyLocationButton={false}
         userInterfaceStyle="dark"
@@ -831,6 +816,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.dark.backgroundRoot,
+  },
+  initLoadingContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  initLoadingText: {
+    color: Colors.dark.textSecondary,
+    fontSize: Typography.body.fontSize,
+    marginTop: Spacing.md,
   },
   loadingOverlay: {
     position: "absolute",
