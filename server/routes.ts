@@ -1014,6 +1014,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { data, error } = await supabase
         .from('list_items')
         .insert({
+          list_id: id,
           list_uuid: id,
           place_id: place.curio_id,
           order_index: (count || 0) + 1,
