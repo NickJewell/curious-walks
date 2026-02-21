@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "node:http";
+import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
@@ -824,6 +825,258 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (err) {
       console.error('Error fetching tour detail:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ============================================
+  // Admin Tours (Lists) Management
+  // ============================================
+
+  // Serve admin tours HTML page
+  app.get('/admin/tours', (_req, res) => {
+    res.sendFile('admin-tours.html', { root: path.join(__dirname, '..', 'server') });
+  });
+
+  // Get all tours
+  app.get('/api/admin/tours', async (_req, res) => {
+    try {
+      const { data: tours, error } = await supabase
+        .from('lists')
+        .select('*')
+        .eq('list_type', 'tour')
+        .order('created_at', { ascending: false });
+
+      if (error) return res.status(500).json({ error: error.message });
+
+      const toursWithCounts = await Promise.all(
+        (tours || []).map(async (tour) => {
+          const { count } = await supabase
+            .from('list_items')
+            .select('*', { count: 'exact', head: true })
+            .eq('list_uuid', tour.id);
+          return { ...tour, item_count: count || 0 };
+        })
+      );
+
+      res.json(toursWithCounts);
+    } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Create a new tour
+  app.post('/api/admin/tours', async (req, res) => {
+    try {
+      const { name, description, metadata } = req.body;
+      if (!name) return res.status(400).json({ error: 'name is required' });
+
+      const { data, error } = await supabase
+        .from('lists')
+        .insert({
+          name: name.trim(),
+          description: description || null,
+          list_type: 'tour',
+          metadata: metadata || {},
+          user_id: '00000000-0000-0000-0000-000000000000',
+        })
+        .select()
+        .single();
+
+      if (error) return res.status(500).json({ error: error.message });
+      res.json(data);
+    } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Update a tour
+  app.patch('/api/admin/tours/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, metadata } = req.body;
+      const updates: any = { updated_at: new Date().toISOString() };
+      if (name !== undefined) updates.name = name.trim();
+      if (description !== undefined) updates.description = description;
+      if (metadata !== undefined) updates.metadata = metadata;
+
+      const { data, error } = await supabase
+        .from('lists')
+        .update(updates)
+        .eq('id', id)
+        .eq('list_type', 'tour')
+        .select()
+        .single();
+
+      if (error) return res.status(500).json({ error: error.message });
+      res.json(data);
+    } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Delete a tour and its items
+  app.delete('/api/admin/tours/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      await supabase.from('list_items').delete().eq('list_uuid', id);
+
+      const { error } = await supabase
+        .from('lists')
+        .delete()
+        .eq('id', id)
+        .eq('list_type', 'tour');
+
+      if (error) return res.status(500).json({ error: error.message });
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Get tour items
+  app.get('/api/admin/tours/:id/items', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { data: items, error } = await supabase
+        .from('list_items')
+        .select('*')
+        .eq('list_uuid', id)
+        .order('order_index', { ascending: true });
+
+      if (error) return res.status(500).json({ error: error.message });
+
+      // Enrich with place details
+      const placeIds = (items || []).map((i: any) => i.place_id).filter(Boolean);
+      let placeMap: Record<string, any> = {};
+      if (placeIds.length > 0) {
+        const { data: places } = await supabase
+          .from('places')
+          .select('curio_id, name, lat, lon')
+          .in('curio_id', placeIds);
+        if (places) {
+          for (const p of places) placeMap[p.curio_id] = p;
+        }
+      }
+
+      const enriched = (items || []).map((item: any) => {
+        const place = placeMap[item.place_id];
+        return {
+          id: item.list_item_uuid || item.id,
+          list_uuid: item.list_uuid,
+          place_id: item.place_id,
+          place_name: place?.name || item.place_name || 'Unknown',
+          place_lat: place?.lat || 0,
+          place_lon: place?.lon || 0,
+          order_index: item.order_index,
+        };
+      });
+
+      res.json(enriched);
+    } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Add item to tour
+  app.post('/api/admin/tours/:id/items', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { place_id } = req.body;
+      if (!place_id) return res.status(400).json({ error: 'place_id (curio_id) is required' });
+
+      // Verify the place exists
+      const { data: place, error: placeErr } = await supabase
+        .from('places')
+        .select('curio_id, name, lat, lon')
+        .eq('curio_id', place_id)
+        .single();
+
+      if (placeErr || !place) return res.status(404).json({ error: 'Place not found' });
+
+      // Get next order index
+      const { count } = await supabase
+        .from('list_items')
+        .select('*', { count: 'exact', head: true })
+        .eq('list_uuid', id);
+
+      const { data, error } = await supabase
+        .from('list_items')
+        .insert({
+          list_uuid: id,
+          place_id: place.curio_id,
+          place_name: place.name,
+          place_latitude: place.lat,
+          place_longitude: place.lon,
+          order_index: (count || 0) + 1,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        if (error.code === '23505') return res.status(409).json({ error: 'Place already in this tour' });
+        return res.status(500).json({ error: error.message });
+      }
+
+      res.json({ ...data, id: data.list_item_uuid || data.id });
+    } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Remove item from tour
+  app.delete('/api/admin/tours/:id/items/:itemId', async (req, res) => {
+    try {
+      const { itemId } = req.params;
+
+      const { error } = await supabase
+        .from('list_items')
+        .delete()
+        .eq('list_item_uuid', itemId);
+
+      if (error) return res.status(500).json({ error: error.message });
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Reorder tour items
+  app.patch('/api/admin/tours/:id/items/reorder', async (req, res) => {
+    try {
+      const { items } = req.body;
+      if (!items || !Array.isArray(items)) return res.status(400).json({ error: 'items array is required' });
+
+      for (const item of items) {
+        await supabase
+          .from('list_items')
+          .update({ order_index: item.order_index })
+          .eq('list_item_uuid', item.id);
+      }
+
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Search places for adding to tours
+  app.get('/api/admin/places/search', async (req, res) => {
+    try {
+      const query = (req.query.q as string || '').trim();
+      if (query.length < 2) return res.json([]);
+
+      const searchTerm = `%${query}%`;
+      const { data, error } = await supabase
+        .from('places')
+        .select('curio_id, name, lat, lon')
+        .or(`name.ilike.${searchTerm},curio_id.ilike.${searchTerm}`)
+        .limit(20);
+
+      if (error) return res.status(500).json({ error: error.message });
+      res.json(data || []);
+    } catch (err) {
       res.status(500).json({ error: 'Internal server error' });
     }
   });
