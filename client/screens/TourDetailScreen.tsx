@@ -88,29 +88,6 @@ export default function TourDetailScreen() {
     });
   };
 
-  if (loading) {
-    return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color={Colors.dark.accent} />
-      </View>
-    );
-  }
-
-  if (!tour) {
-    return (
-      <View style={[styles.container, styles.errorContainer]}>
-        <Feather name="alert-circle" size={48} color={Colors.dark.textSecondary} />
-        <Text style={styles.errorText}>Tour not found</Text>
-        <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.backButtonText}>Go Back</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
-  const tourLength = tour.tour_length;
-  const duration = tour.metadata?.duration;
-
   const mapRegion = useMemo(() => {
     if (stops.length === 0) return null;
     let minLat = stops[0].place_latitude;
@@ -145,6 +122,29 @@ export default function TourDetailScreen() {
     return Colors.dark.accent;
   };
 
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color={Colors.dark.accent} />
+      </View>
+    );
+  }
+
+  if (!tour) {
+    return (
+      <View style={[styles.container, styles.errorContainer]}>
+        <Feather name="alert-circle" size={48} color={Colors.dark.textSecondary} />
+        <Text style={styles.errorText}>Tour not found</Text>
+        <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Text style={styles.backButtonText}>Go Back</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  const tourLength = tour.tour_length;
+  const duration = tour.metadata?.duration;
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -172,7 +172,6 @@ export default function TourDetailScreen() {
                   coordinates={routeCoords}
                   strokeColor={Colors.dark.accent}
                   strokeWidth={3}
-                  lineDashPattern={[8, 4]}
                 />
               ) : null}
               {Marker ? stops.map((stop, index) => (
@@ -181,12 +180,6 @@ export default function TourDetailScreen() {
                   coordinate={{ latitude: stop.place_latitude, longitude: stop.place_longitude }}
                   tracksViewChanges={false}
                   pinColor={getMarkerColor(index)}
-                  title={`${index + 1}. ${stop.place_name}`}
-                  description={
-                    index === 0 ? 'Start' :
-                    index === stops.length - 1 && stops.length > 1 ? 'Finish' :
-                    undefined
-                  }
                 />
               )) : null}
             </SafeMapView>
@@ -372,6 +365,20 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.dark.text,
     fontWeight: '500',
+  },
+  customMarker: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFF',
+  },
+  markerText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFF',
   },
   headerBackButton: {
     position: 'absolute',
