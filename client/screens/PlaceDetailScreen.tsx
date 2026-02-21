@@ -434,17 +434,6 @@ export default function PlaceDetailScreen() {
           <Feather name="arrow-left" size={20} color={Colors.dark.text} />
         </Pressable>
 
-        <Pressable
-          style={({ pressed }) => [
-            styles.headerButton,
-            { top: insets.top + Spacing.md, right: Spacing.lg },
-            pressed && styles.headerButtonPressed,
-          ]}
-          onPress={handleCompass}
-        >
-          <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
-          <Feather name="compass" size={20} color={Colors.dark.accent} />
-        </Pressable>
       </View>
 
       <ScrollView
@@ -470,6 +459,15 @@ export default function PlaceDetailScreen() {
             </Pressable>
           </View>
         </View>
+
+        <Pressable
+          style={({ pressed }) => [styles.compassButton, pressed && styles.compassButtonPressed]}
+          onPress={handleCompass}
+        >
+          <Feather name="compass" size={22} color={Colors.dark.accent} />
+          <Text style={styles.compassButtonText}>Navigate Here</Text>
+          <Feather name="chevron-right" size={18} color={Colors.dark.accent} />
+        </Pressable>
 
         {(() => {
           const isFactActive = activeSource === 'fact' && (hasFactAudio || factAudioLoading);
@@ -754,6 +752,28 @@ const styles = StyleSheet.create({
   },
   voteButton: {
     padding: Spacing.sm,
+  },
+  compassButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(30, 36, 46, 0.8)',
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.xl,
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.dark.accent,
+  },
+  compassButtonPressed: {
+    opacity: 0.7,
+  },
+  compassButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.dark.accent,
+    flex: 1,
   },
   audioPlayerContainer: {
     flexDirection: 'row',
