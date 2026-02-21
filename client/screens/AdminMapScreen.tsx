@@ -262,10 +262,18 @@ export default function AdminMapScreen() {
           <Marker
             key={curio.id}
             coordinate={{ latitude: curio.latitude, longitude: curio.longitude }}
-            pinColor="#E53935"
+            pinColor={selectedCurio?.id === curio.id ? "#FFD600" : "#E53935"}
             onPress={() => handleMarkerPress(curio)}
           />
         ))}
+        {selectedCurio && !curios.find(c => c.id === selectedCurio.id) ? (
+          <Marker
+            key={`selected-${selectedCurio.id}`}
+            coordinate={{ latitude: selectedCurio.latitude, longitude: selectedCurio.longitude }}
+            pinColor="#FFD600"
+            onPress={() => handleMarkerPress(selectedCurio)}
+          />
+        ) : null}
       </SafeMapView>
 
       <View style={[styles.topBar, { top: insets.top + Spacing.sm }]}>
