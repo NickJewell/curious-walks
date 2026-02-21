@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Pressable,
-  ImageBackground,
   ActivityIndicator,
   Alert,
 } from 'react-native';
@@ -20,6 +19,7 @@ import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
 import { getTourWithStops } from '@/lib/lists';
 import { useTour } from '@/contexts/TourContext';
 import { useHunt } from '@/contexts/HuntContext';
+import SafeMapView, { Marker, Polyline, isMapAvailable, PROVIDER_GOOGLE } from '@/components/SafeMapView';
 import type { Tour, ListItem } from '../../shared/schema';
 import type { RootStackParamList } from '@/navigation/RootStackNavigator';
 
@@ -108,9 +108,42 @@ export default function TourDetailScreen() {
     );
   }
 
-  const heroImage = tour.metadata?.hero_image;
   const tourLength = tour.tour_length;
   const duration = tour.metadata?.duration;
+
+  const mapRegion = useMemo(() => {
+    if (stops.length === 0) return null;
+    let minLat = stops[0].place_latitude;
+    let maxLat = stops[0].place_latitude;
+    let minLng = stops[0].place_longitude;
+    let maxLng = stops[0].place_longitude;
+    for (const stop of stops) {
+      if (stop.place_latitude < minLat) minLat = stop.place_latitude;
+      if (stop.place_latitude > maxLat) maxLat = stop.place_latitude;
+      if (stop.place_longitude < minLng) minLng = stop.place_longitude;
+      if (stop.place_longitude > maxLng) maxLng = stop.place_longitude;
+    }
+    const PAD = 0.3;
+    const latDelta = Math.max((maxLat - minLat) * (1 + PAD), 0.005);
+    const lngDelta = Math.max((maxLng - minLng) * (1 + PAD), 0.005);
+    return {
+      latitude: (minLat + maxLat) / 2,
+      longitude: (minLng + maxLng) / 2,
+      latitudeDelta: latDelta,
+      longitudeDelta: lngDelta,
+    };
+  }, [stops]);
+
+  const routeCoords = useMemo(() =>
+    stops.map(s => ({ latitude: s.place_latitude, longitude: s.place_longitude })),
+    [stops]
+  );
+
+  const getMarkerColor = (index: number) => {
+    if (index === 0) return '#4CAF50';
+    if (index === stops.length - 1 && stops.length > 1) return '#FF6B6B';
+    return Colors.dark.accent;
+  };
 
   return (
     <View style={styles.container}>
@@ -119,13 +152,51 @@ export default function TourDetailScreen() {
         contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
-        <ImageBackground
-          source={heroImage ? { uri: heroImage } : undefined}
-          style={styles.heroImage}
-          resizeMode="cover"
-        >
+        <View style={styles.heroImage}>
+          {isMapAvailable && mapRegion && stops.length > 0 ? (
+            <SafeMapView
+              style={StyleSheet.absoluteFill}
+              provider={PROVIDER_GOOGLE}
+              initialRegion={mapRegion}
+              scrollEnabled={false}
+              zoomEnabled={false}
+              rotateEnabled={false}
+              pitchEnabled={false}
+              showsUserLocation={false}
+              showsMyLocationButton={false}
+              userInterfaceStyle="dark"
+              pointerEvents="none"
+            >
+              {Polyline && routeCoords.length > 1 ? (
+                <Polyline
+                  coordinates={routeCoords}
+                  strokeColor={Colors.dark.accent}
+                  strokeWidth={3}
+                  lineDashPattern={[8, 4]}
+                />
+              ) : null}
+              {Marker ? stops.map((stop, index) => (
+                <Marker
+                  key={stop.id}
+                  coordinate={{ latitude: stop.place_latitude, longitude: stop.place_longitude }}
+                  tracksViewChanges={false}
+                  pinColor={getMarkerColor(index)}
+                  title={`${index + 1}. ${stop.place_name}`}
+                  description={
+                    index === 0 ? 'Start' :
+                    index === stops.length - 1 && stops.length > 1 ? 'Finish' :
+                    undefined
+                  }
+                />
+              )) : null}
+            </SafeMapView>
+          ) : (
+            <View style={styles.heroPlaceholder}>
+              <Feather name="map" size={64} color={Colors.dark.textSecondary} />
+            </View>
+          )}
           <LinearGradient
-            colors={['transparent', 'rgba(10, 14, 20, 0.8)', Colors.dark.backgroundRoot]}
+            colors={['transparent', 'rgba(10, 14, 20, 0.6)', Colors.dark.backgroundRoot]}
             style={styles.heroGradient}
           />
           <Pressable
@@ -135,12 +206,21 @@ export default function TourDetailScreen() {
             <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
             <Feather name="arrow-left" size={24} color={Colors.dark.text} />
           </Pressable>
-          {!heroImage ? (
-            <View style={styles.heroPlaceholder}>
-              <Feather name="map" size={64} color={Colors.dark.textSecondary} />
+          {stops.length > 0 ? (
+            <View style={styles.mapLegend}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: '#4CAF50' }]} />
+                <Text style={styles.legendText}>Start</Text>
+              </View>
+              {stops.length > 1 ? (
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: '#FF6B6B' }]} />
+                  <Text style={styles.legendText}>Finish</Text>
+                </View>
+              ) : null}
             </View>
           ) : null}
-        </ImageBackground>
+        </View>
 
         <View style={styles.content}>
           <Text style={styles.title}>{tour.name}</Text>
@@ -266,6 +346,32 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  mapLegend: {
+    position: 'absolute',
+    bottom: Spacing['3xl'],
+    right: Spacing.lg,
+    flexDirection: 'row',
+    gap: Spacing.md,
+    backgroundColor: 'rgba(10, 14, 20, 0.7)',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.sm,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  legendText: {
+    fontSize: 11,
+    color: Colors.dark.text,
+    fontWeight: '500',
   },
   headerBackButton: {
     position: 'absolute',
