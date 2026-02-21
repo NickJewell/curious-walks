@@ -16,7 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 export type RootStackParamList = {
   Login: undefined;
   Main: undefined;
-  Compass: undefined;
+  Compass: { fromTour?: boolean } | undefined;
   ListDetail: { listId: string; listName: string };
   TourDetail: { tourId: string };
   PlaceDetail: {

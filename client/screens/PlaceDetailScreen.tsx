@@ -360,7 +360,7 @@ export default function PlaceDetailScreen() {
       latitude: placeLat,
       longitude: placeLng,
     });
-    navigation.navigate('Compass');
+    navigation.navigate('Compass', { fromTour: !!tourId });
   };
 
   const handleBackToTour = () => {

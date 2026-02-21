@@ -23,6 +23,7 @@ import { useHunt } from "@/contexts/HuntContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCheckins } from "@/contexts/CheckinContext";
 import { checkIn, checkAndAwardBadges, hasCheckedIn, uncheckIn, type UserBadge } from "@/lib/checkins";
+import { useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -69,6 +70,8 @@ function formatCoordinate(value: number, isLatitude: boolean): string {
 
 export default function CompassScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const route = useRoute<RouteProp<RootStackParamList, "Compass">>();
+  const fromTour = route.params?.fromTour ?? false;
   const { activeTarget, setActiveTarget } = useHunt();
   const { user, isGuest } = useAuth();
   const { addCheckin, removeCheckin } = useCheckins();
@@ -226,7 +229,11 @@ export default function CompassScreen({ navigation }: Props) {
 
   const handleStopHunt = () => {
     setActiveTarget(null);
-    navigation.navigate("Main");
+    if (fromTour && navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate("Main");
+    }
   };
 
   const handleCheckIn = async () => {
