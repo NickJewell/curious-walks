@@ -272,10 +272,23 @@ export default function AdminEditScreen() {
           <Text style={[styles.tabBtnText, tab === "manual" && styles.tabBtnTextActive]}>Edit</Text>
         </Pressable>
         <Pressable
-          style={[styles.tabBtn, tab === "json" && styles.tabBtnActive]}
-          onPress={() => setTab("json")}
+          style={[styles.tabBtn, tab === "json" && styles.tabBtnActive, tab === "json" && jsonText.trim() && !importing && styles.importReadyBtn]}
+          onPress={() => {
+            if (tab === "json" && jsonText.trim() && !importing) {
+              handleImportJson();
+            } else {
+              setTab("json");
+            }
+          }}
+          disabled={tab === "json" && importing}
         >
-          <Text style={[styles.tabBtnText, tab === "json" && styles.tabBtnTextActive]}>JSON Import</Text>
+          {tab === "json" && importing ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={[styles.tabBtnText, tab === "json" && styles.tabBtnTextActive, tab === "json" && jsonText.trim() && !importing && styles.importReadyBtnText]}>
+              {tab === "json" && jsonText.trim() ? "Import Now" : "JSON Import"}
+            </Text>
+          )}
         </Pressable>
       </View>
 
@@ -390,28 +403,10 @@ export default function AdminEditScreen() {
           contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
           keyboardDismissMode="on-drag"
         >
-          <View style={styles.jsonHeaderRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.sectionLabel}>Paste JSON</Text>
-              <Text style={styles.hintText}>
-                Use keys "DETAIL-OVERVIEW" (string) and/or "FACTS" (array of strings or objects with "fact" key). Max 10 facts.
-              </Text>
-            </View>
-            <Pressable
-              style={[styles.importBtn, (importing || !jsonText.trim()) && styles.saveBtnDisabled]}
-              onPress={handleImportJson}
-              disabled={importing || !jsonText.trim()}
-            >
-              {importing ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Feather name="upload" size={16} color="#fff" />
-                  <Text style={styles.importBtnText}>Import</Text>
-                </>
-              )}
-            </Pressable>
-          </View>
+          <Text style={styles.sectionLabel}>Paste JSON</Text>
+          <Text style={styles.hintText}>
+            Use keys "DETAIL-OVERVIEW" (string) and/or "FACTS" (array of strings or objects with "fact" key). Max 10 facts.
+          </Text>
           <TextInput
             style={[styles.textArea, { minHeight: 200 }]}
             value={jsonText}
@@ -493,6 +488,13 @@ const styles = StyleSheet.create({
   },
   tabBtnActive: {
     backgroundColor: Colors.dark.accent,
+  },
+  importReadyBtn: {
+    backgroundColor: "#2E7D32",
+  },
+  importReadyBtnText: {
+    color: "#fff",
+    fontWeight: "700",
   },
   tabBtnText: {
     color: Colors.dark.textSecondary,
@@ -632,27 +634,6 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     marginBottom: Spacing.sm,
     lineHeight: 18,
-  },
-  jsonHeaderRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: Spacing.md,
-  },
-  importBtn: {
-    flexDirection: "row",
-    backgroundColor: Colors.dark.accent,
-    paddingVertical: Spacing.sm + 2,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.md,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.xs,
-    marginTop: Spacing.xs,
-  },
-  importBtnText: {
-    color: "#fff",
-    ...Typography.body,
-    fontWeight: "700",
   },
   logBox: {
     backgroundColor: Colors.dark.backgroundSecondary,
