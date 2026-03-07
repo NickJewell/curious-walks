@@ -76,6 +76,7 @@ export async function searchCurios(query: string, limit: number = 5): Promise<Cu
   const { data, error } = await supabase
     .from('places')
     .select('*')
+    .eq('visible_flag', true)
     .or(`name.ilike.${searchTerm},detail-overview.ilike.${searchTerm}`)
     .limit(limit);
   
@@ -167,6 +168,7 @@ export async function getNearestCurios(lat: number, lng: number, limit: number =
       const { data, error } = await supabase
         .from('places')
         .select('*')
+        .eq('visible_flag', true)
         .gte('lat', lat - latDelta)
         .lte('lat', lat + latDelta)
         .gte('lon', lng - lngDelta)
@@ -182,6 +184,7 @@ export async function getNearestCurios(lat: number, lng: number, limit: number =
         const { data: fallbackData, error: fallbackError } = await supabase
           .from('places')
           .select('*')
+          .eq('visible_flag', true)
           .limit(100);
         
         if (fallbackError || !fallbackData?.length) return [];
@@ -219,6 +222,7 @@ export async function getCuriosNearPoint(
       const { data, error } = await supabase
         .from('places')
         .select('*')
+        .eq('visible_flag', true)
         .gte('lat', lat - latDelta)
         .lte('lat', lat + latDelta)
         .gte('lon', lng - lngDelta)

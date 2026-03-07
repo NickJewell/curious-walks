@@ -790,7 +790,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { data: places } = await supabase
           .from('places')
           .select('curio_id, name, detail_overview, lat, lon')
-          .in('curio_id', placeIds);
+          .in('curio_id', placeIds)
+          .eq('visible_flag', true);
 
         const placeMap: Record<string, any> = {};
         if (places) {
@@ -799,20 +800,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        stops = items.map((item: any) => {
-          const place = placeMap[item.place_id];
-          return {
-            id: item.list_item_uuid,
-            list_id: item.list_uuid,
-            place_id: item.place_id,
-            place_name: place?.name || 'Unknown Place',
-            place_description: place?.detail_overview || '',
-            place_latitude: place?.lat || 0,
-            place_longitude: place?.lon || 0,
-            order_index: item.order_index,
-            created_at: item.created_at,
-          };
-        });
+        stops = items
+          .filter((item: any) => placeMap[item.place_id])
+          .map((item: any) => {
+            const place = placeMap[item.place_id];
+            return {
+              id: item.list_item_uuid,
+              list_id: item.list_uuid,
+              place_id: item.place_id,
+              place_name: place.name || 'Unknown Place',
+              place_description: place.detail_overview || '',
+              place_latitude: place.lat || 0,
+              place_longitude: place.lon || 0,
+              order_index: item.order_index,
+              created_at: item.created_at,
+            };
+          });
       }
 
       res.json({
@@ -965,24 +968,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { data: places } = await supabase
           .from('places')
           .select('curio_id, name, lat, lon')
-          .in('curio_id', placeIds);
+          .in('curio_id', placeIds)
+          .eq('visible_flag', true);
         if (places) {
           for (const p of places) placeMap[p.curio_id] = p;
         }
       }
 
-      const enriched = (items || []).map((item: any) => {
-        const place = placeMap[item.place_id];
-        return {
-          id: item.list_item_uuid || item.id,
-          list_uuid: item.list_uuid,
-          place_id: item.place_id,
-          place_name: place?.name || item.place_name || 'Unknown',
-          place_lat: place?.lat || 0,
-          place_lon: place?.lon || 0,
-          order_index: item.order_index,
-        };
-      });
+      const enriched = (items || [])
+        .filter((item: any) => placeMap[item.place_id])
+        .map((item: any) => {
+          const place = placeMap[item.place_id];
+          return {
+            id: item.list_item_uuid || item.id,
+            list_uuid: item.list_uuid,
+            place_id: item.place_id,
+            place_name: place.name || 'Unknown',
+            place_lat: place.lat || 0,
+            place_lon: place.lon || 0,
+            order_index: item.order_index,
+          };
+        });
 
       res.json(enriched);
     } catch (err) {
