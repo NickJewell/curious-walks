@@ -23,15 +23,10 @@ import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Location from "expo-location";
 import Animated, {
-  FadeIn,
-  FadeOut,
-  SlideInDown,
-  SlideOutDown,
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
   withTiming,
-  withSequence,
   Easing,
 } from "react-native-reanimated";
 import { Colors, Spacing, BorderRadius, Typography, type ThemeColors } from "@/constants/theme";
@@ -195,7 +190,6 @@ export default function MapScreen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const mapStyle = isDark ? darkMapStyle : lightMapStyle;
   const mapRef = useRef<any>(null);
-  const markerRefs = useRef<{ [key: string]: any }>({});
   
   const [curios, setCurios] = useState<Curio[]>([]);
   const [loading, setLoading] = useState(true);
@@ -458,10 +452,7 @@ export default function MapScreen() {
     }, 500);
     
     setTimeout(() => {
-      const markerRef = markerRefs.current[curio.id];
-      if (markerRef) {
-        markerRef.showCallout();
-      }
+      setSelectedCurio(curio);
     }, 600);
   };
 
@@ -580,25 +571,23 @@ export default function MapScreen() {
         ).map((curio) => {
           const isTarget = isHunting && activeTarget?.id === curio.id;
           const isGreyed = isHunting && activeTarget?.id !== curio.id;
-          const isSelected = selectedCurio?.id === curio.id;
           const isCheckedIn = checkedInPlaceIds.has(curio.id);
           const typeStyle = getCurioTypeStyle(curio.curioType);
 
-          const markerState = isTarget ? 'target' : isSelected ? 'selected' : isCheckedIn ? 'completed' : isGreyed ? 'greyed' : 'ambient';
-          const markerSize = markerState === 'target' ? 44 : markerState === 'selected' ? 38 : markerState === 'completed' ? 30 : 26;
-          const iconSize = markerState === 'target' ? 20 : markerState === 'selected' ? 18 : 14;
+          const markerState = isTarget ? 'target' : isCheckedIn ? 'completed' : isGreyed ? 'greyed' : 'ambient';
+          const markerSize = markerState === 'target' ? 44 : markerState === 'completed' ? 30 : 26;
+          const iconSize = markerState === 'target' ? 20 : 14;
           const borderRadiusVal = typeStyle.isLandmark && markerState !== 'completed' ? markerSize * 0.3 : markerSize / 2;
 
           return (
             <Marker
               key={curio.id}
-              ref={(ref: any) => { if (ref) markerRefs.current[curio.id] = ref; }}
               coordinate={{
                 latitude: curio.latitude,
                 longitude: curio.longitude,
               }}
               tracksViewChanges={false}
-              zIndex={isTarget ? 100 : isSelected ? 90 : 1}
+              zIndex={isTarget ? 100 : 1}
               onPress={() => handleMarkerPress(curio)}
             >
               <View style={[
@@ -616,16 +605,6 @@ export default function MapScreen() {
                   shadowOpacity: 0.2,
                   shadowRadius: 2,
                   elevation: 2,
-                },
-                markerState === 'selected' && {
-                  backgroundColor: typeStyle.color,
-                  shadowColor: typeStyle.color,
-                  shadowOffset: { width: 0, height: 0 },
-                  shadowOpacity: 0.7,
-                  shadowRadius: 10,
-                  elevation: 10,
-                  borderWidth: 2,
-                  borderColor: "rgba(255,255,255,0.8)",
                 },
                 markerState === 'target' && {
                   backgroundColor: "#D4AF7A",
@@ -678,16 +657,12 @@ export default function MapScreen() {
 
       {/* Loading overlay - shown on top of map while loading */}
       {isInitialLoading ? (
-        <Animated.View 
-          entering={FadeIn.duration(200)} 
-          exiting={FadeOut.duration(200)} 
-          style={styles.loadingOverlay}
-        >
+        <View style={styles.loadingOverlay}>
           <View style={styles.loadingPill}>
             <ActivityIndicator size="small" color={theme.accent} />
             <Text style={styles.loadingPillText}>Finding nearby curiosities...</Text>
           </View>
-        </Animated.View>
+        </View>
       ) : null}
 
       <View style={[styles.searchContainer, { top: insets.top + Spacing.md }]}>
