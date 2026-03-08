@@ -530,34 +530,30 @@ export default function MapScreen() {
   }, [lastSearchCenter]);
 
   const centerOnUser = async () => {
+    if (userLocation) {
+      mapRef.current?.animateToRegion({
+        ...userLocation,
+        latitudeDelta: 0.008,
+        longitudeDelta: 0.008,
+      }, 300);
+    }
+
     try {
-      // Fetch fresh location instead of using cached userLocation
       const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
+        accuracy: Location.Accuracy.Balanced,
       });
       const freshCoords = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
       };
-      
-      // Update the stored user location
       setUserLocation(freshCoords);
-      
-      // Animate to the fresh location with a close zoom
+
       mapRef.current?.animateToRegion({
         ...freshCoords,
         latitudeDelta: 0.008,
         longitudeDelta: 0.008,
       }, 300);
-    } catch (error) {
-      // Fall back to cached location if fresh fetch fails
-      if (userLocation) {
-        mapRef.current?.animateToRegion({
-          ...userLocation,
-          latitudeDelta: 0.008,
-          longitudeDelta: 0.008,
-        }, 300);
-      }
+    } catch (_) {
     }
   };
 
