@@ -503,12 +503,19 @@ export default function MapScreen() {
     setLoading(true);
     try {
       const data = await getNearest20(lat, lng);
-      const selected = selectedCurioRef.current;
-      if (selected && !data.some((c: Curio) => c.id === selected.id)) {
-        setCurios([...data, selected]);
-      } else {
-        setCurios(data);
-      }
+      setCurios(prev => {
+        const newIds = new Set(data.map((c: Curio) => c.id));
+        const merged = [...data];
+        for (const existing of prev) {
+          if (!newIds.has(existing.id)) {
+            const d = Math.abs(existing.latitude - lat) + Math.abs(existing.longitude - lng);
+            if (d < 0.05) {
+              merged.push(existing);
+            }
+          }
+        }
+        return merged;
+      });
       setLastSearchCenter({ latitude: lat, longitude: lng });
       initialLoadDone.current = true;
     } catch (error) {
@@ -526,7 +533,6 @@ export default function MapScreen() {
     setMapCenter(newCenter);
     
     if (!initialLoadDone.current) return;
-    if (selectedCurioRef.current) return;
 
     const dist = Math.sqrt(
       Math.pow(newCenter.latitude - lastSearchCenter.latitude, 2) +
