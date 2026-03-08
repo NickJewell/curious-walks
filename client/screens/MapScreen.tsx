@@ -702,11 +702,11 @@ export default function MapScreen() {
 
       <View style={[styles.searchContainer, { top: insets.top + Spacing.md }]}>
         <View style={styles.searchBar}>
-          <Feather name="search" size={18} color="#888" style={styles.searchIconLeft} />
+          <Feather name="search" size={18} color={theme.inactive} style={styles.searchIconLeft} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search places or areas..."
-            placeholderTextColor="#888"
+            placeholderTextColor={theme.inactive}
             value={searchQuery}
             onChangeText={setSearchQuery}
             returnKeyType="search"
@@ -714,7 +714,7 @@ export default function MapScreen() {
           />
           {searchQuery.length > 0 ? (
             <Pressable onPress={clearSearch} style={styles.clearButton}>
-              <Feather name="x" size={18} color="#888" />
+              <Feather name="x" size={18} color={theme.inactive} />
             </Pressable>
           ) : null}
           {isSearching ? (
@@ -742,7 +742,7 @@ export default function MapScreen() {
                   <Feather
                     name={section.title === 'Places' ? 'map-pin' : 'map'}
                     size={14}
-                    color="#888"
+                    color={theme.textSecondary}
                     style={styles.sectionIcon}
                   />
                   <Text style={styles.sectionTitle}>{section.title}</Text>
@@ -829,7 +829,7 @@ export default function MapScreen() {
           <BlurView intensity={90} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
           <View style={styles.selectedPanelContent}>
             <Pressable style={styles.closePanelButton} onPress={handleClosePanel}>
-              <Feather name="x" size={20} color="#888" />
+              <Feather name="x" size={20} color={theme.textSecondary} />
             </Pressable>
 
             <View style={styles.panelMeta}>
@@ -1056,7 +1056,7 @@ const createStyles = (theme: ThemeColors) => StyleSheet.create({
   loadingPill: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    backgroundColor: theme.backgroundSecondary,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.xl,
     borderRadius: BorderRadius.full,
@@ -1082,7 +1082,7 @@ const createStyles = (theme: ThemeColors) => StyleSheet.create({
     overflow: "hidden",
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(21, 26, 35, 0.8)",
+    backgroundColor: theme.backgroundSecondary,
   },
   controlButtonPressed: {
     opacity: 0.6,
@@ -1096,7 +1096,7 @@ const createStyles = (theme: ThemeColors) => StyleSheet.create({
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.backgroundCard,
     borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.md,
     height: 48,
@@ -1112,7 +1112,7 @@ const createStyles = (theme: ThemeColors) => StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: "#1A1A1A",
+    color: theme.text,
     height: "100%",
   },
   clearButton: {
@@ -1122,7 +1122,7 @@ const createStyles = (theme: ThemeColors) => StyleSheet.create({
     marginLeft: Spacing.xs,
   },
   searchResults: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.backgroundCard,
     borderRadius: BorderRadius.md,
     marginTop: Spacing.xs,
     maxHeight: 300,
@@ -1139,10 +1139,10 @@ const createStyles = (theme: ThemeColors) => StyleSheet.create({
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    borderBottomColor: theme.border,
   },
   searchResultPressed: {
-    backgroundColor: "#F5F5F5",
+    backgroundColor: theme.backgroundSecondary,
   },
   resultIcon: {
     marginRight: Spacing.md,
@@ -1153,21 +1153,21 @@ const createStyles = (theme: ThemeColors) => StyleSheet.create({
   resultTitle: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#1A1A1A",
+    color: theme.text,
     marginBottom: 2,
   },
   resultDescription: {
     fontSize: 13,
-    color: "#666",
+    color: theme.textSecondary,
   },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
-    backgroundColor: "#F8F8F8",
+    backgroundColor: theme.backgroundSecondary,
     borderBottomWidth: 1,
-    borderBottomColor: "#E8E8E8",
+    borderBottomColor: theme.border,
   },
   sectionIcon: {
     marginRight: Spacing.xs,
@@ -1175,7 +1175,7 @@ const createStyles = (theme: ThemeColors) => StyleSheet.create({
   sectionTitle: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#888",
+    color: theme.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
@@ -1187,14 +1187,14 @@ const createStyles = (theme: ThemeColors) => StyleSheet.create({
   searchHereBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(30,30,30,0.9)",
+    backgroundColor: theme.backgroundSecondary,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.full,
     gap: Spacing.xs,
   },
   searchHereBtnText: {
-    color: "#fff",
+    color: theme.text,
     ...Typography.caption,
     fontWeight: "600",
   },
@@ -1207,14 +1207,14 @@ const createStyles = (theme: ThemeColors) => StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     borderRadius: BorderRadius.lg,
     overflow: "hidden",
-    backgroundColor: "rgba(21, 26, 35, 0.9)",
+    backgroundColor: theme.backgroundSecondary,
     gap: Spacing.sm,
   },
   resumeCompassButtonPressed: {
     opacity: 0.7,
   },
   resumeCompassText: {
-    color: "#D4AF7A",
+    color: theme.textAccent,
     ...Typography.body,
     fontWeight: "600",
   },
@@ -1224,7 +1224,7 @@ const createStyles = (theme: ThemeColors) => StyleSheet.create({
     right: Spacing.lg,
     borderRadius: BorderRadius.lg,
     overflow: "hidden",
-    backgroundColor: "rgba(21, 26, 35, 0.95)",
+    backgroundColor: theme.backgroundCard,
   },
   selectedPanelContent: {
     padding: Spacing.lg,
