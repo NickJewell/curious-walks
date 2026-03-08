@@ -101,6 +101,8 @@ export default function MapScreen() {
   const [mapCenter, setMapCenter] = useState<{ latitude: number; longitude: number }>(LONDON_CENTER);
   const [lastSearchCenter, setLastSearchCenter] = useState<{ latitude: number; longitude: number }>(LONDON_CENTER);
   const initialLoadDone = useRef(false);
+  const initialRegionRef = useRef<{ latitude: number; longitude: number }>(LONDON_CENTER);
+  const locationResolved = useRef(false);
   
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -216,80 +218,71 @@ export default function MapScreen() {
   useEffect(() => {
     let cancelled = false;
 
-    const init = async () => {
-      let coords: { latitude: number; longitude: number } | null = null;
-
+    const resolveLocation = async (): Promise<{ latitude: number; longitude: number }> => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted" || cancelled) return LONDON_CENTER;
 
-        if (status === "granted" && !cancelled) {
-          try {
-            const lastKnown = await Location.getLastKnownPositionAsync();
-            if (lastKnown && !cancelled) {
-              coords = {
-                latitude: lastKnown.coords.latitude,
-                longitude: lastKnown.coords.longitude,
-              };
-              setUserLocation(coords);
-              setMapCenter(coords);
-              setLastSearchCenter(coords);
-              setLocationReady(true);
-              loadCurios(coords.latitude, coords.longitude);
-              mapRef.current?.animateToRegion({
-                ...coords,
-                latitudeDelta: 0.01,
-                longitudeDelta: 0.01,
-              }, 300);
-            }
-          } catch {}
+        const lastKnown = await Location.getLastKnownPositionAsync();
+        if (lastKnown && !cancelled) {
+          const coords = {
+            latitude: lastKnown.coords.latitude,
+            longitude: lastKnown.coords.longitude,
+          };
+          setUserLocation(coords);
+          return coords;
+        }
 
-          try {
-            const location = await Location.getCurrentPositionAsync({
-              accuracy: Location.Accuracy.Low,
-            });
-            if (!cancelled) {
-              const freshCoords = {
-                latitude: location.coords.latitude,
-                longitude: location.coords.longitude,
-              };
-              setUserLocation(freshCoords);
-              if (!coords) {
-                setMapCenter(freshCoords);
-                setLastSearchCenter(freshCoords);
-                setLocationReady(true);
-                loadCurios(freshCoords.latitude, freshCoords.longitude);
-              }
-              mapRef.current?.animateToRegion({
-                ...freshCoords,
-                latitudeDelta: 0.01,
-                longitudeDelta: 0.01,
-              }, 300);
-            }
-          } catch {}
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        if (!cancelled) {
+          const coords = {
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+          };
+          setUserLocation(coords);
+          return coords;
         }
       } catch {}
+      return LONDON_CENTER;
+    };
 
+    const init = async () => {
+      const timeoutPromise = new Promise<{ latitude: number; longitude: number }>((resolve) => {
+        setTimeout(() => resolve(LONDON_CENTER), 5000);
+      });
+
+      const coords = await Promise.race([resolveLocation(), timeoutPromise]);
       if (cancelled) return;
 
-      if (!coords) {
-        coords = LONDON_CENTER;
-        setLocationReady(true);
-        loadCurios(coords.latitude, coords.longitude);
+      locationResolved.current = true;
+      initialRegionRef.current = coords;
+      setMapCenter(coords);
+      setLastSearchCenter(coords);
+      setLocationReady(true);
+      loadCurios(coords.latitude, coords.longitude);
+
+      if (coords === LONDON_CENTER) {
+        resolveLocation().then((realCoords) => {
+          if (cancelled || realCoords === LONDON_CENTER) return;
+          setUserLocation(realCoords);
+          setMapCenter(realCoords);
+          setLastSearchCenter(realCoords);
+          loadCurios(realCoords.latitude, realCoords.longitude);
+          mapRef.current?.animateToRegion({
+            ...realCoords,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          }, 500);
+        });
       }
     };
 
     init();
 
-    const fallbackTimer = setTimeout(() => {
-      if (!cancelled && !initialLoadDone.current) {
-        setLocationReady(true);
-        loadCurios(LONDON_CENTER.latitude, LONDON_CENTER.longitude);
-      }
-    }, 5000);
-
     return () => {
       cancelled = true;
-      clearTimeout(fallbackTimer);
       if (regionChangeTimer.current) {
         clearTimeout(regionChangeTimer.current);
       }
@@ -464,7 +457,7 @@ export default function MapScreen() {
         ref={mapRef}
         style={styles.map}
         provider={PROVIDER_GOOGLE}
-        initialRegion={{ ...mapCenter, latitudeDelta: 0.01, longitudeDelta: 0.01 }}
+        initialRegion={{ ...initialRegionRef.current, latitudeDelta: 0.01, longitudeDelta: 0.01 }}
         showsUserLocation
         showsMyLocationButton={false}
         userInterfaceStyle="dark"
