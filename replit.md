@@ -71,6 +71,13 @@ Preferred communication style: Simple, everyday language.
 **Map Implementation:**
 - Conditional rendering based on platform capabilities
 - React Native Maps for native platforms with Google Maps provider
+- Custom dark map style (`client/constants/mapStyle.ts`) suppresses business labels, roads, and POIs; emphasises parks, water, and transit
+- Marker hierarchy with 5 visual tiers: ambient (26px), selected (38px with glow), hunt target (44px gold with pulse), greyed (during hunt), completed (gold border with checkmark)
+- HuntPulseMarker component: Reanimated-driven expanding ring animation overlay on hunt targets
+- Expanded category type system (12+ categories with unique colours and icons, landmark shapes for major categories)
+- Enhanced selection panel: animated slide-up with category badge, distance indicator, audio availability, and "Read more" affordance
+- Camera choreography: marker select offsets camera to accommodate bottom sheet; hunt start frames user + target with fitToCoordinates
+- Auto-refresh: 20 nearest places fetched on map pan (400ms debounce) via `getNearest20` in `client/lib/supabase.ts`
 - Fallback UI for web and environments where maps are unavailable
 - SafeMapView component wraps map with error boundary
 

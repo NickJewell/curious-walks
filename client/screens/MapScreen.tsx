@@ -14,16 +14,28 @@ import {
   Alert,
 } from "react-native";
 import type { Region } from "react-native-maps";
-import SafeMapView, { Marker, Callout, PROVIDER_GOOGLE, isMapAvailable } from "@/components/SafeMapView";
+import SafeMapView, { Marker, PROVIDER_GOOGLE, isMapAvailable } from "@/components/SafeMapView";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Location from "expo-location";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import Animated, {
+  FadeIn,
+  FadeOut,
+  SlideInDown,
+  SlideOutDown,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  withSequence,
+  Easing,
+} from "react-native-reanimated";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
+import { darkMapStyle } from "@/constants/mapStyle";
 import { getNearest20, searchCurios, Curio } from "@/lib/supabase";
 import { useHunt } from "@/contexts/HuntContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -54,22 +66,109 @@ const LONDON_CENTER = {
 type CurioTypeStyle = {
   color: string;
   icon: keyof typeof Feather.glyphMap;
+  label: string;
+  isLandmark?: boolean;
 };
 
 const getCurioTypeStyle = (curioType?: string): CurioTypeStyle => {
   switch (curioType) {
     case 'Green Space':
-      return { color: '#4CAF50', icon: 'sun' };
+      return { color: '#4CAF50', icon: 'sun', label: 'Green Space' };
     case 'Public Transport':
-      return { color: '#424242', icon: 'navigation' };
+      return { color: '#546E7A', icon: 'navigation', label: 'Transport' };
     case 'Memorial & Statue':
-      return { color: '#E53935', icon: 'award' };
+      return { color: '#C62828', icon: 'award', label: 'Memorial', isLandmark: true };
     case 'Public Art':
-      return { color: '#E91E63', icon: 'edit-3' };
+      return { color: '#AD1457', icon: 'edit-3', label: 'Public Art' };
+    case 'Historic Building':
+    case 'Historical':
+      return { color: '#8B7355', icon: 'clock', label: 'Historic', isLandmark: true };
+    case 'Church & Cathedral':
+      return { color: '#6D4C8E', icon: 'home', label: 'Church', isLandmark: true };
+    case 'Cemetery':
+      return { color: '#37474F', icon: 'moon', label: 'Cemetery' };
+    case 'Museum & Gallery':
+      return { color: '#1565C0', icon: 'image', label: 'Museum', isLandmark: true };
+    case 'River & Canal':
+      return { color: '#0277BD', icon: 'droplet', label: 'Waterway' };
+    case 'Market':
+      return { color: '#E65100', icon: 'shopping-bag', label: 'Market' };
+    case 'Theatre & Cinema':
+      return { color: '#B71C1C', icon: 'film', label: 'Theatre' };
+    case 'Pub & Bar':
+      return { color: '#4E342E', icon: 'coffee', label: 'Pub' };
     default:
-      return { color: Colors.dark.accent, icon: 'map-pin' };
+      return { color: Colors.dark.accent, icon: 'map-pin', label: curioType || 'Place' };
   }
 };
+
+function calculateDisplayDistance(lat1: number, lon1: number, lat2: number, lon2: number): string {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const d = R * c;
+  if (d < 1000) return `${Math.round(d)}m away`;
+  return `${(d / 1000).toFixed(1)}km away`;
+}
+
+function HuntPulseMarker({ coordinate }: { coordinate: { latitude: number; longitude: number } }) {
+  const pulseScale = useSharedValue(1);
+  const pulseOpacity = useSharedValue(0.6);
+
+  useEffect(() => {
+    pulseScale.value = withRepeat(
+      withTiming(2.2, { duration: 2000, easing: Easing.out(Easing.ease) }),
+      -1,
+      false
+    );
+    pulseOpacity.value = withRepeat(
+      withTiming(0, { duration: 2000, easing: Easing.out(Easing.ease) }),
+      -1,
+      false
+    );
+  }, []);
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
+    opacity: pulseOpacity.value,
+  }));
+
+  if (!isMapAvailable || !Marker) return null;
+
+  return (
+    <Marker
+      coordinate={coordinate}
+      tracksViewChanges={false}
+      anchor={{ x: 0.5, y: 0.5 }}
+      zIndex={99}
+    >
+      <View style={pulseStyles.container}>
+        <Animated.View style={[pulseStyles.ring, pulseStyle]} />
+      </View>
+    </Marker>
+  );
+}
+
+const pulseStyles = StyleSheet.create({
+  container: {
+    width: 80,
+    height: 80,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  ring: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2.5,
+    borderColor: "#D4AF7A",
+    backgroundColor: "transparent",
+  },
+});
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
@@ -132,11 +231,29 @@ export default function MapScreen() {
   const handleHuntPlace = (curio: Curio) => {
     setSelectedCurio(null);
     setActiveTarget(curio);
-    navigation.navigate("Compass");
+    if (userLocation) {
+      mapRef.current?.fitToCoordinates(
+        [
+          { latitude: userLocation.latitude, longitude: userLocation.longitude },
+          { latitude: curio.latitude, longitude: curio.longitude },
+        ],
+        {
+          edgePadding: { top: 120, right: 60, bottom: 200, left: 60 },
+          animated: true,
+        }
+      );
+    }
+    setTimeout(() => navigation.navigate("Compass"), 600);
   };
 
   const handleMarkerPress = (curio: Curio) => {
     setSelectedCurio(curio);
+    mapRef.current?.animateToRegion({
+      latitude: curio.latitude - 0.002,
+      longitude: curio.longitude,
+      latitudeDelta: 0.008,
+      longitudeDelta: 0.008,
+    }, 400);
   };
 
   const handleClosePanel = () => {
@@ -460,7 +577,7 @@ export default function MapScreen() {
         initialRegion={{ ...initialRegionRef.current, latitudeDelta: 0.01, longitudeDelta: 0.01 }}
         showsUserLocation
         showsMyLocationButton={false}
-        userInterfaceStyle="dark"
+        customMapStyle={darkMapStyle}
         onRegionChangeComplete={onRegionChangeComplete}
       >
         {isMapAvailable && Marker ? curios.filter(c => 
@@ -469,9 +586,15 @@ export default function MapScreen() {
         ).map((curio) => {
           const isTarget = isHunting && activeTarget?.id === curio.id;
           const isGreyed = isHunting && activeTarget?.id !== curio.id;
+          const isSelected = selectedCurio?.id === curio.id;
           const isCheckedIn = checkedInPlaceIds.has(curio.id);
           const typeStyle = getCurioTypeStyle(curio.curioType);
-          
+
+          const markerState = isTarget ? 'target' : isSelected ? 'selected' : isCheckedIn ? 'completed' : isGreyed ? 'greyed' : 'ambient';
+          const markerSize = markerState === 'target' ? 44 : markerState === 'selected' ? 38 : markerState === 'completed' ? 30 : 26;
+          const iconSize = markerState === 'target' ? 20 : markerState === 'selected' ? 18 : 14;
+          const borderRadiusVal = typeStyle.isLandmark && markerState !== 'completed' ? markerSize * 0.3 : markerSize / 2;
+
           return (
             <Marker
               key={curio.id}
@@ -480,26 +603,83 @@ export default function MapScreen() {
                 latitude: curio.latitude,
                 longitude: curio.longitude,
               }}
-              tracksViewChanges={false}
-              zIndex={isTarget ? 100 : 1}
+              tracksViewChanges={isSelected || isTarget}
+              zIndex={isTarget ? 100 : isSelected ? 90 : 1}
               onPress={() => handleMarkerPress(curio)}
             >
               <View style={[
-                styles.marker,
-                !isCheckedIn && { backgroundColor: typeStyle.color },
-                isTarget && styles.markerTarget,
-                isGreyed && styles.markerGreyed,
-                isCheckedIn && styles.markerCheckedIn,
+                {
+                  width: markerSize,
+                  height: markerSize,
+                  borderRadius: borderRadiusVal,
+                  justifyContent: "center" as const,
+                  alignItems: "center" as const,
+                },
+                markerState === 'ambient' && {
+                  backgroundColor: typeStyle.color,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 2,
+                  elevation: 2,
+                },
+                markerState === 'selected' && {
+                  backgroundColor: typeStyle.color,
+                  shadowColor: typeStyle.color,
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowOpacity: 0.7,
+                  shadowRadius: 10,
+                  elevation: 10,
+                  borderWidth: 2,
+                  borderColor: "rgba(255,255,255,0.8)",
+                },
+                markerState === 'target' && {
+                  backgroundColor: "#D4AF7A",
+                  borderWidth: 3,
+                  borderColor: "#FFFFFF",
+                  shadowColor: "#D4AF7A",
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowOpacity: 0.8,
+                  shadowRadius: 12,
+                  elevation: 12,
+                },
+                markerState === 'greyed' && {
+                  backgroundColor: "#3A3D44",
+                  opacity: 0.5,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.15,
+                  shadowRadius: 1,
+                  elevation: 1,
+                },
+                markerState === 'completed' && {
+                  backgroundColor: "#2A2520",
+                  borderWidth: 2,
+                  borderColor: "#D4AF37",
+                  shadowColor: "#D4AF37",
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowOpacity: 0.4,
+                  shadowRadius: 6,
+                  elevation: 4,
+                },
               ]}>
                 <Feather 
-                  name={isCheckedIn ? "check" : typeStyle.icon}
-                  size={isTarget ? 20 : 16} 
-                  color={isGreyed ? "#888" : "#FFFFFF"} 
+                  name={markerState === 'completed' ? "check" : typeStyle.icon}
+                  size={iconSize} 
+                  color={markerState === 'greyed' ? "#777" : markerState === 'completed' ? "#D4AF37" : "#FFFFFF"} 
                 />
               </View>
             </Marker>
           );
         }) : null}
+        {isHunting && activeTarget ? (
+          <HuntPulseMarker
+            coordinate={{
+              latitude: activeTarget.latitude,
+              longitude: activeTarget.longitude,
+            }}
+          />
+        ) : null}
       </SafeMapView>
 
       {/* Loading overlay - shown on top of map while loading */}
@@ -636,15 +816,47 @@ export default function MapScreen() {
       ) : null}
 
       {selectedCurio && !isHunting ? (
-        <View style={[styles.selectedPanel, { bottom: tabBarHeight + Spacing.lg }]}>
-          <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+        <Animated.View
+          entering={SlideInDown.duration(300).springify().damping(18)}
+          exiting={SlideOutDown.duration(200)}
+          style={[styles.selectedPanel, { bottom: tabBarHeight + Spacing.lg }]}
+          key={selectedCurio.id}
+        >
+          <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill} />
           <View style={styles.selectedPanelContent}>
             <Pressable style={styles.closePanelButton} onPress={handleClosePanel}>
               <Feather name="x" size={20} color="#888" />
             </Pressable>
+
+            <View style={styles.panelMeta}>
+              {(() => {
+                const ts = getCurioTypeStyle(selectedCurio.curioType);
+                return (
+                  <View style={[styles.categoryBadge, { backgroundColor: ts.color + '22', borderColor: ts.color + '66' }]}>
+                    <Feather name={ts.icon} size={12} color={ts.color} />
+                    <Text style={[styles.categoryBadgeText, { color: ts.color }]}>{ts.label}</Text>
+                  </View>
+                );
+              })()}
+              {userLocation ? (
+                <View style={styles.distanceBadge}>
+                  <Feather name="navigation" size={11} color={Colors.dark.textSecondary} />
+                  <Text style={styles.distanceBadgeText}>
+                    {calculateDisplayDistance(userLocation.latitude, userLocation.longitude, selectedCurio.latitude, selectedCurio.longitude)}
+                  </Text>
+                </View>
+              ) : null}
+              {selectedCurio.detailAudioPath ? (
+                <View style={styles.audioBadge}>
+                  <Feather name="headphones" size={11} color={Colors.dark.accent} />
+                  <Text style={styles.audioBadgeText}>Audio</Text>
+                </View>
+              ) : null}
+            </View>
+
             <Text style={styles.selectedTitle} numberOfLines={2}>{selectedCurio.name}</Text>
             <Pressable onPress={() => handleReadMore(selectedCurio)}>
-              <Text style={styles.selectedDescription} numberOfLines={3}>
+              <Text style={styles.selectedDescription} numberOfLines={2}>
                 {selectedCurio.description}
               </Text>
               <Text style={styles.readMoreLink}>Read more...</Text>
@@ -682,7 +894,7 @@ export default function MapScreen() {
               </Pressable>
             </View>
           </View>
-        </View>
+        </Animated.View>
       ) : null}
 
       <Modal
@@ -871,59 +1083,6 @@ const styles = StyleSheet.create({
   controlButtonPressed: {
     opacity: 0.6,
   },
-  marker: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.dark.accent,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  markerTarget: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#D4AF7A",
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-    shadowOpacity: 0.5,
-  },
-  markerGreyed: {
-    backgroundColor: "#4A4E57",
-    opacity: 0.6,
-  },
-  markerCheckedIn: {
-    backgroundColor: "#D4AF37",
-  },
-  calloutContainer: {
-    width: 280,
-  },
-  callout: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  calloutTitle: {
-    color: "#1A1A1A",
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: Spacing.xs,
-  },
-  calloutDescription: {
-    color: "#4A4A4A",
-    fontSize: 14,
-    lineHeight: 20,
-  },
   searchContainer: {
     position: "absolute",
     left: Spacing.md,
@@ -1035,22 +1194,6 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     fontWeight: "600",
   },
-  huntButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#8B7355",
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    marginTop: Spacing.md,
-    gap: Spacing.xs,
-  },
-  huntButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
-  },
   resumeCompassButton: {
     position: "absolute",
     right: Spacing.lg,
@@ -1092,17 +1235,62 @@ const styles = StyleSheet.create({
     alignItems: "center",
     zIndex: 10,
   },
+  panelMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+    flexWrap: "wrap",
+  },
+  categoryBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  categoryBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  distanceBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  distanceBadgeText: {
+    fontSize: 11,
+    color: Colors.dark.textSecondary,
+  },
+  audioBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  audioBadgeText: {
+    fontSize: 11,
+    color: Colors.dark.accent,
+    fontWeight: "500",
+  },
   selectedTitle: {
     ...Typography.headline,
     color: Colors.dark.text,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
     paddingRight: Spacing['2xl'],
   },
   selectedDescription: {
-    ...Typography.body,
+    ...Typography.callout,
     color: Colors.dark.textSecondary,
-    lineHeight: 22,
-    marginBottom: Spacing.lg,
+    lineHeight: 20,
+    marginBottom: Spacing.xs,
+  },
+  readMoreLink: {
+    color: Colors.dark.accent,
+    fontSize: 13,
+    fontWeight: "500",
+    marginBottom: Spacing.md,
   },
   panelButtons: {
     flexDirection: "row",
@@ -1143,13 +1331,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     ...Typography.headline,
     fontSize: 14,
-  },
-  readMoreLink: {
-    color: Colors.dark.accent,
-    fontSize: 14,
-    fontWeight: "500",
-    marginTop: -Spacing.sm,
-    marginBottom: Spacing.lg,
   },
   readMoreButton: {
     flex: 1,
