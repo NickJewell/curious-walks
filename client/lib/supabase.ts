@@ -248,3 +248,70 @@ export async function getCuriosNearPoint(
 
   return radiusFetchInProgress;
 }
+
+let nearest20InProgress: Promise<Curio[]> | null = null;
+let nearest20Cache: { lat: number; lng: number; data: Curio[]; timestamp: number } | null = null;
+
+export async function getNearest20(lat: number, lng: number): Promise<Curio[]> {
+  if (nearest20Cache) {
+    const cacheAge = Date.now() - nearest20Cache.timestamp;
+    const cacheDist = calculateDistance(lat, lng, nearest20Cache.lat, nearest20Cache.lng);
+    if (cacheAge < 10000 && cacheDist < 50) {
+      return nearest20Cache.data;
+    }
+  }
+
+  if (nearest20InProgress) {
+    return nearest20InProgress;
+  }
+
+  nearest20InProgress = (async () => {
+    try {
+      const latDelta = 0.015;
+      const lngDelta = 0.023;
+
+      const { data, error } = await supabase
+        .from('places')
+        .select('*')
+        .eq('visible_flag', true)
+        .gte('lat', lat - latDelta)
+        .lte('lat', lat + latDelta)
+        .gte('lon', lng - lngDelta)
+        .lte('lon', lng + lngDelta)
+        .limit(100);
+
+      if (error) {
+        console.error('Error fetching nearest 20:', error.message);
+        return [];
+      }
+
+      if (!data || data.length === 0) {
+        const { data: widerData, error: widerError } = await supabase
+          .from('places')
+          .select('*')
+          .eq('visible_flag', true)
+          .gte('lat', lat - latDelta * 3)
+          .lte('lat', lat + latDelta * 3)
+          .gte('lon', lng - lngDelta * 3)
+          .lte('lon', lng + lngDelta * 3)
+          .limit(100);
+
+        if (widerError || !widerData?.length) return [];
+        const result = processPlaces(widerData, lat, lng, 20);
+        nearest20Cache = { lat, lng, data: result, timestamp: Date.now() };
+        return result;
+      }
+
+      const result = processPlaces(data, lat, lng, 20);
+      nearest20Cache = { lat, lng, data: result, timestamp: Date.now() };
+      return result;
+    } catch (error) {
+      console.error('Error fetching nearest 20:', error);
+      return [];
+    } finally {
+      nearest20InProgress = null;
+    }
+  })();
+
+  return nearest20InProgress;
+}

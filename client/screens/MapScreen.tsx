@@ -24,7 +24,7 @@ import { BlurView } from "expo-blur";
 import * as Location from "expo-location";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
-import { getNearestCurios, getCuriosNearPoint, searchCurios, Curio } from "@/lib/supabase";
+import { getNearest20, searchCurios, Curio } from "@/lib/supabase";
 import { useHunt } from "@/contexts/HuntContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCheckins } from "@/contexts/CheckinContext";
@@ -109,6 +109,7 @@ export default function MapScreen() {
   const debouncedQuery = useDebounce(searchQuery, 300);
 
   const [showListModal, setShowListModal] = useState(false);
+  
   const [userLists, setUserLists] = useState<ListWithItemCount[]>([]);
   const [loadingLists, setLoadingLists] = useState(false);
   const [showCreateListInput, setShowCreateListInput] = useState(false);
@@ -233,22 +234,36 @@ export default function MapScreen() {
               setMapCenter(coords);
               setLastSearchCenter(coords);
               setLocationReady(true);
+              loadCurios(coords.latitude, coords.longitude);
+              mapRef.current?.animateToRegion({
+                ...coords,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+              }, 300);
             }
           } catch {}
 
           try {
             const location = await Location.getCurrentPositionAsync({
-              accuracy: Location.Accuracy.Balanced,
+              accuracy: Location.Accuracy.Low,
             });
             if (!cancelled) {
-              coords = {
+              const freshCoords = {
                 latitude: location.coords.latitude,
                 longitude: location.coords.longitude,
               };
-              setUserLocation(coords);
-              setMapCenter(coords);
-              setLastSearchCenter(coords);
-              setLocationReady(true);
+              setUserLocation(freshCoords);
+              if (!coords) {
+                setMapCenter(freshCoords);
+                setLastSearchCenter(freshCoords);
+                setLocationReady(true);
+                loadCurios(freshCoords.latitude, freshCoords.longitude);
+              }
+              mapRef.current?.animateToRegion({
+                ...freshCoords,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+              }, 300);
             }
           } catch {}
         }
@@ -259,9 +274,8 @@ export default function MapScreen() {
       if (!coords) {
         coords = LONDON_CENTER;
         setLocationReady(true);
+        loadCurios(coords.latitude, coords.longitude);
       }
-
-      loadCurios(coords.latitude, coords.longitude);
     };
 
     init();
@@ -271,11 +285,14 @@ export default function MapScreen() {
         setLocationReady(true);
         loadCurios(LONDON_CENTER.latitude, LONDON_CENTER.longitude);
       }
-    }, 10000);
+    }, 5000);
 
     return () => {
       cancelled = true;
       clearTimeout(fallbackTimer);
+      if (regionChangeTimer.current) {
+        clearTimeout(regionChangeTimer.current);
+      }
     };
   }, []);
 
@@ -364,7 +381,7 @@ export default function MapScreen() {
   const loadCurios = async (lat: number, lng: number) => {
     setLoading(true);
     try {
-      const data = await getCuriosNearPoint(lat, lng, 1000);
+      const data = await getNearest20(lat, lng);
       setCurios(data);
       setLastSearchCenter({ latitude: lat, longitude: lng });
       initialLoadDone.current = true;
@@ -376,7 +393,7 @@ export default function MapScreen() {
     }
   };
 
-  const [showSearchHere, setShowSearchHere] = useState(false);
+  const regionChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onRegionChangeComplete = useCallback((region: Region) => {
     const newCenter = { latitude: region.latitude, longitude: region.longitude };
@@ -389,15 +406,14 @@ export default function MapScreen() {
       Math.pow(newCenter.longitude - lastSearchCenter.longitude, 2)
     );
     if (dist > 0.003) {
-      setShowSearchHere(true);
+      if (regionChangeTimer.current) {
+        clearTimeout(regionChangeTimer.current);
+      }
+      regionChangeTimer.current = setTimeout(() => {
+        loadCurios(newCenter.latitude, newCenter.longitude);
+      }, 400);
     }
   }, [lastSearchCenter]);
-
-  const handleSearchHere = () => {
-    setShowSearchHere(false);
-    setSelectedCurio(null);
-    loadCurios(mapCenter.latitude, mapCenter.longitude);
-  };
 
   const centerOnUser = async () => {
     try {
@@ -588,20 +604,12 @@ export default function MapScreen() {
         ) : null}
       </View>
 
-      {showSearchHere || !loading ? (
+      {loading && initialLoadDone.current ? (
         <View style={[styles.searchHereContainer, { top: insets.top + Spacing.md + 60 }]}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.searchHereBtn,
-              pressed && styles.searchHereBtnPressed,
-            ]}
-            onPress={handleSearchHere}
-          >
-            <Feather name="refresh-cw" size={14} color="#fff" />
-            <Text style={styles.searchHereBtnText}>
-              {loading ? "Loading..." : showSearchHere ? "Search here" : `${curios.length} places nearby`}
-            </Text>
-          </Pressable>
+          <View style={styles.searchHereBtn}>
+            <ActivityIndicator size="small" color="#fff" />
+            <Text style={styles.searchHereBtnText}>Updating...</Text>
+          </View>
         </View>
       ) : null}
 
@@ -1028,9 +1036,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.full,
     gap: Spacing.xs,
-  },
-  searchHereBtnPressed: {
-    opacity: 0.7,
   },
   searchHereBtnText: {
     color: "#fff",
