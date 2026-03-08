@@ -496,7 +496,11 @@ export default function MapScreen() {
     setLoading(true);
     try {
       const data = await getNearest20(lat, lng);
-      setCurios(data);
+      setCurios(prev => {
+        const newIds = new Set(data.map((c: Curio) => c.id));
+        const kept = prev.filter(c => !newIds.has(c.id) && isWithinBounds(c, lat, lng));
+        return [...data, ...kept];
+      });
       setLastSearchCenter({ latitude: lat, longitude: lng });
       initialLoadDone.current = true;
     } catch (error) {
@@ -505,6 +509,12 @@ export default function MapScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const isWithinBounds = (curio: Curio, centerLat: number, centerLng: number) => {
+    const latDiff = Math.abs(curio.latitude - centerLat);
+    const lngDiff = Math.abs(curio.longitude - centerLng);
+    return latDiff < 0.02 && lngDiff < 0.02;
   };
 
   const regionChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
