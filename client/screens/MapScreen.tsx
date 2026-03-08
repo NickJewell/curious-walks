@@ -251,10 +251,6 @@ export default function MapScreen() {
   };
 
   const handleMarkerPress = (curio: Curio) => {
-    if (regionChangeTimer.current) {
-      clearTimeout(regionChangeTimer.current);
-      regionChangeTimer.current = null;
-    }
     setSelectedCurio(curio);
   };
 
@@ -814,10 +810,8 @@ export default function MapScreen() {
       ) : null}
 
       {selectedCurio && !isHunting ? (
-        <Animated.View
-          entering={FadeIn.duration(200)}
+        <View
           style={[styles.selectedPanel, { bottom: tabBarHeight + Spacing.lg }]}
-          key={selectedCurio.id}
         >
           <BlurView intensity={90} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
           <View style={styles.selectedPanelContent}>
@@ -891,7 +885,7 @@ export default function MapScreen() {
               </Pressable>
             </View>
           </View>
-        </Animated.View>
+        </View>
       ) : null}
 
       <Modal
@@ -913,9 +907,7 @@ export default function MapScreen() {
               setNewListName("");
             }}
           />
-          <Animated.View
-            entering={FadeIn.duration(200)}
-            exiting={FadeOut.duration(150)}
+          <View
             style={styles.modalContent}
           >
             <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
@@ -1009,7 +1001,7 @@ export default function MapScreen() {
                 </>
               )}
             </View>
-          </Animated.View>
+          </View>
         </View>
       </Modal>
 
