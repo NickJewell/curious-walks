@@ -211,6 +211,7 @@ export default function MapScreen() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedCurio, setSelectedCurio] = useState<Curio | null>(null);
+  const selectedCurioRef = useRef<Curio | null>(null);
   const debouncedQuery = useDebounce(searchQuery, 300);
 
   const [showListModal, setShowListModal] = useState(false);
@@ -251,6 +252,7 @@ export default function MapScreen() {
   };
 
   const handleMarkerPress = (curio: Curio) => {
+    selectedCurioRef.current = curio;
     setSelectedCurio(curio);
     mapRef.current?.animateToRegion({
       latitude: curio.latitude - 0.002,
@@ -261,6 +263,7 @@ export default function MapScreen() {
   };
 
   const handleClosePanel = () => {
+    selectedCurioRef.current = null;
     setSelectedCurio(null);
   };
 
@@ -496,11 +499,7 @@ export default function MapScreen() {
     setLoading(true);
     try {
       const data = await getNearest20(lat, lng);
-      setCurios(prev => {
-        const newIds = new Set(data.map((c: Curio) => c.id));
-        const kept = prev.filter(c => !newIds.has(c.id) && isWithinBounds(c, lat, lng));
-        return [...data, ...kept];
-      });
+      setCurios(data);
       setLastSearchCenter({ latitude: lat, longitude: lng });
       initialLoadDone.current = true;
     } catch (error) {
@@ -511,12 +510,6 @@ export default function MapScreen() {
     }
   };
 
-  const isWithinBounds = (curio: Curio, centerLat: number, centerLng: number) => {
-    const latDiff = Math.abs(curio.latitude - centerLat);
-    const lngDiff = Math.abs(curio.longitude - centerLng);
-    return latDiff < 0.02 && lngDiff < 0.02;
-  };
-
   const regionChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onRegionChangeComplete = useCallback((region: Region) => {
@@ -524,6 +517,7 @@ export default function MapScreen() {
     setMapCenter(newCenter);
     
     if (!initialLoadDone.current) return;
+    if (selectedCurioRef.current) return;
 
     const dist = Math.sqrt(
       Math.pow(newCenter.latitude - lastSearchCenter.latitude, 2) +
