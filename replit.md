@@ -61,9 +61,20 @@ Preferred communication style: Simple, everyday language.
 - HuntContext (React Context) for compass navigation hunt state
 - No additional global state management library needed
 
+**Theming System:**
+- ThemeContext (`client/contexts/ThemeContext.tsx`) provides light/dark/system preference stored in AsyncStorage
+- `useTheme()` hook returns `{ theme, isDark, preference, setPreference }` — all screens use this
+- `Colors.light` and `Colors.dark` palettes in `client/constants/theme.ts` define full colour sets
+- Light palette: warm cream/parchment backgrounds (#F5F2ED), dark text, muted gold accents
+- Dark palette: deep navy backgrounds (#0A0E14), light text, bright gold accents
+- All screens use `createStyles(theme: ThemeColors)` factory pattern with `useMemo` for dynamic styles
+- Map has separate light (`lightMapStyle`) and dark (`darkMapStyle`) Google Maps styles in `client/constants/mapStyle.ts`
+- Theme toggle lives in ProfileScreen as a segmented control (Light / Dark / System)
+- BlurView tint dynamically set to `isDark ? "dark" : "light"` throughout
+
 **Key Design Patterns:**
 - Themed components (ThemedView, ThemedText) for consistent styling
-- Custom hooks (useTheme, useScreenOptions, useColorScheme) for reusable logic
+- Custom hooks (useTheme, useScreenOptions) for reusable logic
 - Error boundaries for graceful error handling
 - Platform-specific file extensions for web/native differences
 - Safe area context for handling device notches and system UI

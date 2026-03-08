@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,13 +12,16 @@ import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
-import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
+import { Spacing, BorderRadius, type ThemeColors } from '@/constants/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 
 type AuthMode = 'signIn' | 'signUp';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
+  const { theme, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const { signIn, signUp, signInWithGoogle, continueAsGuest } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -136,7 +139,7 @@ export default function LoginScreen() {
             disabled={isGoogleLoading}
           >
             {isGoogleLoading ? (
-              <ActivityIndicator size="small" color={Colors.dark.text} />
+              <ActivityIndicator size="small" color={theme.text} />
             ) : (
               <>
                 <View style={styles.googleIconContainer}>
@@ -158,18 +161,18 @@ export default function LoginScreen() {
               style={styles.emailToggleButton} 
               onPress={() => setShowEmailAuth(true)}
             >
-              <Feather name="mail" size={18} color={Colors.dark.textSecondary} />
+              <Feather name="mail" size={18} color={theme.textSecondary} />
               <Text style={styles.emailToggleText}>Continue with Email</Text>
             </Pressable>
           ) : (
             <>
               {mode === 'signUp' && (
                 <View style={styles.inputContainer}>
-                  <Feather name="user" size={20} color={Colors.dark.textSecondary} style={styles.inputIcon} />
+                  <Feather name="user" size={20} color={theme.textSecondary} style={styles.inputIcon} />
                   <TextInput
                     style={styles.input}
                     placeholder="Full Name (optional)"
-                    placeholderTextColor={Colors.dark.textSecondary}
+                    placeholderTextColor={theme.textSecondary}
                     value={fullName}
                     onChangeText={setFullName}
                     autoCapitalize="words"
@@ -179,11 +182,11 @@ export default function LoginScreen() {
               )}
 
               <View style={styles.inputContainer}>
-                <Feather name="mail" size={20} color={Colors.dark.textSecondary} style={styles.inputIcon} />
+                <Feather name="mail" size={20} color={theme.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Email"
-                  placeholderTextColor={Colors.dark.textSecondary}
+                  placeholderTextColor={theme.textSecondary}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -193,11 +196,11 @@ export default function LoginScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Feather name="lock" size={20} color={Colors.dark.textSecondary} style={styles.inputIcon} />
+                <Feather name="lock" size={20} color={theme.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, styles.passwordInput]}
                   placeholder="Password"
-                  placeholderTextColor={Colors.dark.textSecondary}
+                  placeholderTextColor={theme.textSecondary}
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
@@ -208,7 +211,7 @@ export default function LoginScreen() {
                   <Feather 
                     name={showPassword ? "eye-off" : "eye"} 
                     size={20} 
-                    color={Colors.dark.textSecondary} 
+                    color={theme.textSecondary} 
                   />
                 </Pressable>
               </View>
@@ -246,7 +249,7 @@ export default function LoginScreen() {
 
           <Pressable style={styles.guestLink} onPress={handleGuestAccess}>
             <Text style={styles.guestText}>Continue as Guest</Text>
-            <Feather name="arrow-right" size={16} color={Colors.dark.textSecondary} />
+            <Feather name="arrow-right" size={16} color={theme.textSecondary} />
           </Pressable>
         </View>
       </KeyboardAwareScrollViewCompat>
@@ -254,10 +257,10 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.backgroundRoot,
+    backgroundColor: theme.backgroundRoot,
   },
   heroImage: {
     position: 'absolute',
@@ -289,19 +292,19 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 40,
     fontWeight: '300',
-    color: Colors.dark.text,
+    color: theme.text,
     letterSpacing: -1,
   },
   titleAccent: {
     fontSize: 40,
     fontWeight: '700',
-    color: Colors.dark.accent,
+    color: theme.accent,
     letterSpacing: -1,
     marginBottom: Spacing.sm,
   },
   subtitle: {
     fontSize: 15,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     lineHeight: 22,
     maxWidth: 280,
   },
@@ -324,7 +327,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.md,
     fontSize: 16,
-    color: Colors.dark.text,
+    color: theme.text,
   },
   passwordInput: {
     paddingRight: Spacing.xl * 2,
@@ -377,12 +380,12 @@ const styles = StyleSheet.create({
   },
   emailToggleText: {
     fontSize: 14,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
   },
   submitButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: theme.accent,
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.xl,
     borderRadius: BorderRadius.md,
@@ -406,11 +409,11 @@ const styles = StyleSheet.create({
   },
   toggleText: {
     fontSize: 14,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
   },
   toggleTextBold: {
     fontWeight: '600',
-    color: Colors.dark.accent,
+    color: theme.accent,
   },
   divider: {
     flexDirection: 'row',
@@ -425,7 +428,7 @@ const styles = StyleSheet.create({
   dividerText: {
     paddingHorizontal: Spacing.md,
     fontSize: 13,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
   },
   guestLink: {
     flexDirection: 'row',
@@ -436,6 +439,6 @@ const styles = StyleSheet.create({
   },
   guestText: {
     fontSize: 14,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
   },
 });

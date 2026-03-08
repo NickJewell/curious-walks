@@ -22,6 +22,8 @@ import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler'
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserLists, createList, deleteList, getOfficialTours } from '@/lib/lists';
 import type { ListWithItemCount, Tour } from '../../shared/schema';
@@ -36,6 +38,8 @@ export default function ListsScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation<NavigationProp>();
   const { user, isGuest } = useAuth();
+  const { theme, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [activeTab, setActiveTab] = useState<TabOption>('tours');
   const [lists, setLists] = useState<ListWithItemCount[]>([]);
@@ -186,7 +190,7 @@ export default function ListsScreen() {
         >
           <View style={styles.listCardContent}>
             <View style={styles.listIcon}>
-              <Feather name="list" size={20} color={Colors.dark.accent} />
+              <Feather name="list" size={20} color={theme.accent} />
             </View>
             <View style={styles.listInfo}>
               <Text style={styles.listName} numberOfLines={1}>
@@ -198,7 +202,7 @@ export default function ListsScreen() {
                 {formattedDate}
               </Text>
             </View>
-            <Feather name="chevron-right" size={20} color={Colors.dark.textSecondary} />
+            <Feather name="chevron-right" size={20} color={theme.textSecondary} />
           </View>
         </Pressable>
       </Swipeable>
@@ -227,7 +231,7 @@ export default function ListsScreen() {
         >
           <View style={[styles.tourCardOverlay, isPromoted ? styles.promotedCardOverlay : null]}>
             {!heroImage ? (
-              <Feather name="map" size={32} color={isPromoted ? '#D4A017' : Colors.dark.textSecondary} />
+              <Feather name="map" size={32} color={isPromoted ? '#D4A017' : theme.textSecondary} />
             ) : null}
           </View>
         </ImageBackground>
@@ -238,13 +242,13 @@ export default function ListsScreen() {
           <View style={styles.tourCardMeta}>
             {duration ? (
               <View style={[styles.tourBadge, isPromoted ? styles.promotedBadge : null]}>
-                <Feather name="clock" size={12} color={isPromoted ? '#D4A017' : Colors.dark.textSecondary} />
+                <Feather name="clock" size={12} color={isPromoted ? '#D4A017' : theme.textSecondary} />
                 <Text style={[styles.tourBadgeText, isPromoted ? styles.promotedBadgeText : null]}>{duration}</Text>
               </View>
             ) : null}
             {tourLength ? (
               <View style={[styles.tourBadge, isPromoted ? styles.promotedBadge : null]}>
-                <Feather name="navigation" size={12} color={isPromoted ? '#D4A017' : Colors.dark.textSecondary} />
+                <Feather name="navigation" size={12} color={isPromoted ? '#D4A017' : theme.textSecondary} />
                 <Text style={[styles.tourBadgeText, isPromoted ? styles.promotedBadgeText : null]}>{tourLength}</Text>
               </View>
             ) : null}
@@ -261,7 +265,7 @@ export default function ListsScreen() {
     if (activeTab === 'tours') {
       return (
         <View style={styles.emptyState}>
-          <Feather name="map" size={48} color={Colors.dark.textSecondary} />
+          <Feather name="map" size={48} color={theme.textSecondary} />
           <Text style={styles.emptyTitle}>No Tours Available</Text>
           <Text style={styles.emptyDescription}>
             Official curated tours will appear here. Check back soon!
@@ -273,7 +277,7 @@ export default function ListsScreen() {
     if (isGuest) {
       return (
         <View style={styles.emptyState}>
-          <Feather name="lock" size={48} color={Colors.dark.textSecondary} />
+          <Feather name="lock" size={48} color={theme.textSecondary} />
           <Text style={styles.emptyTitle}>Sign In Required</Text>
           <Text style={styles.emptyDescription}>
             Create an account to save your favorite places into custom lists.
@@ -290,7 +294,7 @@ export default function ListsScreen() {
 
     return (
       <View style={styles.emptyState}>
-        <Feather name="list" size={48} color={Colors.dark.textSecondary} />
+        <Feather name="list" size={48} color={theme.textSecondary} />
         <Text style={styles.emptyTitle}>No Lists Yet</Text>
         <Text style={styles.emptyDescription}>
           Create your first list to save places you want to explore.
@@ -348,7 +352,7 @@ export default function ListsScreen() {
             ]}
             onPress={() => setShowCreateModal(true)}
           >
-            <Feather name="plus" size={24} color={Colors.dark.text} />
+            <Feather name="plus" size={24} color={theme.text} />
           </Pressable>
         ) : (
           <View style={{ width: 44 }} />
@@ -359,7 +363,7 @@ export default function ListsScreen() {
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.dark.accent} />
+          <ActivityIndicator size="large" color={theme.accent} />
         </View>
       ) : activeTab === 'lists' ? (
         <FlatList
@@ -428,13 +432,13 @@ export default function ListsScreen() {
             exiting={FadeOut.duration(150)}
             style={styles.modalContent}
           >
-            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+            <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
             <View style={styles.modalInner}>
               <Text style={styles.modalTitle}>Create New List</Text>
               <TextInput
                 style={styles.modalInput}
                 placeholder="List name"
-                placeholderTextColor={Colors.dark.textSecondary}
+                placeholderTextColor={theme.textSecondary}
                 value={newListName}
                 onChangeText={setNewListName}
                 autoFocus
@@ -475,10 +479,10 @@ export default function ListsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.backgroundRoot,
+    backgroundColor: theme.backgroundRoot,
   },
   header: {
     flexDirection: 'row',
@@ -489,13 +493,13 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     ...Typography.largeTitle,
-    color: Colors.dark.text,
+    color: theme.text,
   },
   addButton: {
     width: 44,
     height: 44,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: theme.backgroundSecondary,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -506,7 +510,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.lg,
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: theme.backgroundSecondary,
     borderRadius: BorderRadius.sm,
     padding: 4,
   },
@@ -517,11 +521,11 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xs,
   },
   segmentButtonActive: {
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: theme.accent,
   },
   segmentButtonText: {
     ...Typography.callout,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
   },
   segmentButtonTextActive: {
     color: '#FFFFFF',
@@ -545,10 +549,10 @@ const styles = StyleSheet.create({
   },
   sectionHeaderText: {
     ...Typography.title,
-    color: Colors.dark.text,
+    color: theme.text,
   },
   tourCard: {
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: theme.backgroundSecondary,
     borderRadius: BorderRadius.md,
     overflow: 'hidden',
     marginBottom: Spacing.md,
@@ -561,7 +565,7 @@ const styles = StyleSheet.create({
   tourCardImage: {
     width: 120,
     height: 120,
-    backgroundColor: Colors.dark.backgroundTertiary,
+    backgroundColor: theme.backgroundTertiary,
   },
   tourCardOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -576,7 +580,7 @@ const styles = StyleSheet.create({
   },
   tourCardTitle: {
     ...Typography.headline,
-    color: Colors.dark.text,
+    color: theme.text,
     marginBottom: Spacing.sm,
   },
   tourCardMeta: {
@@ -588,7 +592,7 @@ const styles = StyleSheet.create({
   tourBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.dark.backgroundTertiary,
+    backgroundColor: theme.backgroundTertiary,
     paddingVertical: 4,
     paddingHorizontal: Spacing.sm,
     borderRadius: BorderRadius.xs,
@@ -596,11 +600,11 @@ const styles = StyleSheet.create({
   },
   tourBadgeText: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
   },
   tourCardStops: {
     ...Typography.caption,
-    color: Colors.dark.accent,
+    color: theme.accent,
   },
   promotedSection: {
     marginBottom: Spacing.lg,
@@ -640,7 +644,7 @@ const styles = StyleSheet.create({
     color: '#D4A017',
   },
   listCard: {
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: theme.backgroundSecondary,
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.md,
   },
@@ -656,7 +660,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.dark.backgroundTertiary,
+    backgroundColor: theme.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
@@ -666,12 +670,12 @@ const styles = StyleSheet.create({
   },
   listName: {
     ...Typography.headline,
-    color: Colors.dark.text,
+    color: theme.text,
     marginBottom: Spacing.xs,
   },
   listMeta: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
   },
   deleteAction: {
     backgroundColor: '#C53030',
@@ -695,19 +699,19 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     ...Typography.title,
-    color: Colors.dark.text,
+    color: theme.text,
     marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
   },
   emptyDescription: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
   },
   signInButton: {
     marginTop: Spacing.xl,
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: theme.accent,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing['3xl'],
     borderRadius: BorderRadius.md,
@@ -732,17 +736,17 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     ...Typography.title,
-    color: Colors.dark.text,
+    color: theme.text,
     marginBottom: Spacing.lg,
     textAlign: 'center',
   },
   modalInput: {
-    backgroundColor: Colors.dark.backgroundTertiary,
+    backgroundColor: theme.backgroundTertiary,
     borderRadius: BorderRadius.sm,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     ...Typography.body,
-    color: Colors.dark.text,
+    color: theme.text,
     marginBottom: Spacing.lg,
   },
   modalButtons: {
@@ -758,14 +762,14 @@ const styles = StyleSheet.create({
     height: 48,
   },
   modalButtonCancel: {
-    backgroundColor: Colors.dark.backgroundTertiary,
+    backgroundColor: theme.backgroundTertiary,
   },
   modalButtonCancelText: {
     ...Typography.headline,
-    color: Colors.dark.text,
+    color: theme.text,
   },
   modalButtonCreate: {
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: theme.accent,
   },
   modalButtonCreateText: {
     ...Typography.headline,

@@ -1,20 +1,23 @@
 import React from "react";
-import { View, StyleSheet, Image } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { Colors, Spacing, Typography } from "@/constants/theme";
+import { Spacing, Typography } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
+import { useTheme } from "@/hooks/useTheme";
 
 interface HeaderTitleProps {
   title?: string;
 }
 
 export function HeaderTitle({ title = "Lantern" }: HeaderTitleProps) {
+  const { theme } = useTheme();
+
   return (
     <View style={styles.container}>
-      <View style={styles.iconContainer}>
-        <Feather name="sun" size={18} color={Colors.dark.accent} />
+      <View style={[styles.iconContainer, { backgroundColor: theme.backgroundDefault }]}>
+        <Feather name="sun" size={18} color={theme.accent} />
       </View>
-      <ThemedText style={styles.title}>{title}</ThemedText>
+      <ThemedText style={[styles.title, { color: theme.textAccent }]}>{title}</ThemedText>
     </View>
   );
 }
@@ -29,13 +32,11 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: Colors.dark.backgroundDefault,
     justifyContent: "center",
     alignItems: "center",
     marginRight: Spacing.sm,
   },
   title: {
     ...Typography.headline,
-    color: Colors.dark.textAccent,
   },
 });

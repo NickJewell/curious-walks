@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -34,8 +34,9 @@ import Animated, {
   withSequence,
   Easing,
 } from "react-native-reanimated";
-import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
-import { darkMapStyle } from "@/constants/mapStyle";
+import { Colors, Spacing, BorderRadius, Typography, type ThemeColors } from "@/constants/theme";
+import { darkMapStyle, lightMapStyle } from "@/constants/mapStyle";
+import { useTheme } from "@/hooks/useTheme";
 import { getNearest20, searchCurios, Curio } from "@/lib/supabase";
 import { useHunt } from "@/contexts/HuntContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -98,7 +99,7 @@ const getCurioTypeStyle = (curioType?: string): CurioTypeStyle => {
     case 'Pub & Bar':
       return { color: '#4E342E', icon: 'coffee', label: 'Pub' };
     default:
-      return { color: Colors.dark.accent, icon: 'map-pin', label: curioType || 'Place' };
+      return { color: '#8B7355', icon: 'map-pin', label: curioType || 'Place' };
   }
 };
 
@@ -190,6 +191,9 @@ export default function MapScreen() {
   const { activeTarget, setActiveTarget, isHunting } = useHunt();
   const { user, isGuest, signOut } = useAuth();
   const { checkedInPlaceIds } = useCheckins();
+  const { theme, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const mapStyle = isDark ? darkMapStyle : lightMapStyle;
   const mapRef = useRef<any>(null);
   const markerRefs = useRef<{ [key: string]: any }>({});
   
@@ -562,7 +566,7 @@ export default function MapScreen() {
   if (!locationReady) {
     return (
       <View style={[styles.container, styles.initLoadingContainer]}>
-        <ActivityIndicator size="large" color={Colors.dark.accent} />
+        <ActivityIndicator size="large" color={theme.accent} />
         <Text style={styles.initLoadingText}>Finding your location...</Text>
       </View>
     );
@@ -577,7 +581,7 @@ export default function MapScreen() {
         initialRegion={{ ...initialRegionRef.current, latitudeDelta: 0.01, longitudeDelta: 0.01 }}
         showsUserLocation
         showsMyLocationButton={false}
-        customMapStyle={darkMapStyle}
+        customMapStyle={mapStyle}
         onRegionChangeComplete={onRegionChangeComplete}
       >
         {isMapAvailable && Marker ? curios.filter(c => 
@@ -690,7 +694,7 @@ export default function MapScreen() {
           style={styles.loadingOverlay}
         >
           <View style={styles.loadingPill}>
-            <ActivityIndicator size="small" color={Colors.dark.accent} />
+            <ActivityIndicator size="small" color={theme.accent} />
             <Text style={styles.loadingPillText}>Finding nearby curiosities...</Text>
           </View>
         </Animated.View>
@@ -714,7 +718,7 @@ export default function MapScreen() {
             </Pressable>
           ) : null}
           {isSearching ? (
-            <ActivityIndicator size="small" color={Colors.dark.accent} style={styles.searchSpinner} />
+            <ActivityIndicator size="small" color={theme.accent} style={styles.searchSpinner} />
           ) : null}
         </View>
         
@@ -794,8 +798,8 @@ export default function MapScreen() {
           ]}
           onPress={centerOnUser}
         >
-          <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
-          <Feather name="crosshair" size={20} color={Colors.dark.text} />
+          <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+          <Feather name="crosshair" size={20} color={theme.text} />
         </Pressable>
       </View>
 
@@ -809,8 +813,8 @@ export default function MapScreen() {
           ]}
           onPress={handleResumeCompass}
         >
-          <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
-          <Feather name="navigation" size={20} color="#D4AF7A" />
+          <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+          <Feather name="navigation" size={20} color={theme.textAccent} />
           <Text style={styles.resumeCompassText}>Resume Compass</Text>
         </Pressable>
       ) : null}
@@ -822,7 +826,7 @@ export default function MapScreen() {
           style={[styles.selectedPanel, { bottom: tabBarHeight + Spacing.lg }]}
           key={selectedCurio.id}
         >
-          <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill} />
+          <BlurView intensity={90} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
           <View style={styles.selectedPanelContent}>
             <Pressable style={styles.closePanelButton} onPress={handleClosePanel}>
               <Feather name="x" size={20} color="#888" />
@@ -840,7 +844,7 @@ export default function MapScreen() {
               })()}
               {userLocation ? (
                 <View style={styles.distanceBadge}>
-                  <Feather name="navigation" size={11} color={Colors.dark.textSecondary} />
+                  <Feather name="navigation" size={11} color={theme.textSecondary} />
                   <Text style={styles.distanceBadgeText}>
                     {calculateDisplayDistance(userLocation.latitude, userLocation.longitude, selectedCurio.latitude, selectedCurio.longitude)}
                   </Text>
@@ -848,7 +852,7 @@ export default function MapScreen() {
               ) : null}
               {selectedCurio.detailAudioPath ? (
                 <View style={styles.audioBadge}>
-                  <Feather name="headphones" size={11} color={Colors.dark.accent} />
+                  <Feather name="headphones" size={11} color={theme.accent} />
                   <Text style={styles.audioBadgeText}>Audio</Text>
                 </View>
               ) : null}
@@ -869,7 +873,7 @@ export default function MapScreen() {
                 ]}
                 onPress={handleSaveToList}
               >
-                <Feather name="bookmark" size={16} color={Colors.dark.text} />
+                <Feather name="bookmark" size={16} color={theme.text} />
                 <Text style={styles.saveListButtonText}>Save</Text>
               </Pressable>
               <Pressable
@@ -879,7 +883,7 @@ export default function MapScreen() {
                 ]}
                 onPress={() => handleReadMore(selectedCurio)}
               >
-                <Feather name="book-open" size={16} color={Colors.dark.text} />
+                <Feather name="book-open" size={16} color={theme.text} />
                 <Text style={styles.readMoreButtonText}>Read</Text>
               </Pressable>
               <Pressable
@@ -921,12 +925,12 @@ export default function MapScreen() {
             exiting={FadeOut.duration(150)}
             style={styles.modalContent}
           >
-            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+            <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
             <View style={styles.modalInner}>
               <Text style={styles.modalTitle}>Save to List</Text>
               
               {loadingLists ? (
-                <ActivityIndicator size="large" color={Colors.dark.accent} style={styles.modalLoader} />
+                <ActivityIndicator size="large" color={theme.accent} style={styles.modalLoader} />
               ) : (
                 <>
                   {userLists.length > 0 ? (
@@ -943,14 +947,14 @@ export default function MapScreen() {
                           onPress={() => handleSelectList(item.id)}
                           disabled={savingToList}
                         >
-                          <Feather name="list" size={18} color={Colors.dark.accent} />
+                          <Feather name="list" size={18} color={theme.accent} />
                           <View style={styles.listOptionInfo}>
                             <Text style={styles.listOptionName}>{item.name}</Text>
                             <Text style={styles.listOptionCount}>
                               {item.item_count} {item.item_count === 1 ? 'place' : 'places'}
                             </Text>
                           </View>
-                          <Feather name="plus" size={18} color={Colors.dark.textSecondary} />
+                          <Feather name="plus" size={18} color={theme.textSecondary} />
                         </Pressable>
                       )}
                     />
@@ -963,7 +967,7 @@ export default function MapScreen() {
                       <TextInput
                         style={styles.createListInput}
                         placeholder="New list name"
-                        placeholderTextColor={Colors.dark.textSecondary}
+                        placeholderTextColor={theme.textSecondary}
                         value={newListName}
                         onChangeText={setNewListName}
                         autoFocus
@@ -1005,7 +1009,7 @@ export default function MapScreen() {
                       ]}
                       onPress={() => setShowCreateListInput(true)}
                     >
-                      <Feather name="plus-circle" size={20} color={Colors.dark.accent} />
+                      <Feather name="plus-circle" size={20} color={theme.accent} />
                       <Text style={styles.createNewListText}>Create New List</Text>
                     </Pressable>
                   )}
@@ -1025,17 +1029,17 @@ export default function MapScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.backgroundRoot,
+    backgroundColor: theme.backgroundRoot,
   },
   initLoadingContainer: {
     justifyContent: "center",
     alignItems: "center",
   },
   initLoadingText: {
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     fontSize: Typography.body.fontSize,
     marginTop: Spacing.md,
   },
@@ -1059,7 +1063,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   loadingPillText: {
-    color: Colors.dark.text,
+    color: theme.text,
     ...Typography.body,
   },
   map: {
@@ -1262,7 +1266,7 @@ const styles = StyleSheet.create({
   },
   distanceBadgeText: {
     fontSize: 11,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
   },
   audioBadge: {
     flexDirection: "row",
@@ -1271,23 +1275,23 @@ const styles = StyleSheet.create({
   },
   audioBadgeText: {
     fontSize: 11,
-    color: Colors.dark.accent,
+    color: theme.accent,
     fontWeight: "500",
   },
   selectedTitle: {
     ...Typography.headline,
-    color: Colors.dark.text,
+    color: theme.text,
     marginBottom: Spacing.xs,
     paddingRight: Spacing['2xl'],
   },
   selectedDescription: {
     ...Typography.callout,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     lineHeight: 20,
     marginBottom: Spacing.xs,
   },
   readMoreLink: {
-    color: Colors.dark.accent,
+    color: theme.accent,
     fontSize: 13,
     fontWeight: "500",
     marginBottom: Spacing.md,
@@ -1301,7 +1305,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Colors.dark.backgroundTertiary,
+    backgroundColor: theme.backgroundTertiary,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.sm,
     gap: Spacing.xs,
@@ -1310,7 +1314,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   saveListButtonText: {
-    color: Colors.dark.text,
+    color: theme.text,
     ...Typography.headline,
     fontSize: 14,
   },
@@ -1319,7 +1323,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: theme.accent,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.sm,
     gap: Spacing.xs,
@@ -1337,18 +1341,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: theme.backgroundSecondary,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.sm,
     gap: Spacing.xs,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: theme.border,
   },
   readMoreButtonPressed: {
     opacity: 0.7,
   },
   readMoreButtonText: {
-    color: Colors.dark.text,
+    color: theme.text,
     ...Typography.headline,
     fontSize: 14,
   },
@@ -1369,7 +1373,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     ...Typography.title,
-    color: Colors.dark.text,
+    color: theme.text,
     marginBottom: Spacing.lg,
     textAlign: "center",
   },
@@ -1384,7 +1388,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.md,
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: theme.backgroundSecondary,
     borderRadius: BorderRadius.sm,
     marginBottom: Spacing.sm,
     gap: Spacing.md,
@@ -1397,15 +1401,15 @@ const styles = StyleSheet.create({
   },
   listOptionName: {
     ...Typography.headline,
-    color: Colors.dark.text,
+    color: theme.text,
   },
   listOptionCount: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
   },
   noListsText: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     textAlign: "center",
     marginVertical: Spacing.xl,
   },
@@ -1422,18 +1426,18 @@ const styles = StyleSheet.create({
   },
   createNewListText: {
     ...Typography.headline,
-    color: Colors.dark.accent,
+    color: theme.accent,
   },
   createListContainer: {
     marginTop: Spacing.md,
   },
   createListInput: {
-    backgroundColor: Colors.dark.backgroundTertiary,
+    backgroundColor: theme.backgroundTertiary,
     borderRadius: BorderRadius.sm,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     ...Typography.body,
-    color: Colors.dark.text,
+    color: theme.text,
     marginBottom: Spacing.md,
   },
   createListButtons: {
@@ -1449,15 +1453,15 @@ const styles = StyleSheet.create({
     height: 44,
   },
   createListBtnCancel: {
-    backgroundColor: Colors.dark.backgroundTertiary,
+    backgroundColor: theme.backgroundTertiary,
   },
   createListBtnCancelText: {
     ...Typography.headline,
-    color: Colors.dark.text,
+    color: theme.text,
     fontSize: 14,
   },
   createListBtnCreate: {
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: theme.accent,
   },
   createListBtnCreateText: {
     ...Typography.headline,

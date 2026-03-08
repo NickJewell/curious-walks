@@ -15,7 +15,8 @@ import { Feather } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
+import { Colors, Spacing, BorderRadius, Typography, type ThemeColors } from '@/constants/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { getTourWithStops } from '@/lib/lists';
 import { useTour } from '@/contexts/TourContext';
 import { useHunt } from '@/contexts/HuntContext';
@@ -31,6 +32,8 @@ export default function TourDetailScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteProps>();
   const { tourId } = route.params;
+  const { theme, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const { setActiveTour } = useTour();
   const { setActiveTarget } = useHunt();
@@ -119,13 +122,13 @@ export default function TourDetailScreen() {
   const getMarkerColor = (index: number) => {
     if (index === 0) return '#4CAF50';
     if (index === stops.length - 1 && stops.length > 1) return '#FF6B6B';
-    return Colors.dark.accent;
+    return theme.accent;
   };
 
   if (loading) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color={Colors.dark.accent} />
+        <ActivityIndicator size="large" color={theme.accent} />
       </View>
     );
   }
@@ -133,7 +136,7 @@ export default function TourDetailScreen() {
   if (!tour) {
     return (
       <View style={[styles.container, styles.errorContainer]}>
-        <Feather name="alert-circle" size={48} color={Colors.dark.textSecondary} />
+        <Feather name="alert-circle" size={48} color={theme.textSecondary} />
         <Text style={styles.errorText}>Tour not found</Text>
         <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
           <Text style={styles.backButtonText}>Go Back</Text>
@@ -170,7 +173,7 @@ export default function TourDetailScreen() {
               {Polyline && routeCoords.length > 1 ? (
                 <Polyline
                   coordinates={routeCoords}
-                  strokeColor={Colors.dark.accent}
+                  strokeColor={theme.accent}
                   strokeWidth={3}
                 />
               ) : null}
@@ -185,19 +188,19 @@ export default function TourDetailScreen() {
             </SafeMapView>
           ) : (
             <View style={styles.heroPlaceholder}>
-              <Feather name="map" size={64} color={Colors.dark.textSecondary} />
+              <Feather name="map" size={64} color={theme.textSecondary} />
             </View>
           )}
           <LinearGradient
-            colors={['transparent', 'rgba(10, 14, 20, 0.6)', Colors.dark.backgroundRoot]}
+            colors={['transparent', 'rgba(10, 14, 20, 0.6)', theme.backgroundRoot]}
             style={styles.heroGradient}
           />
           <Pressable
             style={[styles.headerBackButton, { top: insets.top + Spacing.md }]}
             onPress={() => navigation.goBack()}
           >
-            <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
-            <Feather name="arrow-left" size={24} color={Colors.dark.text} />
+            <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+            <Feather name="arrow-left" size={24} color={theme.text} />
           </Pressable>
           {stops.length > 0 ? (
             <View style={styles.mapLegend}>
@@ -221,18 +224,18 @@ export default function TourDetailScreen() {
           <View style={styles.statsRow}>
             {tourLength ? (
               <View style={styles.statBadge}>
-                <Feather name="navigation" size={14} color={Colors.dark.accent} />
+                <Feather name="navigation" size={14} color={theme.accent} />
                 <Text style={styles.statText}>{tourLength}</Text>
               </View>
             ) : null}
             {duration ? (
               <View style={styles.statBadge}>
-                <Feather name="clock" size={14} color={Colors.dark.accent} />
+                <Feather name="clock" size={14} color={theme.accent} />
                 <Text style={styles.statText}>{duration}</Text>
               </View>
             ) : null}
             <View style={styles.statBadge}>
-              <Feather name="map-pin" size={14} color={Colors.dark.accent} />
+              <Feather name="map-pin" size={14} color={theme.accent} />
               <Text style={styles.statText}>{stops.length} {stops.length === 1 ? 'stop' : 'stops'}</Text>
             </View>
           </View>
@@ -271,7 +274,7 @@ export default function TourDetailScreen() {
                     {stop.place_description}
                   </Text>
                 </View>
-                <Feather name="chevron-right" size={20} color={Colors.dark.textSecondary} />
+                <Feather name="chevron-right" size={20} color={theme.textSecondary} />
               </Pressable>
             ))}
           </View>
@@ -279,7 +282,7 @@ export default function TourDetailScreen() {
       </ScrollView>
 
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + Spacing.lg }]}>
-        <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
+        <BlurView intensity={60} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
         <Pressable
           style={({ pressed }) => [
             styles.startButton,
@@ -297,10 +300,10 @@ export default function TourDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.backgroundRoot,
+    backgroundColor: theme.backgroundRoot,
   },
   loadingContainer: {
     justifyContent: 'center',
@@ -313,10 +316,10 @@ const styles = StyleSheet.create({
   },
   errorText: {
     ...Typography.headline,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
   },
   backButton: {
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: theme.accent,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing['2xl'],
     borderRadius: BorderRadius.md,
@@ -330,7 +333,7 @@ const styles = StyleSheet.create({
   },
   heroImage: {
     height: 280,
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: theme.backgroundSecondary,
   },
   heroGradient: {
     ...StyleSheet.absoluteFillObject,
@@ -363,7 +366,7 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: 11,
-    color: Colors.dark.text,
+    color: theme.text,
     fontWeight: '500',
   },
   customMarker: {
@@ -395,7 +398,7 @@ const styles = StyleSheet.create({
   },
   title: {
     ...Typography.title,
-    color: Colors.dark.text,
+    color: theme.text,
     marginBottom: Spacing.md,
   },
   statsRow: {
@@ -407,7 +410,7 @@ const styles = StyleSheet.create({
   statBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: theme.backgroundSecondary,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.sm,
@@ -415,17 +418,17 @@ const styles = StyleSheet.create({
   },
   statText: {
     ...Typography.caption,
-    color: Colors.dark.text,
+    color: theme.text,
   },
   description: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     lineHeight: 24,
     marginBottom: Spacing.xl,
   },
   sectionTitle: {
     ...Typography.headline,
-    color: Colors.dark.text,
+    color: theme.text,
     marginBottom: Spacing.lg,
   },
   routeList: {
@@ -447,7 +450,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: theme.accent,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -460,7 +463,7 @@ const styles = StyleSheet.create({
     width: 2,
     flex: 1,
     minHeight: 40,
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: theme.accent,
     opacity: 0.3,
     marginTop: Spacing.xs,
   },
@@ -470,12 +473,12 @@ const styles = StyleSheet.create({
   },
   stopName: {
     ...Typography.headline,
-    color: Colors.dark.text,
+    color: theme.text,
     marginBottom: Spacing.xs,
   },
   stopDescription: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     lineHeight: 18,
   },
   bottomBar: {
@@ -491,7 +494,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: theme.accent,
     paddingVertical: Spacing.lg,
     borderRadius: BorderRadius.md,
     gap: Spacing.sm,

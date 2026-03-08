@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -26,10 +26,11 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
+import { Colors, Spacing, BorderRadius, Typography, type ThemeColors } from '@/constants/theme';
 import SafeMapView, { Marker, isMapAvailable, PROVIDER_GOOGLE } from '@/components/SafeMapView';
 import { getApiUrl, apiRequest } from '@/lib/query-client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/hooks/useTheme';
 import type { Curio } from '@/lib/supabase';
 
 function formatTime(seconds: number): string {
@@ -70,6 +71,8 @@ type IssueType = typeof ISSUE_TYPES[number]['key'];
 export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetailModalProps) {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { theme, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   
   const [facts, setFacts] = useState<Fact[]>([]);
   const [viewedFactIds, setViewedFactIds] = useState<Set<string>>(new Set());
@@ -423,7 +426,7 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
       presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'}
       onRequestClose={onClose}
     >
-      <View style={[styles.container, { backgroundColor: Colors.dark.backgroundRoot }]}>
+      <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
         <View style={[styles.heroSection, { paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
           {isMapAvailable && place.latitude && place.longitude ? (
             <>
@@ -462,7 +465,7 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
             </>
           ) : (
             <Pressable style={styles.heroPlaceholder} onPress={handleMapTapClose}>
-              <Feather name="map-pin" size={48} color={Colors.dark.accent} />
+              <Feather name="map-pin" size={48} color={theme.accent} />
             </Pressable>
           )}
           
@@ -474,8 +477,8 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
             ]}
             onPress={onClose}
           >
-            <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
-            <Feather name="x" size={20} color={Colors.dark.text} />
+            <BlurView intensity={60} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+            <Feather name="x" size={20} color={theme.text} />
           </Pressable>
         </View>
 
@@ -496,7 +499,7 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
                   <Feather
                     name="thumbs-up"
                     size={20}
-                    color={hasVotedUp ? '#4CAF50' : Colors.dark.textSecondary}
+                    color={hasVotedUp ? '#4CAF50' : theme.textSecondary}
                   />
                 </Animated.View>
               </Pressable>
@@ -506,7 +509,7 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
                   <Feather
                     name="thumbs-down"
                     size={20}
-                    color={hasVotedDown ? '#F44336' : Colors.dark.textSecondary}
+                    color={hasVotedDown ? '#F44336' : theme.textSecondary}
                   />
                 </Animated.View>
               </Pressable>
@@ -525,7 +528,7 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
 
             return (
               <View style={[styles.audioPlayerContainer, !isReady && !isLoading && styles.audioPlayerDisabled]}>
-                <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+                <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
                 <Pressable
                   onPress={handlePlayPause}
                   disabled={!isReady || isLoading || isError}
@@ -535,14 +538,14 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
                   ]}
                 >
                   {isLoading ? (
-                    <ActivityIndicator size="small" color={Colors.dark.accent} />
+                    <ActivityIndicator size="small" color={theme.accent} />
                   ) : isError ? (
-                    <Feather name="alert-circle" size={32} color={Colors.dark.inactive} />
+                    <Feather name="alert-circle" size={32} color={theme.inactive} />
                   ) : (
                     <Feather
                       name={isPlaying ? 'pause-circle' : 'play-circle'}
                       size={32}
-                      color={isReady ? Colors.dark.accent : Colors.dark.inactive}
+                      color={isReady ? theme.accent : theme.inactive}
                     />
                   )}
                 </Pressable>
@@ -566,7 +569,7 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
                             width: isReady && activeDuration > 0
                               ? `${Math.min(100, (activeTime / activeDuration) * 100)}%`
                               : '0%',
-                            backgroundColor: isReady ? Colors.dark.accent : Colors.dark.inactive,
+                            backgroundColor: isReady ? theme.accent : theme.inactive,
                           },
                         ]}
                       />
@@ -608,12 +611,12 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
               onPress={handleShowRandomFact}
               disabled={facts.length === 0}
             >
-              <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+              <BlurView intensity={30} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
               
               {showFact && currentFact ? (
                 <Animated.View entering={FadeIn} style={styles.factContent}>
                   <View style={styles.factHeader}>
-                    <Feather name="zap" size={18} color={Colors.dark.accent} />
+                    <Feather name="zap" size={18} color={theme.accent} />
                     <Text style={styles.factLabel}>Did you know?</Text>
                     
                     <Pressable
@@ -626,7 +629,7 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
                         }
                       }}
                     >
-                      <Feather name="thumbs-down" size={14} color={Colors.dark.textSecondary} />
+                      <Feather name="thumbs-down" size={14} color={theme.textSecondary} />
                     </Pressable>
                   </View>
                   <Text style={styles.factText}>{stripUrls(currentFact.fact_info)}</Text>
@@ -634,7 +637,7 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
                 </Animated.View>
               ) : (
                 <View style={styles.factPrompt}>
-                  <Feather name="zap" size={24} color={Colors.dark.accent} />
+                  <Feather name="zap" size={24} color={theme.accent} />
                   <Text style={styles.factPromptText}>
                     {facts.length > 0 ? 'Did you know? (Tap for Fact)' : 'No facts available yet'}
                   </Text>
@@ -645,7 +648,7 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
 
           {loadingFacts ? (
             <View style={styles.loadingFacts}>
-              <ActivityIndicator size="small" color={Colors.dark.accent} />
+              <ActivityIndicator size="small" color={theme.accent} />
             </View>
           ) : null}
         </ScrollView>
@@ -673,7 +676,7 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
             exiting={FadeOut.duration(150)}
             style={styles.reportModalContent}
           >
-            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+            <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
             <View style={styles.reportModalInner}>
               <Text style={styles.reportModalTitle}>Report an Issue</Text>
               
@@ -706,7 +709,7 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
                   <TextInput
                     style={styles.reportCommentInput}
                     placeholder="Tell us more..."
-                    placeholderTextColor={Colors.dark.textSecondary}
+                    placeholderTextColor={theme.textSecondary}
                     value={otherDesc}
                     onChangeText={(text) => setOtherDesc(text.slice(0, 200))}
                     multiline
@@ -752,13 +755,13 @@ export default function PlaceDetailModal({ visible, place, onClose }: PlaceDetai
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
   },
   heroSection: {
     height: SCREEN_HEIGHT * 0.25,
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: theme.backgroundSecondary,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -766,7 +769,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: Colors.dark.backgroundTertiary,
+    backgroundColor: theme.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -799,7 +802,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 28,
     fontWeight: '700',
-    color: Colors.dark.text,
+    color: theme.text,
     marginRight: Spacing.md,
   },
   voteButtons: {
@@ -840,7 +843,7 @@ const styles = StyleSheet.create({
   },
   audioProgressTrack: {
     height: 4,
-    backgroundColor: Colors.dark.backgroundTertiary,
+    backgroundColor: theme.backgroundTertiary,
     borderRadius: 2,
     overflow: 'hidden',
   },
@@ -854,23 +857,23 @@ const styles = StyleSheet.create({
   },
   audioTimeText: {
     fontSize: 11,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     fontVariant: ['tabular-nums'],
   },
   audioUnavailableText: {
     fontSize: 12,
-    color: Colors.dark.inactive,
+    color: theme.inactive,
   },
   audioSourceLabel: {
     fontSize: 11,
-    color: Colors.dark.accent,
+    color: theme.accent,
     fontWeight: '600',
     marginBottom: 2,
   },
   narrative: {
     fontSize: 17,
     lineHeight: 28,
-    color: Colors.dark.text,
+    color: theme.text,
     fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
     marginBottom: Spacing['3xl'],
   },
@@ -879,7 +882,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: 'rgba(30, 36, 46, 0.6)',
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: theme.border,
   },
   factCardPressed: {
     opacity: 0.8,
@@ -892,7 +895,7 @@ const styles = StyleSheet.create({
   },
   factPromptText: {
     fontSize: 16,
-    color: Colors.dark.text,
+    color: theme.text,
     fontWeight: '500',
   },
   factContent: {
@@ -907,7 +910,7 @@ const styles = StyleSheet.create({
   factLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.dark.accent,
+    color: theme.accent,
     flex: 1,
   },
   factVoteButtons: {
@@ -920,12 +923,12 @@ const styles = StyleSheet.create({
   factText: {
     fontSize: 16,
     lineHeight: 24,
-    color: Colors.dark.text,
+    color: theme.text,
     fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
   },
   tapAgainText: {
     fontSize: 12,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     marginTop: Spacing.md,
     textAlign: 'center',
   },
@@ -952,13 +955,13 @@ const styles = StyleSheet.create({
   reportModalTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: Colors.dark.text,
+    color: theme.text,
     marginBottom: Spacing.xl,
     textAlign: 'center',
   },
   reportLabel: {
     fontSize: 14,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     marginBottom: Spacing.sm,
   },
   reasonButtons: {
@@ -971,28 +974,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.dark.backgroundTertiary,
+    backgroundColor: theme.backgroundTertiary,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: theme.border,
   },
   reasonButtonActive: {
-    backgroundColor: Colors.dark.accent,
-    borderColor: Colors.dark.accent,
+    backgroundColor: theme.accent,
+    borderColor: theme.accent,
   },
   reasonButtonText: {
     fontSize: 14,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
   },
   reasonButtonTextActive: {
     color: '#FFF',
     fontWeight: '500',
   },
   reportCommentInput: {
-    backgroundColor: Colors.dark.backgroundTertiary,
+    backgroundColor: theme.backgroundTertiary,
     borderRadius: BorderRadius.sm,
     padding: Spacing.lg,
     fontSize: 15,
-    color: Colors.dark.text,
+    color: theme.text,
     minHeight: 80,
     textAlignVertical: 'top',
     marginBottom: Spacing.xl,
@@ -1006,11 +1009,11 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     alignItems: 'center',
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.dark.backgroundTertiary,
+    backgroundColor: theme.backgroundTertiary,
   },
   reportCancelText: {
     fontSize: 15,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
   },
   reportSubmitButton: {
     flex: 1,

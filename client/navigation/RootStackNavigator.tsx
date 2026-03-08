@@ -10,7 +10,7 @@ import VisitedPlacesScreen from "@/screens/VisitedPlacesScreen";
 import AdminEditScreen from "@/screens/AdminEditScreen";
 import LoginScreen from "@/screens/LoginScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
-import { Colors } from "@/constants/theme";
+import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
 
 export type RootStackParamList = {
@@ -36,12 +36,13 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootStackNavigator() {
   const screenOptions = useScreenOptions();
+  const { theme } = useTheme();
   const { session, loading, isGuest } = useAuth();
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.dark.accent} />
+      <View style={[styles.loadingContainer, { backgroundColor: theme.backgroundRoot }]}>
+        <ActivityIndicator size="large" color={theme.accent} />
       </View>
     );
   }
@@ -53,9 +54,9 @@ export default function RootStackNavigator() {
       screenOptions={{
         ...screenOptions,
         headerStyle: {
-          backgroundColor: Colors.dark.backgroundRoot,
+          backgroundColor: theme.backgroundRoot,
         },
-        headerTintColor: Colors.dark.text,
+        headerTintColor: theme.text,
       }}
     >
       {isAuthenticated ? (
@@ -131,6 +132,5 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: Colors.dark.backgroundRoot,
   },
 });

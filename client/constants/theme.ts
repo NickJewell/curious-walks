@@ -2,21 +2,22 @@ import { Platform } from "react-native";
 
 export const Colors = {
   light: {
-    text: "#E8E6E3",
-    textSecondary: "#A8A5A0",
-    textAccent: "#D4AF7A",
+    text: "#1A1A1A",
+    textSecondary: "#6B6560",
+    textAccent: "#7A6230",
     buttonText: "#FFFFFF",
     tabIconDefault: "#8A8F9A",
-    tabIconSelected: "#D4AF7A",
-    link: "#8B7355",
-    backgroundRoot: "#0A0E14",
-    backgroundDefault: "#151A23",
-    backgroundSecondary: "#1E242E",
-    backgroundTertiary: "#2A2F3A",
-    border: "#2A2F3A",
-    inactive: "#4A4E57",
+    tabIconSelected: "#7A6230",
+    link: "#6B5535",
+    backgroundRoot: "#F5F2ED",
+    backgroundDefault: "#FFFFFF",
+    backgroundSecondary: "#EDE9E3",
+    backgroundTertiary: "#E0DBD4",
+    backgroundCard: "#FFFFFF",
+    border: "#D4CFC7",
+    inactive: "#B0ABA3",
     accent: "#8B7355",
-    accentSecondary: "#4A5F7F",
+    accentSecondary: "#5A7AAF",
     categoryGhost: "#9B8AA4",
     categoryFolklore: "#7A8450",
     categoryHistorical: "#8B7355",
@@ -34,6 +35,7 @@ export const Colors = {
     backgroundDefault: "#151A23",
     backgroundSecondary: "#1E242E",
     backgroundTertiary: "#2A2F3A",
+    backgroundCard: "#151A23",
     border: "#2A2F3A",
     inactive: "#4A4E57",
     accent: "#8B7355",
@@ -44,6 +46,8 @@ export const Colors = {
     categoryFortean: "#6B5B8E",
   },
 };
+
+export type ThemeColors = typeof Colors.dark;
 
 export const Spacing = {
   xs: 4,

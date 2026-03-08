@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,11 +18,19 @@ import { BlurView } from 'expo-blur';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCheckins } from '@/contexts/CheckinContext';
+import { useTheme } from '@/hooks/useTheme';
 import { getUserProgress, getAllBadges, uncheckIn, type UserProgress, type Badge, type UserBadge, type Checkin } from '@/lib/checkins';
-import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
+import { Spacing, BorderRadius, Typography, type ThemeColors } from '@/constants/theme';
 import type { RootStackParamList } from '@/navigation/RootStackNavigator';
+import type { ThemePreference } from '@/contexts/ThemeContext';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+const THEME_OPTIONS: { value: ThemePreference; label: string; icon: keyof typeof Feather.glyphMap }[] = [
+  { value: 'light', label: 'Light', icon: 'sun' },
+  { value: 'dark', label: 'Dark', icon: 'moon' },
+  { value: 'system', label: 'System', icon: 'smartphone' },
+];
 
 export default function ProfileScreen() {
   const navigation = useNavigation<NavigationProp>();
@@ -30,6 +38,8 @@ export default function ProfileScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const { user, profile, isGuest, signOut, signInWithGoogle } = useAuth();
   const { refreshTrigger, removeCheckin } = useCheckins();
+  const { theme, isDark, preference, setPreference } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState<UserProgress | null>(null);
@@ -154,29 +164,65 @@ export default function ProfileScreen() {
           <Text style={styles.headerTitle}>Profile</Text>
         </View>
 
-        <View style={styles.content}>
-          <View style={styles.guestCard}>
-            <View style={styles.guestIconContainer}>
-              <Feather name="user" size={40} color={Colors.dark.textSecondary} />
-            </View>
-            <Text style={styles.guestTitle}>Guest Mode</Text>
-            <Text style={styles.guestSubtitle}>
-              Sign in to save your progress, earn badges, and track your explorations
-            </Text>
-            <Pressable
-              style={({ pressed }) => [
-                styles.signInButton,
-                pressed && styles.signInButtonPressed,
-              ]}
-              onPress={handleSignIn}
-            >
-              <View style={styles.googleIconContainer}>
-                <Text style={styles.googleIcon}>G</Text>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={{ paddingBottom: tabBarHeight + Spacing.xl }}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.content}>
+            <View style={styles.guestCard}>
+              <View style={styles.guestIconContainer}>
+                <Feather name="user" size={40} color={theme.textSecondary} />
               </View>
-              <Text style={styles.signInButtonText}>Continue with Google</Text>
-            </Pressable>
+              <Text style={styles.guestTitle}>Guest Mode</Text>
+              <Text style={styles.guestSubtitle}>
+                Sign in to save your progress, earn badges, and track your explorations
+              </Text>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.signInButton,
+                  pressed && styles.signInButtonPressed,
+                ]}
+                onPress={handleSignIn}
+              >
+                <View style={styles.googleIconContainer}>
+                  <Text style={styles.googleIcon}>G</Text>
+                </View>
+                <Text style={styles.signInButtonText}>Continue with Google</Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
+
+          <View style={styles.appearanceSection}>
+            <Text style={styles.sectionTitle}>Appearance</Text>
+            <View style={styles.themeSelector}>
+              {THEME_OPTIONS.map((opt) => (
+                <Pressable
+                  key={opt.value}
+                  style={[
+                    styles.themeOption,
+                    preference === opt.value && styles.themeOptionActive,
+                  ]}
+                  onPress={() => setPreference(opt.value)}
+                >
+                  <Feather
+                    name={opt.icon}
+                    size={18}
+                    color={preference === opt.value ? theme.textAccent : theme.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      styles.themeOptionText,
+                      preference === opt.value && styles.themeOptionTextActive,
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </ScrollView>
       </View>
     );
   }
@@ -201,7 +247,7 @@ export default function ProfileScreen() {
             />
           ) : (
             <View style={styles.avatarPlaceholder}>
-              <Feather name="user" size={32} color={Colors.dark.text} />
+              <Feather name="user" size={32} color={isDark ? theme.text : '#FFFFFF'} />
             </View>
           )}
           <Text style={styles.profileName}>
@@ -220,7 +266,7 @@ export default function ProfileScreen() {
                 {loading ? '-' : progress?.total_checkins ?? 0}
               </Text>
               <Text style={styles.statLabel}>Places Visited</Text>
-              <Feather name="chevron-right" size={14} color={Colors.dark.textSecondary} style={styles.statChevron} />
+              <Feather name="chevron-right" size={14} color={theme.textSecondary} style={styles.statChevron} />
             </Pressable>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
@@ -235,7 +281,7 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Trophy Case</Text>
           {loading ? (
-            <ActivityIndicator size="small" color={Colors.dark.accent} />
+            <ActivityIndicator size="small" color={theme.accent} />
           ) : (
             <View style={styles.badgeGrid}>
               {allBadges.map((badge) => {
@@ -251,7 +297,7 @@ export default function ProfileScreen() {
                       <Feather
                         name={badge.icon_name as any}
                         size={24}
-                        color={earned ? '#D4AF7A' : Colors.dark.textSecondary}
+                        color={earned ? '#D4AF7A' : theme.textSecondary}
                       />
                     </View>
                     <Text
@@ -270,13 +316,13 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Recent Visits</Text>
           {loading ? (
-            <ActivityIndicator size="small" color={Colors.dark.accent} />
+            <ActivityIndicator size="small" color={theme.accent} />
           ) : progress?.recent_checkins && progress.recent_checkins.length > 0 ? (
             <View style={styles.visitsList}>
               {progress.recent_checkins.map((checkin: Checkin) => (
                 <View key={checkin.id} style={styles.visitItem}>
                   <View style={styles.visitIcon}>
-                    <Feather name="map-pin" size={16} color={Colors.dark.accent} />
+                    <Feather name="map-pin" size={16} color={theme.accent} />
                   </View>
                   <View style={styles.visitInfo}>
                     <Text style={styles.visitName} numberOfLines={1}>
@@ -302,12 +348,42 @@ export default function ProfileScreen() {
             </View>
           ) : (
             <View style={styles.emptyVisits}>
-              <Feather name="compass" size={32} color={Colors.dark.textSecondary} />
+              <Feather name="compass" size={32} color={theme.textSecondary} />
               <Text style={styles.emptyVisitsText}>
                 No check-ins yet. Start exploring!
               </Text>
             </View>
           )}
+        </View>
+
+        <View style={styles.appearanceSection}>
+          <Text style={styles.sectionTitle}>Appearance</Text>
+          <View style={styles.themeSelector}>
+            {THEME_OPTIONS.map((opt) => (
+              <Pressable
+                key={opt.value}
+                style={[
+                  styles.themeOption,
+                  preference === opt.value && styles.themeOptionActive,
+                ]}
+                onPress={() => setPreference(opt.value)}
+              >
+                <Feather
+                  name={opt.icon}
+                  size={18}
+                  color={preference === opt.value ? theme.textAccent : theme.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.themeOptionText,
+                    preference === opt.value && styles.themeOptionTextActive,
+                  ]}
+                >
+                  {opt.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
 
         <View style={styles.menuSection}>
@@ -337,7 +413,7 @@ export default function ProfileScreen() {
             onPress={() => setShowBadgeModal(false)}
           />
           <View style={styles.badgeModalContent}>
-            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+            <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
             <View style={styles.badgeModalInner}>
               <View style={[
                 styles.badgeModalIcon,
@@ -346,7 +422,7 @@ export default function ProfileScreen() {
                 <Feather
                   name={(selectedBadge?.icon_name as any) || 'award'}
                   size={48}
-                  color={isEarned(selectedBadge?.id || '') ? '#D4AF7A' : Colors.dark.textSecondary}
+                  color={isEarned(selectedBadge?.id || '') ? '#D4AF7A' : theme.textSecondary}
                 />
               </View>
               <Text style={styles.badgeModalName}>{selectedBadge?.name}</Text>
@@ -374,10 +450,10 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.backgroundRoot,
+    backgroundColor: theme.backgroundRoot,
   },
   header: {
     paddingHorizontal: Spacing.xl,
@@ -386,7 +462,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 32,
     fontWeight: '700',
-    color: Colors.dark.text,
+    color: theme.text,
   },
   scrollView: {
     flex: 1,
@@ -396,7 +472,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
   },
   guestCard: {
-    backgroundColor: Colors.dark.backgroundCard,
+    backgroundColor: theme.backgroundCard,
     borderRadius: BorderRadius.lg,
     padding: Spacing.xl,
     alignItems: 'center',
@@ -405,7 +481,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: Colors.dark.backgroundRoot,
+    backgroundColor: theme.backgroundSecondary,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.lg,
@@ -413,12 +489,12 @@ const styles = StyleSheet.create({
   guestTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: Colors.dark.text,
+    color: theme.text,
     marginBottom: Spacing.sm,
   },
   guestSubtitle: {
     fontSize: 14,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     textAlign: 'center',
     marginBottom: Spacing.xl,
     lineHeight: 20,
@@ -455,7 +531,7 @@ const styles = StyleSheet.create({
     color: '#1A1A1A',
   },
   passportCard: {
-    backgroundColor: Colors.dark.backgroundCard,
+    backgroundColor: theme.backgroundCard,
     borderRadius: BorderRadius.lg,
     padding: Spacing.xl,
     alignItems: 'center',
@@ -471,7 +547,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: theme.accent,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.lg,
@@ -479,12 +555,12 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 20,
     fontWeight: '600',
-    color: Colors.dark.text,
+    color: theme.text,
     marginBottom: Spacing.xs,
   },
   profileEmail: {
     fontSize: 14,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     marginBottom: Spacing.xl,
   },
   statsRow: {
@@ -493,7 +569,7 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingTop: Spacing.lg,
     borderTopWidth: 1,
-    borderTopColor: Colors.dark.border,
+    borderTopColor: theme.border,
   },
   statItem: {
     flex: 1,
@@ -502,16 +578,16 @@ const styles = StyleSheet.create({
   statDivider: {
     width: 1,
     height: 40,
-    backgroundColor: Colors.dark.border,
+    backgroundColor: theme.border,
   },
   statValue: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#D4AF7A',
+    color: theme.textAccent,
   },
   statLabel: {
     fontSize: 12,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     marginTop: Spacing.xs,
   },
   statChevron: {
@@ -524,7 +600,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.dark.text,
+    color: theme.text,
     marginBottom: Spacing.lg,
   },
   badgeGrid: {
@@ -544,7 +620,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: theme.backgroundSecondary,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.sm,
@@ -556,11 +632,11 @@ const styles = StyleSheet.create({
   },
   badgeName: {
     fontSize: 11,
-    color: Colors.dark.text,
+    color: theme.text,
     textAlign: 'center',
   },
   badgeNameLocked: {
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
   },
   visitsList: {
     gap: Spacing.sm,
@@ -568,7 +644,7 @@ const styles = StyleSheet.create({
   visitItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: theme.backgroundSecondary,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
   },
@@ -576,7 +652,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: Colors.dark.backgroundTertiary,
+    backgroundColor: theme.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
@@ -587,11 +663,11 @@ const styles = StyleSheet.create({
   visitName: {
     fontSize: 14,
     fontWeight: '500',
-    color: Colors.dark.text,
+    color: theme.text,
   },
   visitDate: {
     fontSize: 12,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     marginTop: 2,
   },
   removeButton: {
@@ -600,14 +676,46 @@ const styles = StyleSheet.create({
   emptyVisits: {
     alignItems: 'center',
     padding: Spacing.xl,
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: theme.backgroundSecondary,
     borderRadius: BorderRadius.md,
   },
   emptyVisitsText: {
     fontSize: 14,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     marginTop: Spacing.md,
     textAlign: 'center',
+  },
+  appearanceSection: {
+    marginTop: Spacing.xl,
+    paddingHorizontal: Spacing.xl,
+  },
+  themeSelector: {
+    flexDirection: 'row',
+    backgroundColor: theme.backgroundSecondary,
+    borderRadius: BorderRadius.md,
+    padding: 4,
+    gap: 4,
+  },
+  themeOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    gap: Spacing.xs,
+  },
+  themeOptionActive: {
+    backgroundColor: theme.backgroundCard,
+  },
+  themeOptionText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.textSecondary,
+  },
+  themeOptionTextActive: {
+    color: theme.textAccent,
+    fontWeight: '600',
   },
   menuSection: {
     marginTop: Spacing.xl,
@@ -617,7 +725,7 @@ const styles = StyleSheet.create({
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.dark.backgroundCard,
+    backgroundColor: theme.backgroundCard,
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.lg,
     borderRadius: BorderRadius.md,
@@ -650,7 +758,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: theme.backgroundSecondary,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.xl,
@@ -663,13 +771,13 @@ const styles = StyleSheet.create({
   badgeModalName: {
     fontSize: 24,
     fontWeight: '700',
-    color: Colors.dark.text,
+    color: theme.text,
     marginBottom: Spacing.md,
     textAlign: 'center',
   },
   badgeModalDescription: {
     fontSize: 14,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     textAlign: 'center',
     marginBottom: Spacing.lg,
     lineHeight: 20,
@@ -681,17 +789,17 @@ const styles = StyleSheet.create({
   },
   badgeModalLocked: {
     fontSize: 12,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     marginBottom: Spacing.xl,
   },
   badgeModalButton: {
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: theme.accent,
     paddingHorizontal: Spacing['3xl'],
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
   },
   badgeModalButtonText: {
-    color: Colors.dark.text,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -26,7 +26,8 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 
-import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
+import { Colors, Spacing, BorderRadius, Typography, type ThemeColors } from '@/constants/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { useHunt } from '@/contexts/HuntContext';
 import { getListItems, removePlaceFromList, reorderListItems, updateListName, getListById } from '@/lib/lists';
 import type { ListItem, UserList } from '../../shared/schema';
@@ -42,6 +43,8 @@ export default function ListDetailScreen() {
   const route = useRoute<any>();
   const { listId, listName: initialListName } = route.params || {};
   const { setActiveTarget } = useHunt();
+  const { theme, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [list, setList] = useState<UserList | null>(null);
   const [items, setItems] = useState<ListItem[]>([]);
@@ -153,7 +156,7 @@ export default function ListDetailScreen() {
   if (loading) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color={Colors.dark.accent} />
+        <ActivityIndicator size="large" color={theme.accent} />
       </View>
     );
   }
@@ -165,7 +168,7 @@ export default function ListDetailScreen() {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Feather name="arrow-left" size={24} color={Colors.dark.text} />
+          <Feather name="arrow-left" size={24} color={theme.text} />
         </Pressable>
         
         {editingName ? (
@@ -183,14 +186,14 @@ export default function ListDetailScreen() {
             <Text style={styles.headerTitle} numberOfLines={1}>
               {listName}
             </Text>
-            <Feather name="edit-2" size={16} color={Colors.dark.textSecondary} />
+            <Feather name="edit-2" size={16} color={theme.textSecondary} />
           </Pressable>
         )}
       </View>
 
       {items.length === 0 ? (
         <View style={styles.emptyState}>
-          <Feather name="map-pin" size={48} color={Colors.dark.textSecondary} />
+          <Feather name="map-pin" size={48} color={theme.textSecondary} />
           <Text style={styles.emptyTitle}>No Places Yet</Text>
           <Text style={styles.emptyDescription}>
             Find places on the map and save them to this list.
@@ -219,6 +222,8 @@ export default function ListDetailScreen() {
               itemsCount={items.length}
               onMove={moveItem}
               onRemove={() => handleRemoveItem(item.id, item.place_name)}
+              theme={theme}
+              styles={styles}
             />
           ))}
         </ScrollView>
@@ -233,8 +238,8 @@ export default function ListDetailScreen() {
             ]}
             onPress={handleStartHunt}
           >
-            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
-            <Feather name="navigation" size={20} color={Colors.dark.textAccent} />
+            <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+            <Feather name="navigation" size={20} color={theme.textAccent} />
             <Text style={styles.startButtonText}>Start Hunt</Text>
           </Pressable>
         </View>
@@ -249,6 +254,8 @@ interface DraggableItemProps {
   itemsCount: number;
   onMove: (from: number, to: number) => void;
   onRemove: () => void;
+  theme: ThemeColors;
+  styles: ReturnType<typeof createStyles>;
 }
 
 function DraggableItem({
@@ -257,6 +264,8 @@ function DraggableItem({
   itemsCount,
   onMove,
   onRemove,
+  theme,
+  styles,
 }: DraggableItemProps) {
   const translateY = useSharedValue(0);
   const translateX = useSharedValue(0);
@@ -343,7 +352,7 @@ function DraggableItem({
               </Text>
             </View>
             <View style={styles.dragHandle}>
-              <Feather name="menu" size={20} color={Colors.dark.textSecondary} />
+              <Feather name="menu" size={20} color={theme.textSecondary} />
             </View>
           </View>
         </Animated.View>
@@ -352,10 +361,10 @@ function DraggableItem({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.backgroundRoot,
+    backgroundColor: theme.backgroundRoot,
   },
   loadingContainer: {
     justifyContent: 'center',
@@ -382,14 +391,14 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     ...Typography.title,
-    color: Colors.dark.text,
+    color: theme.text,
     flex: 1,
   },
   headerTitleInput: {
     flex: 1,
     ...Typography.title,
-    color: Colors.dark.text,
-    backgroundColor: Colors.dark.backgroundSecondary,
+    color: theme.text,
+    backgroundColor: theme.backgroundSecondary,
     borderRadius: BorderRadius.sm,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
@@ -403,12 +412,12 @@ const styles = StyleSheet.create({
   },
   itemCount: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     marginBottom: Spacing.xs,
   },
   hintText: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     marginBottom: Spacing.lg,
     fontStyle: 'italic',
   },
@@ -424,7 +433,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   itemContainer: {
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: theme.backgroundSecondary,
     borderRadius: BorderRadius.md,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -441,7 +450,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: Colors.dark.accent,
+    backgroundColor: theme.accent,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
@@ -456,12 +465,12 @@ const styles = StyleSheet.create({
   },
   itemName: {
     ...Typography.headline,
-    color: Colors.dark.text,
+    color: theme.text,
     marginBottom: Spacing.xs,
   },
   itemDescription: {
     ...Typography.caption,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
   },
   dragHandle: {
     width: 44,
@@ -486,13 +495,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     ...Typography.title,
-    color: Colors.dark.text,
+    color: theme.text,
     marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
   },
   emptyDescription: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
   },
@@ -517,6 +526,6 @@ const styles = StyleSheet.create({
   },
   startButtonText: {
     ...Typography.headline,
-    color: Colors.dark.textAccent,
+    color: theme.textAccent,
   },
 });

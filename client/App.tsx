@@ -15,37 +15,48 @@ import { HuntProvider } from "@/contexts/HuntContext";
 import { TourProvider } from "@/contexts/TourContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CheckinProvider } from "@/contexts/CheckinContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
+import { useTheme } from "@/hooks/useTheme";
 import { SplashScreen } from "@/components/SplashScreen";
 
-export default function App() {
+function AppContent() {
   const [showSplash, setShowSplash] = useState(Platform.OS === 'web');
+  const { isDark } = useTheme();
 
   const handleSplashFinish = useCallback(() => {
     setShowSplash(false);
   }, []);
 
   return (
+    <SafeAreaProvider>
+      <GestureHandlerRootView style={styles.root}>
+        <KeyboardProvider>
+          <NavigationContainer>
+            <RootStackNavigator />
+          </NavigationContainer>
+          <StatusBar style={isDark ? "light" : "dark"} />
+          {showSplash ? <SplashScreen onFinish={handleSplashFinish} /> : null}
+        </KeyboardProvider>
+      </GestureHandlerRootView>
+    </SafeAreaProvider>
+  );
+}
+
+export default function App() {
+  return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <CheckinProvider>
-          <HuntProvider>
-            <TourProvider>
-              <SafeAreaProvider>
-              <GestureHandlerRootView style={styles.root}>
-                <KeyboardProvider>
-                  <NavigationContainer>
-                    <RootStackNavigator />
-                  </NavigationContainer>
-                  <StatusBar style="light" />
-                  {showSplash ? <SplashScreen onFinish={handleSplashFinish} /> : null}
-                </KeyboardProvider>
-              </GestureHandlerRootView>
-            </SafeAreaProvider>
-            </TourProvider>
-          </HuntProvider>
-          </CheckinProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <CheckinProvider>
+              <HuntProvider>
+                <TourProvider>
+                  <AppContent />
+                </TourProvider>
+              </HuntProvider>
+            </CheckinProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );

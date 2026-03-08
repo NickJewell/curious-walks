@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -29,11 +29,12 @@ import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
+import { Colors, Spacing, BorderRadius, Typography, type ThemeColors } from '@/constants/theme';
 import SafeMapView, { Marker, isMapAvailable, PROVIDER_GOOGLE } from '@/components/SafeMapView';
 import { getApiUrl, apiRequest } from '@/lib/query-client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useHunt } from '@/contexts/HuntContext';
+import { useTheme } from '@/hooks/useTheme';
 import type { Curio } from '@/lib/supabase';
 import type { RootStackParamList } from '@/navigation/RootStackNavigator';
 
@@ -75,6 +76,8 @@ export default function PlaceDetailScreen() {
   const route = useRoute<RouteProps>();
   const { user } = useAuth();
   const { setActiveTarget } = useHunt();
+  const { theme, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const { placeId, placeName, placeDescription, placeLat, placeLng, tourId, tourName } = route.params;
 
@@ -380,7 +383,7 @@ export default function PlaceDetailScreen() {
   if (placeLoading) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color={Colors.dark.accent} />
+        <ActivityIndicator size="large" color={theme.accent} />
       </View>
     );
   }
@@ -388,7 +391,7 @@ export default function PlaceDetailScreen() {
   const displayPlace = place || { id: placeId, name: placeName, description: placeDescription || '', latitude: placeLat, longitude: placeLng };
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors.dark.backgroundRoot }]}>
+    <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
       <View style={[styles.heroSection, { paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
         {isMapAvailable && placeLat && placeLng ? (
           <SafeMapView
@@ -418,7 +421,7 @@ export default function PlaceDetailScreen() {
           </SafeMapView>
         ) : (
           <View style={styles.heroPlaceholder}>
-            <Feather name="map-pin" size={48} color={Colors.dark.accent} />
+            <Feather name="map-pin" size={48} color={theme.accent} />
           </View>
         )}
 
@@ -430,8 +433,8 @@ export default function PlaceDetailScreen() {
           ]}
           onPress={handleGoBack}
         >
-          <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
-          <Feather name="arrow-left" size={20} color={Colors.dark.text} />
+          <BlurView intensity={60} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
+          <Feather name="arrow-left" size={20} color={theme.text} />
         </Pressable>
 
       </View>
@@ -449,12 +452,12 @@ export default function PlaceDetailScreen() {
           <View style={styles.voteButtons}>
             <Pressable onPress={handleVoteUp}>
               <Animated.View style={[styles.voteButton, thumbsUpStyle]}>
-                <Feather name="thumbs-up" size={20} color={hasVotedUp ? '#4CAF50' : Colors.dark.textSecondary} />
+                <Feather name="thumbs-up" size={20} color={hasVotedUp ? '#4CAF50' : theme.textSecondary} />
               </Animated.View>
             </Pressable>
             <Pressable onPress={handleVoteDown}>
               <Animated.View style={[styles.voteButton, thumbsDownStyle]}>
-                <Feather name="thumbs-down" size={20} color={hasVotedDown ? '#F44336' : Colors.dark.textSecondary} />
+                <Feather name="thumbs-down" size={20} color={hasVotedDown ? '#F44336' : theme.textSecondary} />
               </Animated.View>
             </Pressable>
           </View>
@@ -464,9 +467,9 @@ export default function PlaceDetailScreen() {
           style={({ pressed }) => [styles.compassButton, pressed && styles.compassButtonPressed]}
           onPress={handleCompass}
         >
-          <Feather name="compass" size={22} color={Colors.dark.accent} />
+          <Feather name="compass" size={22} color={theme.accent} />
           <Text style={styles.compassButtonText}>Navigate Here</Text>
-          <Feather name="chevron-right" size={18} color={Colors.dark.accent} />
+          <Feather name="chevron-right" size={18} color={theme.accent} />
         </Pressable>
 
         {(() => {
@@ -481,7 +484,7 @@ export default function PlaceDetailScreen() {
 
           return (
             <View style={[styles.audioPlayerContainer, !isReady && !isLoading && styles.audioPlayerDisabled]}>
-              <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+              <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
               <Pressable
                 onPress={handlePlayPause}
                 disabled={!isReady || isLoading || isError}
@@ -491,14 +494,14 @@ export default function PlaceDetailScreen() {
                 ]}
               >
                 {isLoading ? (
-                  <ActivityIndicator size="small" color={Colors.dark.accent} />
+                  <ActivityIndicator size="small" color={theme.accent} />
                 ) : isError ? (
-                  <Feather name="alert-circle" size={32} color={Colors.dark.inactive} />
+                  <Feather name="alert-circle" size={32} color={theme.inactive} />
                 ) : (
                   <Feather
                     name={isPlaying ? 'pause-circle' : 'play-circle'}
                     size={32}
-                    color={isReady ? Colors.dark.accent : Colors.dark.inactive}
+                    color={isReady ? theme.accent : theme.inactive}
                   />
                 )}
               </Pressable>
@@ -522,7 +525,7 @@ export default function PlaceDetailScreen() {
                           width: isReady && activeDuration > 0
                             ? `${Math.min(100, (activeTime / activeDuration) * 100)}%`
                             : '0%',
-                          backgroundColor: isReady ? Colors.dark.accent : Colors.dark.inactive,
+                          backgroundColor: isReady ? theme.accent : theme.inactive,
                         },
                       ]}
                     />
@@ -557,11 +560,11 @@ export default function PlaceDetailScreen() {
             onPress={handleShowRandomFact}
             disabled={facts.length === 0}
           >
-            <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+            <BlurView intensity={30} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
             {showFact && currentFact ? (
               <Animated.View entering={FadeIn} style={styles.factContent}>
                 <View style={styles.factHeader}>
-                  <Feather name="zap" size={18} color={Colors.dark.accent} />
+                  <Feather name="zap" size={18} color={theme.accent} />
                   <Text style={styles.factLabel}>Did you know?</Text>
                   <Pressable
                     style={styles.factVoteBtn}
@@ -573,7 +576,7 @@ export default function PlaceDetailScreen() {
                       }
                     }}
                   >
-                    <Feather name="thumbs-down" size={14} color={Colors.dark.textSecondary} />
+                    <Feather name="thumbs-down" size={14} color={theme.textSecondary} />
                   </Pressable>
                 </View>
                 <Text style={styles.factText}>{stripUrls(currentFact.fact_info)}</Text>
@@ -581,7 +584,7 @@ export default function PlaceDetailScreen() {
               </Animated.View>
             ) : (
               <View style={styles.factPrompt}>
-                <Feather name="zap" size={24} color={Colors.dark.accent} />
+                <Feather name="zap" size={24} color={theme.accent} />
                 <Text style={styles.factPromptText}>
                   {facts.length > 0 ? 'Did you know? (Tap for Fact)' : 'No facts available yet'}
                 </Text>
@@ -592,19 +595,19 @@ export default function PlaceDetailScreen() {
 
         {loadingFacts ? (
           <View style={styles.loadingFactsContainer}>
-            <ActivityIndicator size="small" color={Colors.dark.accent} />
+            <ActivityIndicator size="small" color={theme.accent} />
           </View>
         ) : null}
       </ScrollView>
 
       {tourId ? (
         <View style={[styles.bottomBar, { paddingBottom: insets.bottom + Spacing.lg }]}>
-          <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
+          <BlurView intensity={60} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
           <Pressable
             style={({ pressed }) => [styles.tourBackButton, pressed && styles.tourBackButtonPressed]}
             onPress={handleBackToTour}
           >
-            <Feather name="arrow-left" size={18} color={Colors.dark.accent} />
+            <Feather name="arrow-left" size={18} color={theme.accent} />
             <Text style={styles.tourBackButtonText} numberOfLines={1}>
               Back to {tourName || 'Tour'}
             </Text>
@@ -631,7 +634,7 @@ export default function PlaceDetailScreen() {
             exiting={FadeOut.duration(150)}
             style={styles.reportModalContent}
           >
-            <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+            <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
             <View style={styles.reportModalInner}>
               <Text style={styles.reportModalTitle}>Report an Issue</Text>
               <Text style={styles.reportLabel}>What's wrong?</Text>
@@ -654,7 +657,7 @@ export default function PlaceDetailScreen() {
                   <TextInput
                     style={styles.reportCommentInput}
                     placeholder="Tell us more..."
-                    placeholderTextColor={Colors.dark.textSecondary}
+                    placeholderTextColor={theme.textSecondary}
                     value={otherDesc}
                     onChangeText={(text) => setOtherDesc(text.slice(0, 200))}
                     multiline
@@ -692,18 +695,18 @@ export default function PlaceDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
   },
   loadingContainer: {
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.dark.backgroundRoot,
+    backgroundColor: theme.backgroundRoot,
   },
   heroSection: {
     height: SCREEN_HEIGHT * 0.25,
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: theme.backgroundSecondary,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -711,7 +714,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: Colors.dark.backgroundTertiary,
+    backgroundColor: theme.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -743,7 +746,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 28,
     fontWeight: '700',
-    color: Colors.dark.text,
+    color: theme.text,
     marginRight: Spacing.md,
   },
   voteButtons: {
@@ -764,7 +767,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
     gap: Spacing.sm,
     borderWidth: 1,
-    borderColor: Colors.dark.accent,
+    borderColor: theme.accent,
   },
   compassButtonPressed: {
     opacity: 0.7,
@@ -772,7 +775,7 @@ const styles = StyleSheet.create({
   compassButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.dark.accent,
+    color: theme.accent,
     flex: 1,
   },
   audioPlayerContainer: {
@@ -806,7 +809,7 @@ const styles = StyleSheet.create({
   },
   audioProgressTrack: {
     height: 4,
-    backgroundColor: Colors.dark.backgroundTertiary,
+    backgroundColor: theme.backgroundTertiary,
     borderRadius: 2,
     overflow: 'hidden',
   },
@@ -820,23 +823,23 @@ const styles = StyleSheet.create({
   },
   audioTimeText: {
     fontSize: 11,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     fontVariant: ['tabular-nums'],
   },
   audioUnavailableText: {
     fontSize: 12,
-    color: Colors.dark.inactive,
+    color: theme.inactive,
   },
   audioSourceLabel: {
     fontSize: 11,
-    color: Colors.dark.accent,
+    color: theme.accent,
     fontWeight: '600',
     marginBottom: 2,
   },
   narrative: {
     fontSize: 17,
     lineHeight: 28,
-    color: Colors.dark.text,
+    color: theme.text,
     fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
     marginBottom: Spacing['3xl'],
   },
@@ -845,7 +848,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: 'rgba(30, 36, 46, 0.6)',
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: theme.border,
   },
   factCardPressed: {
     opacity: 0.8,
@@ -858,7 +861,7 @@ const styles = StyleSheet.create({
   },
   factPromptText: {
     fontSize: 16,
-    color: Colors.dark.text,
+    color: theme.text,
     fontWeight: '500',
   },
   factContent: {
@@ -873,7 +876,7 @@ const styles = StyleSheet.create({
   factLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.dark.accent,
+    color: theme.accent,
     flex: 1,
   },
   factVoteBtn: {
@@ -882,12 +885,12 @@ const styles = StyleSheet.create({
   factText: {
     fontSize: 16,
     lineHeight: 24,
-    color: Colors.dark.text,
+    color: theme.text,
     fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
   },
   tapAgainText: {
     fontSize: 12,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     marginTop: Spacing.md,
     textAlign: 'center',
   },
@@ -908,19 +911,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: theme.backgroundSecondary,
     paddingVertical: Spacing.lg,
     borderRadius: BorderRadius.md,
     gap: Spacing.sm,
     borderWidth: 1,
-    borderColor: Colors.dark.accent,
+    borderColor: theme.accent,
   },
   tourBackButtonPressed: {
     opacity: 0.8,
   },
   tourBackButtonText: {
     ...Typography.headline,
-    color: Colors.dark.accent,
+    color: theme.accent,
   },
   reportModalOverlay: {
     flex: 1,
@@ -941,13 +944,13 @@ const styles = StyleSheet.create({
   reportModalTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: Colors.dark.text,
+    color: theme.text,
     marginBottom: Spacing.xl,
     textAlign: 'center',
   },
   reportLabel: {
     fontSize: 14,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     marginBottom: Spacing.sm,
   },
   reasonButtons: {
@@ -960,28 +963,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.dark.backgroundTertiary,
+    backgroundColor: theme.backgroundTertiary,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: theme.border,
   },
   reasonButtonActive: {
-    backgroundColor: Colors.dark.accent,
-    borderColor: Colors.dark.accent,
+    backgroundColor: theme.accent,
+    borderColor: theme.accent,
   },
   reasonButtonText: {
     fontSize: 14,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
   },
   reasonButtonTextActive: {
     color: '#FFF',
     fontWeight: '500',
   },
   reportCommentInput: {
-    backgroundColor: Colors.dark.backgroundTertiary,
+    backgroundColor: theme.backgroundTertiary,
     borderRadius: BorderRadius.sm,
     padding: Spacing.lg,
     fontSize: 15,
-    color: Colors.dark.text,
+    color: theme.text,
     minHeight: 80,
     textAlignVertical: 'top',
     marginBottom: Spacing.xl,
@@ -995,11 +998,11 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     alignItems: 'center',
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.dark.backgroundTertiary,
+    backgroundColor: theme.backgroundTertiary,
   },
   reportCancelText: {
     fontSize: 15,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
   },
   reportSubmitButton: {
     flex: 1,

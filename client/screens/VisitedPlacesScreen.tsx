@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,8 @@ import type { RootStackParamList } from '@/navigation/RootStackNavigator';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCheckins } from '@/contexts/CheckinContext';
 import { getAllCheckins, uncheckIn, type Checkin } from '@/lib/checkins';
-import { Colors, Spacing, BorderRadius, Typography } from '@/constants/theme';
+import { Colors, Spacing, BorderRadius, Typography, type ThemeColors } from '@/constants/theme';
+import { useTheme } from '@/hooks/useTheme';
 
 interface Props {
   navigation: NativeStackNavigationProp<RootStackParamList, 'VisitedPlaces'>;
@@ -26,6 +27,8 @@ export default function VisitedPlacesScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { removeCheckin } = useCheckins();
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   
   const [loading, setLoading] = useState(true);
   const [checkins, setCheckins] = useState<Checkin[]>([]);
@@ -111,9 +114,9 @@ export default function VisitedPlacesScreen({ navigation }: Props) {
         disabled={removingId === item.id}
       >
         {removingId === item.id ? (
-          <ActivityIndicator size="small" color={Colors.dark.textSecondary} />
+          <ActivityIndicator size="small" color={theme.textSecondary} />
         ) : (
-          <Feather name="x" size={18} color={Colors.dark.textSecondary} />
+          <Feather name="x" size={18} color={theme.textSecondary} />
         )}
       </Pressable>
     </View>
@@ -126,7 +129,7 @@ export default function VisitedPlacesScreen({ navigation }: Props) {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Feather name="arrow-left" size={24} color={Colors.dark.text} />
+          <Feather name="arrow-left" size={24} color={theme.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Places Visited</Text>
         <View style={styles.headerSpacer} />
@@ -134,11 +137,11 @@ export default function VisitedPlacesScreen({ navigation }: Props) {
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.dark.accent} />
+          <ActivityIndicator size="large" color={theme.accent} />
         </View>
       ) : checkins.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Feather name="map-pin" size={48} color={Colors.dark.textSecondary} />
+          <Feather name="map-pin" size={48} color={theme.textSecondary} />
           <Text style={styles.emptyTitle}>No places visited yet</Text>
           <Text style={styles.emptySubtitle}>
             Start exploring and check in to places you visit
@@ -160,10 +163,10 @@ export default function VisitedPlacesScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.backgroundRoot,
+    backgroundColor: theme.backgroundRoot,
   },
   header: {
     flexDirection: 'row',
@@ -181,7 +184,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.dark.text,
+    color: theme.text,
     textAlign: 'center',
   },
   headerSpacer: {
@@ -201,12 +204,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.dark.text,
+    color: theme.text,
     marginTop: Spacing.lg,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     textAlign: 'center',
     marginTop: Spacing.sm,
   },
@@ -216,7 +219,7 @@ const styles = StyleSheet.create({
   checkinItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.dark.backgroundCard,
+    backgroundColor: theme.backgroundCard,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.sm,
@@ -236,11 +239,11 @@ const styles = StyleSheet.create({
   checkinName: {
     fontSize: 15,
     fontWeight: '500',
-    color: Colors.dark.text,
+    color: theme.text,
   },
   checkinDate: {
     fontSize: 13,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     marginTop: 2,
   },
   removeButton: {
@@ -249,6 +252,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 18,
-    backgroundColor: Colors.dark.backgroundSecondary,
+    backgroundColor: theme.backgroundSecondary,
   },
 });

@@ -1,7 +1,8 @@
-import React, { Component, ReactNode, forwardRef, ForwardedRef } from "react";
+import React, { Component, ReactNode, forwardRef, ForwardedRef, useMemo } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { Colors, Spacing, Typography } from "@/constants/theme";
+import { Spacing, Typography, type ThemeColors } from "@/constants/theme";
+import { useTheme } from "@/hooks/useTheme";
 
 interface MapErrorBoundaryProps {
   children: ReactNode;
@@ -35,9 +36,11 @@ class MapErrorBoundary extends Component<MapErrorBoundaryProps, MapErrorBoundary
 }
 
 function MapFallback() {
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   return (
     <View style={styles.fallback}>
-      <Feather name="map" size={64} color={Colors.dark.inactive} />
+      <Feather name="map" size={64} color={theme.inactive} />
       <Text style={styles.title}>Map Unavailable</Text>
       <Text style={styles.text}>
         The interactive map is not available in this version of Expo Go. Please try updating Expo Go or use the Explore tab to browse locations.
@@ -90,23 +93,23 @@ SafeMapView.displayName = "SafeMapView";
 
 export default SafeMapView;
 
-const styles = StyleSheet.create({
+const createStyles = (theme: ThemeColors) => StyleSheet.create({
   fallback: {
     flex: 1,
-    backgroundColor: Colors.dark.backgroundRoot,
+    backgroundColor: theme.backgroundRoot,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: Spacing.xl,
   },
   title: {
     ...Typography.title,
-    color: Colors.dark.text,
+    color: theme.text,
     marginTop: Spacing.lg,
     marginBottom: Spacing.md,
   },
   text: {
     ...Typography.body,
-    color: Colors.dark.textSecondary,
+    color: theme.textSecondary,
     textAlign: "center",
   },
 });
