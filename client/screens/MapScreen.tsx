@@ -817,8 +817,8 @@ export default function MapScreen() {
 
       {selectedCurio && !isHunting ? (
         <Animated.View
-          entering={SlideInDown.duration(300).springify().damping(18)}
-          exiting={SlideOutDown.duration(200)}
+          entering={FadeIn.duration(200)}
+          exiting={FadeOut.duration(150)}
           style={[styles.selectedPanel, { bottom: tabBarHeight + Spacing.lg }]}
           key={selectedCurio.id}
         >
