@@ -252,6 +252,10 @@ export default function MapScreen() {
   };
 
   const handleMarkerPress = (curio: Curio) => {
+    if (regionChangeTimer.current) {
+      clearTimeout(regionChangeTimer.current);
+      regionChangeTimer.current = null;
+    }
     selectedCurioRef.current = curio;
     setSelectedCurio(curio);
     mapRef.current?.animateToRegion({
@@ -499,7 +503,12 @@ export default function MapScreen() {
     setLoading(true);
     try {
       const data = await getNearest20(lat, lng);
-      setCurios(data);
+      const selected = selectedCurioRef.current;
+      if (selected && !data.some((c: Curio) => c.id === selected.id)) {
+        setCurios([...data, selected]);
+      } else {
+        setCurios(data);
+      }
       setLastSearchCenter({ latitude: lat, longitude: lng });
       initialLoadDone.current = true;
     } catch (error) {
