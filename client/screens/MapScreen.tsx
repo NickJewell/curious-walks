@@ -211,7 +211,6 @@ export default function MapScreen() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedCurio, setSelectedCurio] = useState<Curio | null>(null);
-  const selectedCurioRef = useRef<Curio | null>(null);
   const debouncedQuery = useDebounce(searchQuery, 300);
 
   const [showListModal, setShowListModal] = useState(false);
@@ -256,18 +255,10 @@ export default function MapScreen() {
       clearTimeout(regionChangeTimer.current);
       regionChangeTimer.current = null;
     }
-    selectedCurioRef.current = curio;
     setSelectedCurio(curio);
-    mapRef.current?.animateToRegion({
-      latitude: curio.latitude - 0.002,
-      longitude: curio.longitude,
-      latitudeDelta: 0.008,
-      longitudeDelta: 0.008,
-    }, 400);
   };
 
   const handleClosePanel = () => {
-    selectedCurioRef.current = null;
     setSelectedCurio(null);
   };
 
@@ -503,19 +494,7 @@ export default function MapScreen() {
     setLoading(true);
     try {
       const data = await getNearest20(lat, lng);
-      setCurios(prev => {
-        const newIds = new Set(data.map((c: Curio) => c.id));
-        const merged = [...data];
-        for (const existing of prev) {
-          if (!newIds.has(existing.id)) {
-            const d = Math.abs(existing.latitude - lat) + Math.abs(existing.longitude - lng);
-            if (d < 0.05) {
-              merged.push(existing);
-            }
-          }
-        }
-        return merged;
-      });
+      setCurios(data);
       setLastSearchCenter({ latitude: lat, longitude: lng });
       initialLoadDone.current = true;
     } catch (error) {
