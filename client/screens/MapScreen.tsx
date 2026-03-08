@@ -601,7 +601,7 @@ export default function MapScreen() {
                 latitude: curio.latitude,
                 longitude: curio.longitude,
               }}
-              tracksViewChanges={isSelected || isTarget}
+              tracksViewChanges={false}
               zIndex={isTarget ? 100 : isSelected ? 90 : 1}
               onPress={() => handleMarkerPress(curio)}
             >
@@ -816,7 +816,6 @@ export default function MapScreen() {
       {selectedCurio && !isHunting ? (
         <Animated.View
           entering={FadeIn.duration(200)}
-          exiting={FadeOut.duration(150)}
           style={[styles.selectedPanel, { bottom: tabBarHeight + Spacing.lg }]}
           key={selectedCurio.id}
         >
