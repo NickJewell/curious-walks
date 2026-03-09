@@ -190,6 +190,17 @@ function configureExpoAndLanding(app: express.Application) {
     res.sendFile(adminCurioPath);
   });
 
+  // Serve admin extract page for extracting place JSON
+  const adminExtractPath = path.resolve(
+    process.cwd(),
+    "server",
+    "templates",
+    "admin-extract.html",
+  );
+  app.get("/admin/extract", (_req: Request, res: Response) => {
+    res.sendFile(adminExtractPath);
+  });
+
   // Serve admin map page for creating new places
   const adminMapPath = path.resolve(
     process.cwd(),

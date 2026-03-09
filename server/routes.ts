@@ -98,6 +98,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin API: Extract all columns from places table by curio_id
+  app.get('/api/admin/places/extract/:curioId', async (req, res) => {
+    try {
+      const { curioId } = req.params;
+
+      const { data, error } = await supabase
+        .from('places')
+        .select('*')
+        .eq('curio_id', curioId)
+        .single();
+
+      if (error || !data) {
+        return res.status(404).json({ error: `Place with curio_id "${curioId}" not found` });
+      }
+
+      res.json(data);
+    } catch (err) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Admin API: Lookup a place by curio_id
   app.get('/api/admin/places/lookup/:curioId', async (req, res) => {
     try {
