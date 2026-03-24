@@ -23,6 +23,7 @@ import { useHunt } from "@/contexts/HuntContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCheckins } from "@/contexts/CheckinContext";
 import { checkIn, checkAndAwardBadges, hasCheckedIn, uncheckIn, type UserBadge } from "@/lib/checkins";
+import CheckinSuccessModal from "@/components/CheckinSuccessModal";
 import { useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
@@ -90,6 +91,8 @@ export default function CompassScreen({ navigation }: Props) {
   const [newBadge, setNewBadge] = useState<UserBadge | null>(null);
   const [showBadgeModal, setShowBadgeModal] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
+  const [showCheckinSuccess, setShowCheckinSuccess] = useState(false);
+  const [checkinNewBadges, setCheckinNewBadges] = useState<UserBadge[]>([]);
 
   const arrowRotation = useRef(new Animated.Value(0)).current;
   const compassRotation = useRef(new Animated.Value(0)).current;
@@ -251,16 +254,13 @@ export default function CompassScreen({ navigation }: Props) {
       );
       
       if (result.success && result.isNewCheckin) {
-        setShowConfetti(true);
         setAlreadyCheckedIn(true);
         addCheckin(activeTarget.id);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         
         const newBadges = await checkAndAwardBadges(user.id);
-        if (newBadges.length > 0) {
-          setNewBadge(newBadges[0]);
-          setTimeout(() => setShowBadgeModal(true), 1500);
-        }
+        setCheckinNewBadges(newBadges);
+        setShowCheckinSuccess(true);
       } else if (result.success && !result.isNewCheckin) {
         setAlreadyCheckedIn(true);
       }
@@ -494,6 +494,16 @@ export default function CompassScreen({ navigation }: Props) {
             </View>
           </View>
         </Modal>
+
+        {activeTarget ? (
+          <CheckinSuccessModal
+            visible={showCheckinSuccess}
+            place={activeTarget}
+            userId={user?.id ?? ""}
+            newBadges={checkinNewBadges}
+            onContinue={() => setShowCheckinSuccess(false)}
+          />
+        ) : null}
       </View>
     );
   }
@@ -643,6 +653,16 @@ export default function CompassScreen({ navigation }: Props) {
           <Text style={[styles.controlButtonText, styles.stopButtonText]}>Stop Hunt</Text>
         </Pressable>
       </View>
+
+      {activeTarget ? (
+        <CheckinSuccessModal
+          visible={showCheckinSuccess}
+          place={activeTarget}
+          userId={user?.id ?? ""}
+          newBadges={checkinNewBadges}
+          onContinue={() => setShowCheckinSuccess(false)}
+        />
+      ) : null}
     </View>
   );
 }

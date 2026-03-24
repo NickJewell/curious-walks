@@ -171,6 +171,36 @@ export async function checkAndAwardBadges(userId: string): Promise<UserBadge[]> 
   }
 }
 
+export interface CheckinSuccessStats {
+  placeVisitCount: number;
+  totalCheckins: number;
+}
+
+export async function getCheckinSuccessStats(
+  userId: string,
+  placeId: string
+): Promise<CheckinSuccessStats> {
+  try {
+    const [placeRes, totalRes] = await Promise.all([
+      supabase
+        .from('checkins')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('place_id', placeId),
+      supabase
+        .from('checkins')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId),
+    ]);
+    return {
+      placeVisitCount: placeRes.count ?? 1,
+      totalCheckins: totalRes.count ?? 1,
+    };
+  } catch {
+    return { placeVisitCount: 1, totalCheckins: 1 };
+  }
+}
+
 export async function getCheckinCount(userId: string): Promise<number> {
   try {
     const { count, error } = await supabase
