@@ -1,0 +1,14 @@
+This is a common pain point with compass/heading features in Expo/React Native apps. Here are the main levers you can pull, roughly ordered by impact:
+Sensor calibration & data quality
+The biggest issue is usually noisy magnetometer data. Make sure you’re using expo-sensors (Magnetometer) and applying a low-pass filter to smooth out jitter. A simple exponential moving average with an alpha of ~0.15–0.25 works well. Also prompt users to do a figure-8 calibration gesture when heading accuracy is low — iOS exposes a headingAccuracy value you can check.
+Use true heading, not magnetic heading
+If you’re calculating bearing from raw magnetometer data, you’re getting magnetic north. Instead, combine magnetometer with expo-location‘s heading API (Location.watchHeadingAsync), which gives you trueHeading — it fuses magnetometer, GPS, and the device’s declination model automatically. This is almost always more accurate than rolling your own.
+GPS position accuracy feeding into bearing
+Your bearing-to-target calculation is only as good as the user’s current position. Use Location.watchPositionAsync with Accuracy.BestForNavigation (or at least High). On iOS, this enables the full sensor fusion pipeline. Also consider ignoring position updates where coords.accuracy is above a threshold (say 20m) so the compass doesn’t swing wildly on a bad fix.
+Combine heading + movement bearing
+When the user is walking, GPS course (coords.heading from location updates) is often more stable than magnetometer heading. A common pattern is to blend them: trust magnetometer when stationary, crossfade to GPS course when speed > ~1 m/s. This eliminates the “compass spinning while walking” problem.
+Hardware interference awareness
+Magnetometers are easily thrown off by metal, magnets (phone cases!), and nearby electronics. There’s not much you can do in code, but you can detect it: if headingAccuracy degrades suddenly, show a UI hint telling the user to move away from interference or recalibrate.
+Practical code pattern
+The core loop looks like this: watch true heading from expo-location, apply a low-pass filter, compute bearing to target using the haversine formula, then rotate your compass needle by bearing - smoothedHeading. Update at ~10–15 Hz max — faster adds jitter, slower feels laggy.
+Want me to write a reference implementation of any of these pieces — like the filtered compass hook or the magnetometer/GPS blending logic?​​​​​​​​​​​​​​​​
