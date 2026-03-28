@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import * as fs from "fs";
 import * as path from "path";
+import { createProxyMiddleware } from "http-proxy-middleware";
 
 const app = express();
 const log = console.log;
@@ -225,7 +226,16 @@ function configureExpoAndLanding(app: express.Application) {
 
     const platform = req.header("expo-platform");
     if (platform && (platform === "ios" || platform === "android")) {
-      return serveExpoManifest(platform, res);
+      const manifestPath = path.resolve(
+        process.cwd(),
+        "static-build",
+        platform,
+        "manifest.json",
+      );
+      if (fs.existsSync(manifestPath)) {
+        return serveExpoManifest(platform, res);
+      }
+      return next();
     }
 
     if (req.path === "/") {
@@ -244,6 +254,50 @@ function configureExpoAndLanding(app: express.Application) {
   app.use(express.static(path.resolve(process.cwd(), "static-build")));
 
   log("Expo routing: Checking expo-platform header on / and /manifest");
+}
+
+function setupMetroProxy(app: express.Application) {
+  const hasStaticBuild = fs.existsSync(
+    path.resolve(process.cwd(), "static-build", "ios", "manifest.json"),
+  );
+
+  if (hasStaticBuild) return;
+
+  log("Dev mode: proxying Metro bundle requests to http://localhost:8081");
+
+  const metroProxy = createProxyMiddleware({
+    target: "http://localhost:8081",
+    changeOrigin: false,
+    ws: true,
+    on: {
+      error: (_err, _req, res) => {
+        if (res && "status" in res) {
+          (res as Response).status(502).json({
+            message:
+              "Metro bundler not ready. The dev server may still be starting up.",
+          });
+        }
+      },
+    },
+  });
+
+  const METRO_PATHS = [
+    "/client",
+    "/_expo",
+    "/node_modules",
+    "/manifest",
+    "/symbolicate",
+    "/hot",
+    "/packager-status",
+    "/debugger-ui",
+    "/inspector",
+    "/open-stack-frame",
+    "/reload",
+  ];
+
+  for (const p of METRO_PATHS) {
+    app.use(p, metroProxy);
+  }
 }
 
 function setupErrorHandler(app: express.Application) {
@@ -269,6 +323,7 @@ function setupErrorHandler(app: express.Application) {
   setupRequestLogging(app);
 
   configureExpoAndLanding(app);
+  setupMetroProxy(app);
 
   const server = await registerRoutes(app);
 
