@@ -17,6 +17,7 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import { Magnetometer } from "expo-sensors";
 import { getGreatCircleBearing, getDistance } from "geolib";
+
 import ConfettiCannon from "react-native-confetti-cannon";
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/theme";
 import { useHunt } from "@/contexts/HuntContext";
@@ -33,8 +34,11 @@ interface Props {
 }
 
 const ARRIVAL_THRESHOLD = 10;
-const LOW_PASS_FACTOR = 0.35;
+const LOW_PASS_FACTOR = 0.2;
 const CHECKIN_THRESHOLD = 40;
+const GPS_ACCURACY_THRESHOLD = 20;
+const WALKING_SPEED_THRESHOLD = 1.0;
+const GPS_BLEND_ALPHA = 0.6;
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const COMPASS_SIZE = Math.min(SCREEN_WIDTH - 80, 300);
@@ -83,6 +87,8 @@ export default function CompassScreen({ navigation }: Props) {
   const [hasArrived, setHasArrived] = useState(false);
   const [magnetometerAvailable, setMagnetometerAvailable] = useState(true);
   const [heading, setHeading] = useState(0);
+  const [headingAccuracy, setHeadingAccuracy] = useState<number | null>(null);
+  const [showCalibrationHint, setShowCalibrationHint] = useState(false);
   
   const [canCheckIn, setCanCheckIn] = useState(false);
   const [alreadyCheckedIn, setAlreadyCheckedIn] = useState(false);
@@ -100,6 +106,8 @@ export default function CompassScreen({ navigation }: Props) {
   const lastHeadingRef = useRef(0);
   const lastCompassRef = useRef(0);
   const confettiRef = useRef<ConfettiCannon>(null);
+  const currentSpeedRef = useRef(0);
+  const gpsCourseRef = useRef<number | null>(null);
 
   useEffect(() => {
     setHasArrived(false);
@@ -108,11 +116,15 @@ export default function CompassScreen({ navigation }: Props) {
     setCanCheckIn(false);
     setAlreadyCheckedIn(false);
     setShowConfetti(false);
+    setShowCalibrationHint(false);
+    setHeadingAccuracy(null);
     arrowRotation.setValue(0);
     compassRotation.setValue(0);
     filteredHeading.current = 0;
     lastHeadingRef.current = 0;
     lastCompassRef.current = 0;
+    currentSpeedRef.current = 0;
+    gpsCourseRef.current = null;
     
     if (activeTarget && user && !isGuest) {
       hasCheckedIn(user.id, activeTarget.id).then(setAlreadyCheckedIn);
@@ -121,6 +133,7 @@ export default function CompassScreen({ navigation }: Props) {
 
   useEffect(() => {
     let locationSub: Location.LocationSubscription | null = null;
+    let headingSub: Location.LocationSubscription | null = null;
     let magnetometerSub: { remove: () => void } | null = null;
 
     const setup = async () => {
@@ -129,24 +142,38 @@ export default function CompassScreen({ navigation }: Props) {
 
       locationSub = await Location.watchPositionAsync(
         {
-          accuracy: Location.Accuracy.High,
-          timeInterval: 1000,
+          accuracy: Location.Accuracy.BestForNavigation,
+          timeInterval: 500,
           distanceInterval: 1,
         },
         (loc) => {
+          const accuracy = loc.coords.accuracy ?? null;
+          setLocationAccuracy(accuracy);
+
+          if (accuracy !== null && accuracy > GPS_ACCURACY_THRESHOLD) {
+            return;
+          }
+
           const coords = {
             latitude: loc.coords.latitude,
             longitude: loc.coords.longitude,
           };
           setUserLocation(coords);
-          setLocationAccuracy(loc.coords.accuracy ?? null);
+
+          const speed = loc.coords.speed ?? 0;
+          currentSpeedRef.current = speed > 0 ? speed : 0;
+
+          const gpsCourse = loc.coords.heading ?? null;
+          if (gpsCourse !== null && gpsCourse >= 0) {
+            gpsCourseRef.current = gpsCourse;
+          }
 
           if (activeTarget) {
             const dist = getDistance(
               { latitude: coords.latitude, longitude: coords.longitude },
               { latitude: activeTarget.latitude, longitude: activeTarget.longitude }
             );
-            
+
             setDistance(dist);
             setCanCheckIn(dist < CHECKIN_THRESHOLD);
 
@@ -158,23 +185,52 @@ export default function CompassScreen({ navigation }: Props) {
         }
       );
 
-      const available = await Magnetometer.isAvailableAsync();
-      setMagnetometerAvailable(available);
+      try {
+        headingSub = await Location.watchHeadingAsync((headingData) => {
+          const trueHeading = headingData.trueHeading;
+          const accuracy = headingData.accuracy;
 
-      if (available) {
-        Magnetometer.setUpdateInterval(100);
-        magnetometerSub = Magnetometer.addListener((data: { x: number; y: number; z: number }) => {
-          const angle = Math.atan2(data.y, data.x) * (180 / Math.PI);
-          const normalizedAngle = normalizeAngle(angle);
-          
+          setHeadingAccuracy(accuracy);
+          setShowCalibrationHint(accuracy === -1 || accuracy > 30);
+
+          if (trueHeading < 0) return;
+
+          let rawHeading = trueHeading;
+
+          if (
+            currentSpeedRef.current > WALKING_SPEED_THRESHOLD &&
+            gpsCourseRef.current !== null
+          ) {
+            rawHeading = circularMean(trueHeading, gpsCourseRef.current, GPS_BLEND_ALPHA);
+          }
+
           filteredHeading.current = circularMean(
             filteredHeading.current,
-            normalizedAngle,
+            rawHeading,
             LOW_PASS_FACTOR
           );
-          
+
           setHeading(filteredHeading.current);
-        });
+        }) as unknown as Location.LocationSubscription;
+      } catch {
+        const available = await Magnetometer.isAvailableAsync();
+        setMagnetometerAvailable(available);
+
+        if (available) {
+          Magnetometer.setUpdateInterval(100);
+          magnetometerSub = Magnetometer.addListener((data: { x: number; y: number; z: number }) => {
+            const angle = Math.atan2(data.y, data.x) * (180 / Math.PI);
+            const normalizedAngle = normalizeAngle(angle);
+
+            filteredHeading.current = circularMean(
+              filteredHeading.current,
+              normalizedAngle,
+              LOW_PASS_FACTOR
+            );
+
+            setHeading(filteredHeading.current);
+          });
+        }
       }
     };
 
@@ -182,6 +238,7 @@ export default function CompassScreen({ navigation }: Props) {
 
     return () => {
       if (locationSub) locationSub.remove();
+      if (headingSub) headingSub.remove();
       if (magnetometerSub) magnetometerSub.remove();
     };
   }, [activeTarget, hasArrived]);
@@ -554,6 +611,15 @@ export default function CompassScreen({ navigation }: Props) {
         </View>
       </View>
 
+      {showCalibrationHint ? (
+        <View style={styles.calibrationBanner}>
+          <Feather name="alert-triangle" size={14} color="#F5A623" />
+          <Text style={styles.calibrationText}>
+            Move your phone in a figure-8 to improve compass accuracy
+          </Text>
+        </View>
+      ) : null}
+
       <View style={styles.coordinatesContainer}>
         <View style={styles.coordinateBlock}>
           <Text style={styles.coordinateLabel}>MY LOCATION</Text>
@@ -771,6 +837,25 @@ const styles = StyleSheet.create({
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
     borderBottomColor: "#E53935",
+  },
+  calibrationBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginHorizontal: Spacing.xl,
+    marginBottom: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: "rgba(245, 166, 35, 0.12)",
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.3)",
+  },
+  calibrationText: {
+    color: "#F5A623",
+    fontSize: 12,
+    flex: 1,
+    lineHeight: 16,
   },
   coordinatesContainer: {
     flexDirection: "row",
