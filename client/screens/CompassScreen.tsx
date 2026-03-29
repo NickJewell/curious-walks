@@ -150,15 +150,13 @@ export default function CompassScreen({ navigation }: Props) {
           const accuracy = loc.coords.accuracy ?? null;
           setLocationAccuracy(accuracy);
 
-          if (accuracy !== null && accuracy > GPS_ACCURACY_THRESHOLD) {
-            return;
-          }
-
           const coords = {
             latitude: loc.coords.latitude,
             longitude: loc.coords.longitude,
           };
           setUserLocation(coords);
+
+          const isAccurate = accuracy === null || accuracy <= GPS_ACCURACY_THRESHOLD;
 
           const speed = loc.coords.speed ?? 0;
           currentSpeedRef.current = speed > 0 ? speed : 0;
@@ -175,11 +173,14 @@ export default function CompassScreen({ navigation }: Props) {
             );
 
             setDistance(dist);
-            setCanCheckIn(dist < CHECKIN_THRESHOLD);
 
-            if (dist < ARRIVAL_THRESHOLD && !hasArrived) {
-              setHasArrived(true);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            if (isAccurate) {
+              setCanCheckIn(dist < CHECKIN_THRESHOLD);
+
+              if (dist < ARRIVAL_THRESHOLD && !hasArrived) {
+                setHasArrived(true);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }
             }
           }
         }
