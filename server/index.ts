@@ -265,22 +265,6 @@ function setupMetroProxy(app: express.Application) {
 
   log("Dev mode: proxying Metro bundle requests to http://localhost:8081");
 
-  const metroProxy = createProxyMiddleware({
-    target: "http://localhost:8081",
-    changeOrigin: false,
-    ws: true,
-    on: {
-      error: (_err, _req, res) => {
-        if (res && "status" in res) {
-          (res as Response).status(502).json({
-            message:
-              "Metro bundler not ready. The dev server may still be starting up.",
-          });
-        }
-      },
-    },
-  });
-
   const METRO_PATHS = [
     "/client",
     "/_expo",
@@ -295,9 +279,25 @@ function setupMetroProxy(app: express.Application) {
     "/reload",
   ];
 
-  for (const p of METRO_PATHS) {
-    app.use(p, metroProxy);
-  }
+  const metroProxy = createProxyMiddleware({
+    target: "http://localhost:8081",
+    changeOrigin: false,
+    ws: true,
+    pathFilter: (pathname) =>
+      METRO_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/")),
+    on: {
+      error: (_err, _req, res) => {
+        if (res && "status" in res) {
+          (res as Response).status(502).json({
+            message:
+              "Metro bundler not ready. The dev server may still be starting up.",
+          });
+        }
+      },
+    },
+  });
+
+  app.use(metroProxy);
 }
 
 function setupErrorHandler(app: express.Application) {
