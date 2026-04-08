@@ -255,10 +255,13 @@ export async function getPlacesInViewport(
   latitudeDelta: number,
   longitudeDelta: number
 ): Promise<Curio[]> {
-  const latMin = lat - latitudeDelta / 2;
-  const latMax = lat + latitudeDelta / 2;
-  const lngMin = lng - longitudeDelta / 2;
-  const lngMax = lng + longitudeDelta / 2;
+  // Expand the bounding box by 30% on each side so places just outside the
+  // visible edge are pre-loaded, preventing flicker when panning near borders.
+  const BUFFER = 0.3;
+  const latMin = lat - latitudeDelta * (0.5 + BUFFER);
+  const latMax = lat + latitudeDelta * (0.5 + BUFFER);
+  const lngMin = lng - longitudeDelta * (0.5 + BUFFER);
+  const lngMax = lng + longitudeDelta * (0.5 + BUFFER);
 
   try {
     const { data, error } = await supabase

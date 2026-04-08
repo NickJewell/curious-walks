@@ -480,9 +480,21 @@ export default function MapScreen() {
     const version = ++fetchVersionRef.current;
     setLoading(true);
     try {
+      // getPlacesInViewport fetches a 30% buffer zone around the viewport.
+      // We count only places within the actual visible viewport for the >50
+      // threshold, but render ALL fetched places so nearby ones pre-load
+      // smoothly as the user pans.
       const data = await getPlacesInViewport(lat, lng, latitudeDelta, longitudeDelta);
       if (version !== fetchVersionRef.current) return;
-      if (data.length > 50) {
+
+      const latHalf = latitudeDelta / 2;
+      const lngHalf = longitudeDelta / 2;
+      const viewportCount = data.filter(p =>
+        p.latitude >= lat - latHalf && p.latitude <= lat + latHalf &&
+        p.longitude >= lng - lngHalf && p.longitude <= lng + lngHalf
+      ).length;
+
+      if (viewportCount > 50) {
         setTooManyPlaces(true);
         setCurios([]);
       } else {
@@ -515,7 +527,7 @@ export default function MapScreen() {
     }
     regionChangeTimer.current = setTimeout(() => {
       loadCurios(region.latitude, region.longitude, region.latitudeDelta, region.longitudeDelta);
-    }, 400);
+    }, 200);
   }, []);
 
   const centerOnUser = async () => {
