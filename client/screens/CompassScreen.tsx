@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Dimensions,
 } from "react-native";
+import PagerView from "@/components/PagerViewCompat";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 import { Feather } from "@expo/vector-icons";
@@ -25,6 +26,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCheckins } from "@/contexts/CheckinContext";
 import { checkIn, checkAndAwardBadges, hasCheckedIn, uncheckIn, type UserBadge } from "@/lib/checkins";
 import CheckinSuccessModal from "@/components/CheckinSuccessModal";
+import HuntMapView from "@/components/HuntMapView";
 import { useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
@@ -81,6 +83,7 @@ export default function CompassScreen({ navigation }: Props) {
   const { user, isGuest } = useAuth();
   const { addCheckin, removeCheckin } = useCheckins();
 
+  const [currentPage, setCurrentPage] = useState(0);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
   const [distance, setDistance] = useState<number | null>(null);
@@ -577,78 +580,103 @@ export default function CompassScreen({ navigation }: Props) {
   });
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + Spacing.lg }]}>
-      <View style={styles.compassWrapper}>
-        <View style={styles.compassOuter}>
-          <Animated.View 
-            style={[
-              styles.compassDial,
-              { transform: [{ rotate: compassSpin }] }
-            ]}
-          >
-            {renderCompassDial()}
-          </Animated.View>
-          
-          <View style={styles.compassInner}>
-            <Text style={styles.distanceValue}>
-              {distance !== null ? Math.round(distance) : "---"}
-            </Text>
-            <Text style={styles.distanceLabel}>METERS</Text>
-            {locationAccuracy !== null ? (
-              <Text style={styles.accuracyLabel}>[+/- {Math.round(locationAccuracy)} m]</Text>
-            ) : null}
-          </View>
-          
-          <Animated.View 
-            style={[
-              styles.pointerContainer,
-              { transform: [{ rotate: spin }] }
-            ]}
-          >
-            <View style={styles.pointer}>
-              <View style={styles.pointerTriangle} />
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <PagerView
+        style={styles.pager}
+        initialPage={0}
+        onPageSelected={(e) => setCurrentPage(e.nativeEvent.position)}
+      >
+        {/* Page 0: Map Mode (default) */}
+        <View key="0" style={styles.pageContainer}>
+          <HuntMapView
+            userLocation={userLocation}
+            target={activeTarget}
+            distance={distance}
+          />
+        </View>
+
+        {/* Page 1: Compass Mode */}
+        <View key="1" style={[styles.pageContainer, styles.compassPage]}>
+          <View style={styles.compassWrapper}>
+            <View style={styles.compassOuter}>
+              <Animated.View 
+                style={[
+                  styles.compassDial,
+                  { transform: [{ rotate: compassSpin }] }
+                ]}
+              >
+                {renderCompassDial()}
+              </Animated.View>
+              
+              <View style={styles.compassInner}>
+                <Text style={styles.distanceValue}>
+                  {distance !== null ? Math.round(distance) : "---"}
+                </Text>
+                <Text style={styles.distanceLabel}>METERS</Text>
+                {locationAccuracy !== null ? (
+                  <Text style={styles.accuracyLabel}>[+/- {Math.round(locationAccuracy)} m]</Text>
+                ) : null}
+              </View>
+              
+              <Animated.View 
+                style={[
+                  styles.pointerContainer,
+                  { transform: [{ rotate: spin }] }
+                ]}
+              >
+                <View style={styles.pointer}>
+                  <View style={styles.pointerTriangle} />
+                </View>
+              </Animated.View>
             </View>
-          </Animated.View>
-        </View>
-      </View>
+          </View>
 
-      {showCalibrationHint ? (
-        <View style={styles.calibrationBanner}>
-          <Feather name="alert-triangle" size={14} color="#F5A623" />
-          <Text style={styles.calibrationText}>
-            Move your phone in a figure-8 to improve compass accuracy
-          </Text>
-        </View>
-      ) : null}
+          {showCalibrationHint ? (
+            <View style={styles.calibrationBanner}>
+              <Feather name="alert-triangle" size={14} color="#F5A623" />
+              <Text style={styles.calibrationText}>
+                Move your phone in a figure-8 to improve compass accuracy
+              </Text>
+            </View>
+          ) : null}
 
-      <View style={styles.coordinatesContainer}>
-        <View style={styles.coordinateBlock}>
-          <Text style={styles.coordinateLabel}>MY LOCATION</Text>
-          {userLocation ? (
-            <>
+          <View style={styles.coordinatesContainer}>
+            <View style={styles.coordinateBlock}>
+              <Text style={styles.coordinateLabel}>MY LOCATION</Text>
+              {userLocation ? (
+                <>
+                  <Text style={styles.coordinateValue}>
+                    {formatCoordinate(userLocation.latitude, true)}
+                  </Text>
+                  <Text style={styles.coordinateValue}>
+                    {formatCoordinate(userLocation.longitude, false)}
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.coordinateValue}>Locating...</Text>
+              )}
+            </View>
+            
+            <View style={styles.coordinateBlock}>
+              <Text style={styles.coordinateLabel}>MY DESTINATION</Text>
               <Text style={styles.coordinateValue}>
-                {formatCoordinate(userLocation.latitude, true)}
+                {formatCoordinate(activeTarget.latitude, true)}
               </Text>
               <Text style={styles.coordinateValue}>
-                {formatCoordinate(userLocation.longitude, false)}
+                {formatCoordinate(activeTarget.longitude, false)}
               </Text>
-            </>
-          ) : (
-            <Text style={styles.coordinateValue}>Locating...</Text>
-          )}
+            </View>
+          </View>
         </View>
-        
-        <View style={styles.coordinateBlock}>
-          <Text style={styles.coordinateLabel}>MY DESTINATION</Text>
-          <Text style={styles.coordinateValue}>
-            {formatCoordinate(activeTarget.latitude, true)}
-          </Text>
-          <Text style={styles.coordinateValue}>
-            {formatCoordinate(activeTarget.longitude, false)}
-          </Text>
-        </View>
+      </PagerView>
+
+      {/* Page indicator dots */}
+      <View style={styles.pageIndicator}>
+        <View style={[styles.pageDot, currentPage === 0 && styles.pageDotActive]} />
+        <View style={[styles.pageDot, currentPage === 1 && styles.pageDotActive]} />
       </View>
 
+      {/* Shared bottom: check-in + controls */}
       {!isGuest && canCheckIn && !alreadyCheckedIn ? (
         <View style={styles.checkInContainer}>
           <Pressable
@@ -705,7 +733,7 @@ export default function CompassScreen({ navigation }: Props) {
           onPress={handleViewOnMap}
         >
           <Feather name="map" size={20} color="#FFFFFF" />
-          <Text style={styles.controlButtonText}>View on Map</Text>
+          <Text style={styles.controlButtonText}>Explore Map</Text>
         </Pressable>
 
         <Pressable
@@ -738,6 +766,33 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#000000",
+  },
+  pager: {
+    flex: 1,
+  },
+  pageContainer: {
+    flex: 1,
+  },
+  compassPage: {
+    paddingTop: Spacing.lg,
+  },
+  pageIndicator: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+  },
+  pageDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#444444",
+  },
+  pageDotActive: {
+    backgroundColor: "#D4AF7A",
+    width: 18,
+    borderRadius: 3,
   },
   noTargetContainer: {
     flex: 1,
@@ -939,7 +994,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
+    paddingTop: Spacing.sm,
   },
   controlButton: {
     flex: 1,
