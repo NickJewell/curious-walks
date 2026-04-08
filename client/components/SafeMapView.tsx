@@ -53,6 +53,7 @@ let MapViewComponent: any = null;
 let MarkerComponent: any = null;
 let CalloutComponent: any = null;
 let PolylineComponent: any = null;
+let CircleComponent: any = null;
 let PROVIDER_GOOGLE_VALUE: any = undefined;
 let mapModuleAvailable = false;
 
@@ -62,6 +63,7 @@ try {
   MarkerComponent = maps.Marker;
   CalloutComponent = maps.Callout;
   PolylineComponent = maps.Polyline;
+  CircleComponent = maps.Circle;
   PROVIDER_GOOGLE_VALUE = maps.PROVIDER_GOOGLE;
   mapModuleAvailable = true;
 } catch (e) {
@@ -70,7 +72,7 @@ try {
 
 export const isMapAvailable = mapModuleAvailable;
 
-export { MarkerComponent as Marker, CalloutComponent as Callout, PolylineComponent as Polyline, PROVIDER_GOOGLE_VALUE as PROVIDER_GOOGLE };
+export { MarkerComponent as Marker, CalloutComponent as Callout, PolylineComponent as Polyline, CircleComponent as Circle, PROVIDER_GOOGLE_VALUE as PROVIDER_GOOGLE };
 
 interface SafeMapViewProps {
   children?: ReactNode;

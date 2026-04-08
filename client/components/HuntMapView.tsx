@@ -1,19 +1,13 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  Easing,
-} from "react-native-reanimated";
-import SafeMapView, { Marker, PROVIDER_GOOGLE, isMapAvailable } from "@/components/SafeMapView";
+import SafeMapView, { Marker, Circle, PROVIDER_GOOGLE, isMapAvailable } from "@/components/SafeMapView";
 import { darkMapStyle, lightMapStyle } from "@/constants/mapStyle";
 import { useTheme } from "@/hooks/useTheme";
 import { getGreatCircleBearing } from "geolib";
 import { Spacing } from "@/constants/theme";
 
 const PULSE_THRESHOLD = 1000;
+const PULSE_FPS = 30;
 
 function getPulseDuration(distance: number): number {
   if (distance <= 50) return 400;
@@ -41,65 +35,62 @@ function formatDistance(distance: number): string {
   return `${Math.round(distance)} m`;
 }
 
-interface PulseRingMarkerProps {
+function easeOutQuad(t: number): number {
+  return 1 - (1 - t) * (1 - t);
+}
+
+interface PulseRingsProps {
   coordinate: { latitude: number; longitude: number };
   duration: number;
 }
 
-function PulseRingMarker({ coordinate, duration }: PulseRingMarkerProps) {
-  const pulseScale = useSharedValue(1);
-  const pulseOpacity = useSharedValue(0.75);
+function PulseRings({ coordinate, duration }: PulseRingsProps) {
+  const [phase, setPhase] = useState(0);
+  const frameRef = useRef(0);
+  const startRef = useRef<number>(Date.now());
 
   useEffect(() => {
-    pulseScale.value = withRepeat(
-      withTiming(2.8, { duration, easing: Easing.out(Easing.ease) }),
-      -1,
-      false
-    );
-    pulseOpacity.value = withRepeat(
-      withTiming(0, { duration, easing: Easing.out(Easing.ease) }),
-      -1,
-      false
-    );
-  }, []);
+    startRef.current = Date.now();
+    frameRef.current = 0;
 
-  const pulseStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulseScale.value }],
-    opacity: pulseOpacity.value,
-  }));
+    const frameDuration = 1000 / PULSE_FPS;
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - startRef.current;
+      setPhase((elapsed % duration) / duration);
+    }, frameDuration);
 
-  if (!isMapAvailable || !Marker) return null;
+    return () => clearInterval(interval);
+  }, [duration]);
+
+  if (!Circle) return null;
+
+  const rings = [
+    { offset: 0 },
+    { offset: 0.45 },
+  ];
 
   return (
-    <Marker
-      coordinate={coordinate}
-      anchor={{ x: 0.5, y: 0.5 }}
-      tracksViewChanges={false}
-      zIndex={9}
-    >
-      <View style={pulseStyles.container}>
-        <Animated.View style={[pulseStyles.ring, pulseStyle]} />
-      </View>
-    </Marker>
+    <>
+      {rings.map(({ offset }) => {
+        const ringPhase = (phase + offset) % 1;
+        const eased = easeOutQuad(ringPhase);
+        const radius = 12 + eased * 70;
+        const opacity = 0.85 * (1 - ringPhase);
+
+        return (
+          <Circle
+            key={`ring-${offset}`}
+            center={coordinate}
+            radius={radius}
+            strokeColor={`rgba(212,175,122,${opacity.toFixed(3)})`}
+            strokeWidth={2.5}
+            fillColor="transparent"
+          />
+        );
+      })}
+    </>
   );
 }
-
-const pulseStyles = StyleSheet.create({
-  container: {
-    width: 80,
-    height: 80,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  ring: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    borderWidth: 2.5,
-    borderColor: "#D4AF7A",
-    backgroundColor: "transparent",
-  },
-});
 
 interface HuntMapViewProps {
   userLocation: { latitude: number; longitude: number } | null;
@@ -169,8 +160,8 @@ export default function HuntMapView({ userLocation, target, distance }: HuntMapV
         }}
       >
         {shouldPulse ? (
-          <PulseRingMarker
-            key={`pulse-tier-${pulseTier}`}
+          <PulseRings
+            key={`pulse-${pulseTier}`}
             coordinate={{ latitude: target.latitude, longitude: target.longitude }}
             duration={pulseDuration}
           />
@@ -217,8 +208,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   markerContainer: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     justifyContent: "center",
     alignItems: "center",
   },
