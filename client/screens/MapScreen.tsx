@@ -32,7 +32,7 @@ import Animated, {
 import { Colors, Spacing, BorderRadius, Typography, type ThemeColors } from "@/constants/theme";
 import { darkMapStyle, lightMapStyle } from "@/constants/mapStyle";
 import { useTheme } from "@/hooks/useTheme";
-import { getNearest20, searchCurios, Curio } from "@/lib/supabase";
+import { getPlacesInViewport, searchCurios, Curio } from "@/lib/supabase";
 import { useHunt } from "@/contexts/HuntContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCheckins } from "@/contexts/CheckinContext";
@@ -194,9 +194,9 @@ export default function MapScreen() {
   const [curios, setCurios] = useState<Curio[]>([]);
   const [loading, setLoading] = useState(true);
   const [locationReady, setLocationReady] = useState(false);
+  const [tooManyPlaces, setTooManyPlaces] = useState(false);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [mapCenter, setMapCenter] = useState<{ latitude: number; longitude: number }>(LONDON_CENTER);
-  const [lastSearchCenter, setLastSearchCenter] = useState<{ latitude: number; longitude: number }>(LONDON_CENTER);
   const initialLoadDone = useRef(false);
   const initialRegionRef = useRef<{ latitude: number; longitude: number }>(LONDON_CENTER);
   const locationResolved = useRef(false);
@@ -368,7 +368,6 @@ export default function MapScreen() {
       locationResolved.current = true;
       initialRegionRef.current = coords;
       setMapCenter(coords);
-      setLastSearchCenter(coords);
       setLocationReady(true);
       loadCurios(coords.latitude, coords.longitude);
 
@@ -377,7 +376,6 @@ export default function MapScreen() {
           if (cancelled || realCoords === LONDON_CENTER) return;
           setUserLocation(realCoords);
           setMapCenter(realCoords);
-          setLastSearchCenter(realCoords);
           loadCurios(realCoords.latitude, realCoords.longitude);
           mapRef.current?.animateToRegion({
             ...realCoords,
@@ -468,7 +466,7 @@ export default function MapScreen() {
       longitudeDelta: 0.02,
     }, 500);
     
-    await loadCurios(geo.latitude, geo.longitude);
+    await loadCurios(geo.latitude, geo.longitude, 0.02, 0.02);
   };
 
   const clearSearch = () => {
@@ -477,12 +475,17 @@ export default function MapScreen() {
     Keyboard.dismiss();
   };
 
-  const loadCurios = async (lat: number, lng: number) => {
+  const loadCurios = async (lat: number, lng: number, latitudeDelta: number = 0.01, longitudeDelta: number = 0.01) => {
     setLoading(true);
     try {
-      const data = await getNearest20(lat, lng);
-      setCurios(data);
-      setLastSearchCenter({ latitude: lat, longitude: lng });
+      const data = await getPlacesInViewport(lat, lng, latitudeDelta, longitudeDelta);
+      if (data.length > 50) {
+        setTooManyPlaces(true);
+        setCurios([]);
+      } else {
+        setTooManyPlaces(false);
+        setCurios(data);
+      }
       initialLoadDone.current = true;
     } catch (error) {
       console.error("Error loading curios:", error);
@@ -497,22 +500,16 @@ export default function MapScreen() {
   const onRegionChangeComplete = useCallback((region: Region) => {
     const newCenter = { latitude: region.latitude, longitude: region.longitude };
     setMapCenter(newCenter);
-    
+
     if (!initialLoadDone.current) return;
 
-    const dist = Math.sqrt(
-      Math.pow(newCenter.latitude - lastSearchCenter.latitude, 2) +
-      Math.pow(newCenter.longitude - lastSearchCenter.longitude, 2)
-    );
-    if (dist > 0.003) {
-      if (regionChangeTimer.current) {
-        clearTimeout(regionChangeTimer.current);
-      }
-      regionChangeTimer.current = setTimeout(() => {
-        loadCurios(newCenter.latitude, newCenter.longitude);
-      }, 400);
+    if (regionChangeTimer.current) {
+      clearTimeout(regionChangeTimer.current);
     }
-  }, [lastSearchCenter]);
+    regionChangeTimer.current = setTimeout(() => {
+      loadCurios(region.latitude, region.longitude, region.latitudeDelta, region.longitudeDelta);
+    }, 400);
+  }, []);
 
   const centerOnUser = async () => {
     if (userLocation) {
@@ -662,6 +659,16 @@ export default function MapScreen() {
             <ActivityIndicator size="small" color={theme.accent} />
             <Text style={styles.loadingPillText}>Finding nearby curiosities...</Text>
           </View>
+        </View>
+      ) : null}
+
+      {/* Zoom-in banner - shown when too many places are in the viewport */}
+      {!isInitialLoading && tooManyPlaces ? (
+        <View style={[styles.zoomBannerContainer, { top: insets.top + Spacing.md + 56 }]}>
+          <BlurView intensity={60} tint={isDark ? "dark" : "light"} style={styles.zoomBanner}>
+            <Feather name="zoom-in" size={16} color={theme.accent} />
+            <Text style={styles.zoomBannerText}>Zoom in to discover curious places</Text>
+          </BlurView>
         </View>
       ) : null}
 
@@ -1025,6 +1032,27 @@ const createStyles = (theme: ThemeColors) => StyleSheet.create({
   loadingPillText: {
     color: theme.text,
     ...Typography.body,
+  },
+  zoomBannerContainer: {
+    position: "absolute",
+    left: Spacing.xl,
+    right: Spacing.xl,
+    alignItems: "center",
+    pointerEvents: "none",
+  },
+  zoomBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.full,
+    overflow: "hidden",
+  },
+  zoomBannerText: {
+    color: theme.text,
+    ...Typography.body,
+    fontWeight: "600",
   },
   map: {
     flex: 1,

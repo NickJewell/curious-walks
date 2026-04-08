@@ -249,6 +249,60 @@ export async function getCuriosNearPoint(
   return radiusFetchInProgress;
 }
 
+export async function getPlacesInViewport(
+  lat: number,
+  lng: number,
+  latitudeDelta: number,
+  longitudeDelta: number
+): Promise<Curio[]> {
+  const latMin = lat - latitudeDelta / 2;
+  const latMax = lat + latitudeDelta / 2;
+  const lngMin = lng - longitudeDelta / 2;
+  const lngMax = lng + longitudeDelta / 2;
+
+  try {
+    const { data, error } = await supabase
+      .from('places')
+      .select('*')
+      .eq('visible_flag', true)
+      .gte('lat', latMin)
+      .lte('lat', latMax)
+      .gte('lon', lngMin)
+      .lte('lon', lngMax)
+      .limit(200);
+
+    if (error) {
+      console.error('Error fetching viewport places:', error.message);
+      return [];
+    }
+
+    if (!data || data.length === 0) return [];
+
+    return data.map(place => {
+      const placeLat = place.latitude ?? place.lat ?? place.y;
+      const placeLng = place.longitude ?? place.lng ?? place.lon ?? place.x;
+      const placeId = place.curio_id ?? place['curio-id'] ?? place.uuid ?? place.id ?? place.place_id ?? String(Math.random());
+      const placeName = place.name ?? place.title ?? 'Unknown';
+      const placeDesc = place.detail_overview ?? place['detail-overview'] ?? place.description ?? place.desc ?? place.summary ?? '';
+      const placeType = place.curio_type ?? place['curio-type'] ?? '';
+      const audioPath = place.detail_audio_path ?? place['detail-audio-path'] ?? null;
+
+      return {
+        id: placeId,
+        name: placeName,
+        description: placeDesc,
+        latitude: placeLat,
+        longitude: placeLng,
+        curioType: placeType,
+        detailAudioPath: audioPath,
+      };
+    }).filter(p => p.latitude != null && p.longitude != null);
+  } catch (error) {
+    console.error('Error fetching viewport places:', error);
+    return [];
+  }
+}
+
 let nearest20InProgress: Promise<Curio[]> | null = null;
 let nearest20Cache: { lat: number; lng: number; data: Curio[]; timestamp: number } | null = null;
 
