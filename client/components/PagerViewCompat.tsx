@@ -1,4 +1,4 @@
-import React from "react";
+import React, { forwardRef } from "react";
 import PagerView from "react-native-pager-view";
 import { StyleSheet, ViewStyle } from "react-native";
 
@@ -9,22 +9,24 @@ interface PagerViewCompatProps {
   children: React.ReactNode;
 }
 
-export default function PagerViewCompat({
-  style,
-  initialPage = 0,
-  onPageSelected,
-  children,
-}: PagerViewCompatProps) {
-  return (
-    <PagerView
-      style={[styles.pager, style]}
-      initialPage={initialPage}
-      onPageSelected={onPageSelected}
-    >
-      {children}
-    </PagerView>
-  );
-}
+const PagerViewCompat = forwardRef<any, PagerViewCompatProps>(
+  ({ style, initialPage = 0, onPageSelected, children }, ref) => {
+    return (
+      <PagerView
+        ref={ref}
+        style={[styles.pager, style]}
+        initialPage={initialPage}
+        onPageSelected={onPageSelected}
+      >
+        {children}
+      </PagerView>
+    );
+  }
+);
+
+PagerViewCompat.displayName = "PagerViewCompat";
+
+export default PagerViewCompat;
 
 const styles = StyleSheet.create({
   pager: {

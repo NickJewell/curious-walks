@@ -6,13 +6,12 @@ import Animated, {
   withRepeat,
   withTiming,
   Easing,
-  cancelAnimation,
 } from "react-native-reanimated";
 import SafeMapView, { Marker, PROVIDER_GOOGLE, isMapAvailable } from "@/components/SafeMapView";
 import { darkMapStyle, lightMapStyle } from "@/constants/mapStyle";
 import { useTheme } from "@/hooks/useTheme";
 import { getGreatCircleBearing } from "geolib";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { Spacing } from "@/constants/theme";
 
 const PULSE_THRESHOLD = 1000;
 
@@ -33,7 +32,7 @@ function getPulseTier(distance: number): number {
 
 function bearingToCardinal(bearing: number): string {
   const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-  const index = Math.round(((bearing % 360) + 360) % 360 / 45) % 8;
+  const index = Math.round((((bearing % 360) + 360) % 360) / 45) % 8;
   return dirs[index];
 }
 
@@ -41,6 +40,66 @@ function formatDistance(distance: number): string {
   if (distance >= 1000) return `${(distance / 1000).toFixed(1)} km`;
   return `${Math.round(distance)} m`;
 }
+
+interface PulseRingMarkerProps {
+  coordinate: { latitude: number; longitude: number };
+  duration: number;
+}
+
+function PulseRingMarker({ coordinate, duration }: PulseRingMarkerProps) {
+  const pulseScale = useSharedValue(1);
+  const pulseOpacity = useSharedValue(0.75);
+
+  useEffect(() => {
+    pulseScale.value = withRepeat(
+      withTiming(2.8, { duration, easing: Easing.out(Easing.ease) }),
+      -1,
+      false
+    );
+    pulseOpacity.value = withRepeat(
+      withTiming(0, { duration, easing: Easing.out(Easing.ease) }),
+      -1,
+      false
+    );
+  }, []);
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
+    opacity: pulseOpacity.value,
+  }));
+
+  if (!isMapAvailable || !Marker) return null;
+
+  return (
+    <Marker
+      coordinate={coordinate}
+      anchor={{ x: 0.5, y: 0.5 }}
+      tracksViewChanges={false}
+      zIndex={9}
+    >
+      <View style={pulseStyles.container}>
+        <Animated.View style={[pulseStyles.ring, pulseStyle]} />
+      </View>
+    </Marker>
+  );
+}
+
+const pulseStyles = StyleSheet.create({
+  container: {
+    width: 80,
+    height: 80,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  ring: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 2.5,
+    borderColor: "#D4AF7A",
+    backgroundColor: "transparent",
+  },
+});
 
 interface HuntMapViewProps {
   userLocation: { latitude: number; longitude: number } | null;
@@ -53,37 +112,9 @@ export default function HuntMapView({ userLocation, target, distance }: HuntMapV
   const mapRef = useRef<any>(null);
   const fittedRef = useRef(false);
 
-  const pulseScale = useSharedValue(1);
-  const pulseOpacity = useSharedValue(0);
-
   const shouldPulse = distance !== null && distance < PULSE_THRESHOLD;
   const pulseTier = distance !== null ? getPulseTier(distance) : 0;
   const pulseDuration = distance !== null ? getPulseDuration(distance) : 2000;
-
-  useEffect(() => {
-    cancelAnimation(pulseScale);
-    cancelAnimation(pulseOpacity);
-
-    if (!shouldPulse) {
-      pulseScale.value = 1;
-      pulseOpacity.value = 0;
-      return;
-    }
-
-    pulseScale.value = 1;
-    pulseOpacity.value = 0.7;
-
-    pulseScale.value = withRepeat(
-      withTiming(2.6, { duration: pulseDuration, easing: Easing.out(Easing.ease) }),
-      -1,
-      false
-    );
-    pulseOpacity.value = withRepeat(
-      withTiming(0, { duration: pulseDuration, easing: Easing.out(Easing.ease) }),
-      -1,
-      false
-    );
-  }, [pulseTier]);
 
   useEffect(() => {
     if (userLocation && mapRef.current && !fittedRef.current) {
@@ -103,18 +134,12 @@ export default function HuntMapView({ userLocation, target, distance }: HuntMapV
     }
   }, [userLocation]);
 
-  const pulseStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulseScale.value }],
-    opacity: pulseOpacity.value,
-  }));
-
-  const bearing =
-    userLocation
-      ? getGreatCircleBearing(
-          { latitude: userLocation.latitude, longitude: userLocation.longitude },
-          { latitude: target.latitude, longitude: target.longitude }
-        )
-      : null;
+  const bearing = userLocation
+    ? getGreatCircleBearing(
+        { latitude: userLocation.latitude, longitude: userLocation.longitude },
+        { latitude: target.latitude, longitude: target.longitude }
+      )
+    : null;
   const cardinal = bearing !== null ? bearingToCardinal(bearing) : null;
 
   if (!isMapAvailable) {
@@ -143,6 +168,14 @@ export default function HuntMapView({ userLocation, target, distance }: HuntMapV
           longitudeDelta: 0.012,
         }}
       >
+        {shouldPulse ? (
+          <PulseRingMarker
+            key={`pulse-tier-${pulseTier}`}
+            coordinate={{ latitude: target.latitude, longitude: target.longitude }}
+            duration={pulseDuration}
+          />
+        ) : null}
+
         <Marker
           coordinate={{ latitude: target.latitude, longitude: target.longitude }}
           anchor={{ x: 0.5, y: 0.5 }}
@@ -150,9 +183,6 @@ export default function HuntMapView({ userLocation, target, distance }: HuntMapV
           zIndex={10}
         >
           <View style={styles.markerContainer}>
-            {shouldPulse ? (
-              <Animated.View style={[styles.pulseRing, pulseStyle]} />
-            ) : null}
             <View style={styles.targetDot} />
           </View>
         </Marker>
@@ -187,19 +217,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   markerContainer: {
-    width: 80,
-    height: 80,
+    width: 40,
+    height: 40,
     justifyContent: "center",
     alignItems: "center",
-  },
-  pulseRing: {
-    position: "absolute",
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 2.5,
-    borderColor: "#D4AF7A",
-    backgroundColor: "transparent",
   },
   targetDot: {
     width: 20,

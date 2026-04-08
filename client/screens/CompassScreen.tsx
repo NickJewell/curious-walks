@@ -84,6 +84,7 @@ export default function CompassScreen({ navigation }: Props) {
   const { addCheckin, removeCheckin } = useCheckins();
 
   const [currentPage, setCurrentPage] = useState(0);
+  const pagerRef = useRef<any>(null);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
   const [distance, setDistance] = useState<number | null>(null);
@@ -582,6 +583,7 @@ export default function CompassScreen({ navigation }: Props) {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <PagerView
+        ref={pagerRef}
         style={styles.pager}
         initialPage={0}
         onPageSelected={(e) => setCurrentPage(e.nativeEvent.position)}
@@ -670,10 +672,32 @@ export default function CompassScreen({ navigation }: Props) {
         </View>
       </PagerView>
 
-      {/* Page indicator dots */}
-      <View style={styles.pageIndicator}>
-        <View style={[styles.pageDot, currentPage === 0 && styles.pageDotActive]} />
-        <View style={[styles.pageDot, currentPage === 1 && styles.pageDotActive]} />
+      {/* Mode switcher tabs */}
+      <View style={styles.modeSwitcher}>
+        <Pressable
+          style={[styles.modeButton, currentPage === 0 && styles.modeButtonActive]}
+          onPress={() => {
+            pagerRef.current?.setPage(0);
+            setCurrentPage(0);
+          }}
+        >
+          <Feather name="map" size={15} color={currentPage === 0 ? "#000000" : "#888888"} />
+          <Text style={[styles.modeButtonText, currentPage === 0 && styles.modeButtonTextActive]}>
+            Map
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.modeButton, currentPage === 1 && styles.modeButtonActive]}
+          onPress={() => {
+            pagerRef.current?.setPage(1);
+            setCurrentPage(1);
+          }}
+        >
+          <Feather name="compass" size={15} color={currentPage === 1 ? "#000000" : "#888888"} />
+          <Text style={[styles.modeButtonText, currentPage === 1 && styles.modeButtonTextActive]}>
+            Compass
+          </Text>
+        </Pressable>
       </View>
 
       {/* Shared bottom: check-in + controls */}
@@ -776,23 +800,34 @@ const styles = StyleSheet.create({
   compassPage: {
     paddingTop: Spacing.lg,
   },
-  pageIndicator: {
+  modeSwitcher: {
     flexDirection: "row",
-    justifyContent: "center",
+    marginHorizontal: Spacing.lg,
+    marginVertical: Spacing.sm,
+    backgroundColor: "#1A1A1A",
+    borderRadius: 12,
+    padding: 3,
+    gap: 3,
+  },
+  modeButton: {
+    flex: 1,
+    flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
-    paddingVertical: Spacing.sm,
+    justifyContent: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm + 2,
+    borderRadius: 10,
   },
-  pageDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#444444",
-  },
-  pageDotActive: {
+  modeButtonActive: {
     backgroundColor: "#D4AF7A",
-    width: 18,
-    borderRadius: 3,
+  },
+  modeButtonText: {
+    color: "#888888",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  modeButtonTextActive: {
+    color: "#000000",
   },
   noTargetContainer: {
     flex: 1,
