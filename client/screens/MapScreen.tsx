@@ -200,6 +200,7 @@ export default function MapScreen() {
   const initialLoadDone = useRef(false);
   const initialRegionRef = useRef<{ latitude: number; longitude: number }>(LONDON_CENTER);
   const locationResolved = useRef(false);
+  const fetchVersionRef = useRef(0);
   
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -476,9 +477,11 @@ export default function MapScreen() {
   };
 
   const loadCurios = async (lat: number, lng: number, latitudeDelta: number = 0.01, longitudeDelta: number = 0.01) => {
+    const version = ++fetchVersionRef.current;
     setLoading(true);
     try {
       const data = await getPlacesInViewport(lat, lng, latitudeDelta, longitudeDelta);
+      if (version !== fetchVersionRef.current) return;
       if (data.length > 50) {
         setTooManyPlaces(true);
         setCurios([]);
@@ -488,10 +491,14 @@ export default function MapScreen() {
       }
       initialLoadDone.current = true;
     } catch (error) {
+      if (version !== fetchVersionRef.current) return;
       console.error("Error loading curios:", error);
+      setTooManyPlaces(false);
       initialLoadDone.current = true;
     } finally {
-      setLoading(false);
+      if (version === fetchVersionRef.current) {
+        setLoading(false);
+      }
     }
   };
 
