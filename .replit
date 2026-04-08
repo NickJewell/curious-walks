@@ -54,8 +54,4 @@ ensurePreviewReachable = "/status"
 [userenv]
 
 [userenv.shared]
-EXPO_PUBLIC_SUPABASE_URL = "https://wyaqiumvemsyrjfciuzj.supabase.co"
-EXPO_PUBLIC_SUPABASE_ANON_KEY = "sb_publishable_2zNuGtVYGcRDu587F_8_Sg_p1f8GlZS"
-EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID = "995767086370-boe4n3atulnjtc3qlisuqbo0shu60in9.apps.googleusercontent.com"
-EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID = "995767086370-02b84qmu4rch5u5bdvs29ld0s41mtgb2.apps.googleusercontent.com"
 
