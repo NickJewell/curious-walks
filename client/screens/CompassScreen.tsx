@@ -288,10 +288,6 @@ export default function CompassScreen({ navigation }: Props) {
     }).start();
   }, [userLocation, activeTarget, heading]);
 
-  const handleViewOnMap = () => {
-    navigation.navigate("Main");
-  };
-
   const handleStopHunt = () => {
     setActiveTarget(null);
     if (fromTour && navigation.canGoBack()) {
@@ -749,17 +745,6 @@ export default function CompassScreen({ navigation }: Props) {
       ) : null}
 
       <View style={[styles.controls, { paddingBottom: insets.bottom + Spacing.lg }]}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.controlButton,
-            pressed && styles.controlButtonPressed,
-          ]}
-          onPress={handleViewOnMap}
-        >
-          <Feather name="map" size={20} color="#FFFFFF" />
-          <Text style={styles.controlButtonText}>Explore Map</Text>
-        </Pressable>
-
         <Pressable
           style={({ pressed }) => [
             styles.controlButton,
